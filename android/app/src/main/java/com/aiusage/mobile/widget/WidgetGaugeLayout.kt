@@ -1,5 +1,7 @@
 package com.aiusage.mobile.widget
 
+private const val EXPANDED_GAUGE_WIDTH_DP = 194
+
 data class WidgetGaugeLayoutSpec(
     val iconSizeDp: Int,
     val gaugeWidthDp: Int,
@@ -19,9 +21,9 @@ fun compactGaugeLayoutSpec(visibleGaugeCount: Int): WidgetGaugeLayoutSpec {
 
 fun expandedGaugeLayoutSpec(visibleGaugeCount: Int): WidgetGaugeLayoutSpec {
     return when (visibleGaugeCount.coerceIn(1, 4)) {
-        1 -> WidgetGaugeLayoutSpec(iconSizeDp = 24, gaugeWidthDp = 176, gaugeHeightDp = 14, gaugeRadiusDp = 7, rowSpacerHeightDp = 0)
-        2 -> WidgetGaugeLayoutSpec(iconSizeDp = 22, gaugeWidthDp = 176, gaugeHeightDp = 12, gaugeRadiusDp = 6, rowSpacerHeightDp = 12)
-        3 -> WidgetGaugeLayoutSpec(iconSizeDp = 20, gaugeWidthDp = 176, gaugeHeightDp = 10, gaugeRadiusDp = 5, rowSpacerHeightDp = 7)
-        else -> WidgetGaugeLayoutSpec(iconSizeDp = 18, gaugeWidthDp = 176, gaugeHeightDp = 8, gaugeRadiusDp = 4, rowSpacerHeightDp = 5)
+        1 -> WidgetGaugeLayoutSpec(iconSizeDp = 24, gaugeWidthDp = EXPANDED_GAUGE_WIDTH_DP, gaugeHeightDp = 14, gaugeRadiusDp = 7, rowSpacerHeightDp = 0)
+        2 -> WidgetGaugeLayoutSpec(iconSizeDp = 22, gaugeWidthDp = EXPANDED_GAUGE_WIDTH_DP, gaugeHeightDp = 12, gaugeRadiusDp = 6, rowSpacerHeightDp = 12)
+        3 -> WidgetGaugeLayoutSpec(iconSizeDp = 20, gaugeWidthDp = EXPANDED_GAUGE_WIDTH_DP, gaugeHeightDp = 10, gaugeRadiusDp = 5, rowSpacerHeightDp = 7)
+        else -> WidgetGaugeLayoutSpec(iconSizeDp = 18, gaugeWidthDp = EXPANDED_GAUGE_WIDTH_DP, gaugeHeightDp = 8, gaugeRadiusDp = 4, rowSpacerHeightDp = 5)
     }
 }

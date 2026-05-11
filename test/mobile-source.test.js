@@ -124,7 +124,11 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(nightColors, /name="widget_caption">#CBD5E1/);
   assert.match(widgetLayout, /gaugeWidthDp = 41/);
   assert.match(widgetLayout, /gaugeWidthDp = 42/);
-  assert.match(widgetLayout, /gaugeWidthDp = 176/);
+  assert.match(widgetLayout, /EXPANDED_GAUGE_WIDTH_DP = 194/);
+  assert.match(widget, /EXPANDED_CAPTION_REMAINING_WIDTH_DP = 66/);
+  assert.match(widget, /EXPANDED_CAPTION_SPACER_WIDTH_DP = 8/);
+  assert.match(widget, /Row\(\s*modifier = GlanceModifier\.width\(layoutSpec\.gaugeWidthDp\.dp\)/);
+  assert.match(widget, /layoutSpec\.gaugeWidthDp - EXPANDED_CAPTION_REMAINING_WIDTH_DP - EXPANDED_CAPTION_SPACER_WIDTH_DP/);
   assert.doesNotMatch(widgetLayout, /gaugeWidthDp = 51/);
   assert.doesNotMatch(widgetLayout, /gaugeWidthDp = 53/);
   assert.doesNotMatch(widgetLayout, /gaugeWidthDp = 220/);

@@ -106,6 +106,10 @@ private fun CompactGauge(gauge: WidgetProviderGauge, layoutSpec: WidgetGaugeLayo
 
 @Composable
 private fun IconGauge(gauge: WidgetProviderGauge, layoutSpec: WidgetGaugeLayoutSpec) {
+    val resetTextWidthDp = (
+        layoutSpec.gaugeWidthDp - EXPANDED_CAPTION_REMAINING_WIDTH_DP - EXPANDED_CAPTION_SPACER_WIDTH_DP
+    ).coerceAtLeast(0)
+
     Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
         Image(
             provider = ImageProvider(providerIconRes(gauge.providerId)),
@@ -121,16 +125,18 @@ private fun IconGauge(gauge: WidgetProviderGauge, layoutSpec: WidgetGaugeLayoutS
                 radius = layoutSpec.gaugeRadiusDp.dp
             )
             Spacer(modifier = GlanceModifier.height(2.dp))
-            Row {
+            Row(
+                modifier = GlanceModifier.width(layoutSpec.gaugeWidthDp.dp)
+            ) {
                 Text(
                     text = gauge.remainingText,
-                    modifier = GlanceModifier.width(92.dp),
+                    modifier = GlanceModifier.width(EXPANDED_CAPTION_REMAINING_WIDTH_DP.dp),
                     style = WidgetCaptionStyle
                 )
-                Spacer(modifier = GlanceModifier.width(8.dp))
+                Spacer(modifier = GlanceModifier.width(EXPANDED_CAPTION_SPACER_WIDTH_DP.dp))
                 Text(
                     text = gauge.resetText.orEmpty(),
-                    modifier = GlanceModifier.width(120.dp),
+                    modifier = GlanceModifier.width(resetTextWidthDp.dp),
                     style = WidgetCaptionStyle.copy(textAlign = TextAlign.End)
                 )
             }
@@ -181,6 +187,8 @@ private fun gaugeColor(ratio: Float): Color {
 }
 
 private const val MAX_VISIBLE_GAUGES = 4
+private const val EXPANDED_CAPTION_REMAINING_WIDTH_DP = 66
+private const val EXPANDED_CAPTION_SPACER_WIDTH_DP = 8
 
 private val WidgetCaptionStyle = TextStyle(
     color = ColorProvider(R.color.widget_caption),
