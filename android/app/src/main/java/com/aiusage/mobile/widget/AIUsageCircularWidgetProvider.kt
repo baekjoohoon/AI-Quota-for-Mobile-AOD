@@ -89,8 +89,11 @@ class AIUsageCircularWidgetProvider : AppWidgetProvider() {
                 strokeWidth = RING_STROKE_WIDTH
             }
 
+            val consumedSweep = 360f * (1f - ratio)
+            val remainingStartAngle = -90f + consumedSweep
+
             canvas.drawArc(rect, -90f, 360f, false, trackPaint)
-            canvas.drawArc(rect, -90f, 360f * ratio, false, activePaint)
+            canvas.drawArc(rect, remainingStartAngle, 360f * ratio, false, activePaint)
             drawProviderIcon(context, canvas, gauge.providerId)
             return bitmap
         }

@@ -182,6 +182,10 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(circularWidget, /parseWidgetProviderGauges/);
   assert.match(circularWidget, /WidgetSnapshotCache\(context\)\.readState\(\)\.snapshotJson/);
   assert.match(circularWidget, /drawArc/);
+  assert.match(circularWidget, /val consumedSweep = 360f \* \(1f - ratio\)/);
+  assert.match(circularWidget, /val remainingStartAngle = -90f \+ consumedSweep/);
+  assert.match(circularWidget, /canvas\.drawArc\(rect, -90f, 360f, false, trackPaint\)/);
+  assert.match(circularWidget, /canvas\.drawArc\(rect, remainingStartAngle, 360f \* ratio, false, activePaint\)/);
   assert.match(circularWidget, /drawProviderIcon/);
   assert.match(circularWidgetLayout, /@drawable\/widget_background_rounded/);
   assert.match(circularWidget, /providerIconRes/);
