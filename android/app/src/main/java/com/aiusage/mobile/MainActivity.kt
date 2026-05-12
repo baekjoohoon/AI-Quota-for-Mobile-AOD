@@ -11,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -46,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -283,6 +286,23 @@ fun AIUsageApp(
         }
     }
 
+    if (currentUser == null) {
+        LoginScreen(
+            signingIn = signingIn,
+            authMessage = authMessage,
+            onGoogleSignIn = {
+                signingIn = true
+                authMessage = null
+                val googleIntent = GoogleSignIn.getClient(
+                    activity,
+                    activity.googleSignInOptions()
+                ).signInIntent
+                googleLauncher.launch(googleIntent)
+            }
+        )
+        return
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -291,30 +311,6 @@ fun AIUsageApp(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        authMessage?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-
-        if (currentUser == null) {
-            Spacer(modifier = Modifier.height(HeaderTopOffset))
-            Text("AI Usage", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = InkColor)
-            Button(
-                onClick = {
-                    signingIn = true
-                    authMessage = null
-                    val googleIntent = GoogleSignIn.getClient(
-                        activity,
-                        activity.googleSignInOptions()
-                    ).signInIntent
-                    googleLauncher.launch(googleIntent)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = PillShape,
-                colors = ButtonDefaults.buttonColors(containerColor = BrandPurple)
-            ) {
-                Text(if (signingIn) "Signing in..." else "Continue with Google")
-            }
-            return@Column
-        }
-
         SignedInContent(
             user = currentUser,
             deviceList = deviceList,
@@ -399,6 +395,115 @@ fun AIUsageApp(
                 showSettings = false
             }
         )
+    }
+}
+
+@Composable
+private fun LoginScreen(
+    signingIn: Boolean,
+    authMessage: String?,
+    onGoogleSignIn: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(WindowsAppBackground)
+            .padding(28.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Surface(
+                modifier = Modifier.size(132.dp),
+                shape = RoundedCornerShape(34.dp),
+                color = PanelColor,
+                tonalElevation = 0.dp,
+                shadowElevation = 8.dp,
+                border = BorderStroke(1.dp, DividerColor)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Image(
+                        painter = painterResource(R.mipmap.ic_launcher_foreground),
+                        contentDescription = "AI Usage icon",
+                        modifier = Modifier.size(106.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(28.dp))
+            Text(
+                text = "AI Usage",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = InkColor
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "Sign in to sync your usage limits",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MutedColor
+            )
+            Spacer(modifier = Modifier.height(34.dp))
+            Surface(
+                modifier = Modifier.size(48.dp),
+                shape = PillShape,
+                color = PanelColor,
+                border = BorderStroke(1.dp, DividerColor),
+                shadowElevation = 2.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_google_g),
+                        contentDescription = "Google",
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            GoogleButtonSurface(
+                signingIn = signingIn,
+                onClick = {
+                    if (!signingIn) onGoogleSignIn()
+                }
+            )
+            authMessage?.let {
+                Spacer(modifier = Modifier.height(18.dp))
+                Text(it, style = MaterialTheme.typography.bodySmall, color = DangerColor)
+            }
+        }
+    }
+}
+
+@Composable
+private fun GoogleButtonSurface(
+    signingIn: Boolean,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        enabled = !signingIn,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(54.dp),
+        shape = PillShape,
+        border = BorderStroke(1.dp, DividerColor),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = PanelColor,
+            contentColor = InkColor,
+            disabledContainerColor = PanelColor,
+            disabledContentColor = MutedColor
+        ),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp, pressedElevation = 0.dp)
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_google_g),
+            contentDescription = "Google",
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(if (signingIn) "Signing in..." else "Continue with Google", fontWeight = FontWeight.SemiBold)
     }
 }
 

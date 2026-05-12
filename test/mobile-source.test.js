@@ -165,6 +165,12 @@ test("Android main UI uses Firebase auth with device list, rename flow, and snap
   assert.match(styles, /windowActionBar">false/);
   assert.match(styles, /windowNoTitle">true/);
   assert.match(main, /Continue with Google/);
+  assert.match(main, /LoginScreen/);
+  assert.match(main, /painterResource\(R\.mipmap\.ic_launcher_foreground\)/);
+  assert.match(main, /painterResource\(R\.drawable\.ic_google_g\)/);
+  assert.match(main, /GoogleButtonSurface/);
+  assert.match(main, /contentDescription = "AI Usage icon"/);
+  assert.match(main, /contentDescription = "Google"/);
   assert.match(main, /FirebaseAuth/);
   assert.match(main, /GoogleSignInOptions/);
   assert.match(main, /GoogleAuthProvider/);
