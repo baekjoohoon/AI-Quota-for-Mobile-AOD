@@ -134,7 +134,11 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(circularWidgetLayout, /circular_gauge_0/);
   assert.match(circularWidgetLayout, /circular_gauge_3/);
   assert.match(circularPreviewLayout, /@drawable\/widget_background_rounded/);
+  assert.match(circularPreviewLayout, /android:layout_width="160dp"/);
+  assert.match(circularPreviewLayout, /android:layout_height="160dp"/);
   assert.match(circularPreviewLayout, /@drawable\/widget_preview_circle_ring/);
+  assert.match(circularPreviewLayout, /android:layout_width="56dp"/);
+  assert.match(circularPreviewLayout, /android:layout_height="56dp"/);
   assert.match(circularPreviewLayout, /@drawable\/ic_provider_claude/);
   assert.match(circularPreviewLayout, /@drawable\/ic_provider_copilot/);
   assert.match(largePreviewLayout, /@drawable\/widget_background_rounded/);
@@ -152,7 +156,12 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(nightColors, /name="widget_caption">#CBD5E1/);
   assert.match(widgetLayout, /gaugeWidthDp = 41/);
   assert.match(widgetLayout, /gaugeWidthDp = 42/);
-  assert.match(widgetLayout, /EXPANDED_GAUGE_WIDTH_DP = 194/);
+  assert.match(widgetLayout, /EXPANDED_GAUGE_WIDTH_DP = 204/);
+  assert.match(widgetLayout, /gaugeHeightDp = 10/);
+  assert.match(widgetLayout, /rowSpacerHeightDp = 8/);
+  assert.match(widgetLayout, /rowHeightDp = 38/);
+  assert.match(widget, /layoutSpec\.rowHeightDp > 0/);
+  assert.match(widget, /GlanceModifier\.height\(layoutSpec\.rowHeightDp\.dp\)/);
   assert.match(widget, /EXPANDED_CAPTION_REMAINING_WIDTH_DP = 66/);
   assert.match(widget, /EXPANDED_CAPTION_SPACER_WIDTH_DP = 8/);
   assert.match(widget, /Row\(\s*modifier = GlanceModifier\.width\(layoutSpec\.gaugeWidthDp\.dp\)/);

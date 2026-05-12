@@ -74,10 +74,19 @@ private fun AIUsageWidgetContent(gauges: List<WidgetProviderGauge>) {
         }
 
         visibleGauges.forEachIndexed { index, gauge ->
-            if (isCompact) {
-                CompactGauge(gauge, layoutSpec)
+            val rowModifier = if (layoutSpec.rowHeightDp > 0) {
+                GlanceModifier.height(layoutSpec.rowHeightDp.dp)
             } else {
-                IconGauge(gauge, layoutSpec)
+                GlanceModifier
+            }
+            if (isCompact) {
+                Box(modifier = rowModifier) {
+                    CompactGauge(gauge, layoutSpec)
+                }
+            } else {
+                Box(modifier = rowModifier) {
+                    IconGauge(gauge, layoutSpec)
+                }
             }
             if (index < visibleGauges.lastIndex && layoutSpec.rowSpacerHeightDp > 0) {
                 Spacer(modifier = GlanceModifier.height(layoutSpec.rowSpacerHeightDp.dp))
