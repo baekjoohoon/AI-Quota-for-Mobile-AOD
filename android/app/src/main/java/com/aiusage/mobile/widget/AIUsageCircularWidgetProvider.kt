@@ -14,6 +14,7 @@ import android.view.View
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
 import com.aiusage.mobile.R
+import com.google.firebase.auth.FirebaseAuth
 
 class AIUsageCircularWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
@@ -46,12 +47,21 @@ class AIUsageCircularWidgetProvider : AppWidgetProvider() {
             appWidgetIds: IntArray
         ) {
             if (appWidgetIds.isEmpty()) return
-            val gauges = parseWidgetProviderGauges(
-                WidgetSnapshotCache(context).readState().snapshotJson
-            ).take(MAX_CIRCULAR_GAUGES)
+            val isSignedIn = FirebaseAuth.getInstance().currentUser != null
+            val gauges = if (isSignedIn) {
+                parseWidgetProviderGauges(
+                    WidgetSnapshotCache(context).readState().snapshotJson
+                ).take(MAX_CIRCULAR_GAUGES)
+            } else {
+                emptyList()
+            }
 
             appWidgetIds.forEach { appWidgetId ->
                 val views = RemoteViews(context.packageName, R.layout.ai_usage_widget_circular)
+                views.setViewVisibility(
+                    R.id.circular_login_message,
+                    if (isSignedIn) View.GONE else View.VISIBLE
+                )
                 gaugeViewIds.forEachIndexed { index, viewId ->
                     val gauge = gauges.getOrNull(index)
                     if (gauge == null) {

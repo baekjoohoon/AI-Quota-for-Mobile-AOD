@@ -31,6 +31,7 @@ import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.aiusage.mobile.R
+import com.google.firebase.auth.FirebaseAuth
 
 open class AIUsageGlanceWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Responsive(
@@ -41,10 +42,42 @@ open class AIUsageGlanceWidget : GlanceAppWidget() {
     )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        val isSignedIn = FirebaseAuth.getInstance().currentUser != null
+        val signInMessage = context.getString(R.string.widget_sign_in_required)
+        val gauges = if (isSignedIn) {
+            parseWidgetProviderGauges(WidgetSnapshotCache(context).readState().snapshotJson)
+        } else {
+            emptyList()
+        }
+
         provideContent {
             // Widget renders only from the local cache written by the app refresh flow.
-            AIUsageWidgetContent(parseWidgetProviderGauges(WidgetSnapshotCache(context).readState().snapshotJson))
+            if (isSignedIn) {
+                AIUsageWidgetContent(gauges)
+            } else {
+                SignInRequiredWidgetContent(signInMessage)
+            }
         }
+    }
+}
+
+@Composable
+private fun SignInRequiredWidgetContent(message: String) {
+    Box(
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .cornerRadius(24.dp)
+            .background(widgetBackgroundColor())
+            .padding(14.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = message,
+            style = TextStyle(
+                color = ColorProvider(R.color.widget_caption),
+                textAlign = TextAlign.Center
+            )
+        )
     }
 }
 

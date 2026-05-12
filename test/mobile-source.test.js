@@ -64,6 +64,7 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   const circularWidgetXml = source("android/app/src/main/res/xml/ai_usage_widget_circular.xml");
   const circularWidgetLayout = source("android/app/src/main/res/layout/ai_usage_widget_circular.xml");
   const circularPreviewLayout = source("android/app/src/main/res/layout/ai_usage_widget_preview_2x2.xml");
+  const largeInitialLayout = source("android/app/src/main/res/layout/ai_usage_widget_initial_login.xml");
   const largePreviewLayout = source("android/app/src/main/res/layout/ai_usage_widget_preview_3x2.xml");
   const strings = source("android/app/src/main/res/values/strings.xml");
   const colors = source("android/app/src/main/res/values/colors.xml");
@@ -122,15 +123,20 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.equal(existsSync(join(root, "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml")), false);
   assert.equal(existsSync(join(root, "android/app/src/main/res/xml/ai_usage_widget.xml")), false);
   assert.doesNotMatch(strings, /widget_label_1x1/);
+  assert.match(strings, /name="widget_sign_in_required">Please sign in\./);
   assert.match(largeWidgetXml, /android:targetCellWidth="3"/);
   assert.match(largeWidgetXml, /android:targetCellHeight="2"/);
-  assert.match(largeWidgetXml, /android:initialLayout="@layout\/ai_usage_widget_preview_3x2"/);
+  assert.match(largeWidgetXml, /android:initialLayout="@layout\/ai_usage_widget_initial_login"/);
   assert.match(largeWidgetXml, /android:previewLayout="@layout\/ai_usage_widget_preview_3x2"/);
+  assert.match(largeInitialLayout, /@drawable\/widget_background_rounded/);
+  assert.match(largeInitialLayout, /@string\/widget_sign_in_required/);
   assert.match(circularWidgetXml, /android:targetCellWidth="2"/);
   assert.match(circularWidgetXml, /android:targetCellHeight="2"/);
   assert.match(circularWidgetXml, /@layout\/ai_usage_widget_circular/);
   assert.match(circularWidgetXml, /android:previewLayout="@layout\/ai_usage_widget_preview_2x2"/);
   assert.match(circularWidgetLayout, /@drawable\/widget_background_rounded/);
+  assert.match(circularWidgetLayout, /circular_login_message/);
+  assert.match(circularWidgetLayout, /@string\/widget_sign_in_required/);
   assert.match(circularWidgetLayout, /circular_gauge_0/);
   assert.match(circularWidgetLayout, /circular_gauge_3/);
   assert.match(circularPreviewLayout, /@drawable\/widget_background_rounded/);
@@ -146,6 +152,9 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(largePreviewLayout, /@drawable\/ic_provider_openai/);
   assert.match(largePreviewLayout, /@drawable\/ic_provider_gemini/);
   assert.match(widget, /widgetBackgroundColor/);
+  assert.match(widget, /FirebaseAuth\.getInstance\(\)\.currentUser/);
+  assert.match(widget, /R\.string\.widget_sign_in_required/);
+  assert.match(widget, /SignInRequiredWidgetContent/);
   assert.match(widget, /val isCompact = false/);
   assert.doesNotMatch(widget, /LocalSize\.current/);
   assert.match(widget, /\.background\(widgetBackgroundColor\(\)\)/);
@@ -164,7 +173,6 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(widgetLayout, /val rowHeightDp: Int = 0/);
   assert.doesNotMatch(widgetLayout, /rowHeightDp = 38/);
   assert.doesNotMatch(widget, /horizontalAlignment = Alignment\.Horizontal\.CenterHorizontally/);
-  assert.doesNotMatch(widget, /contentAlignment = Alignment\.Center/);
   assert.match(widget, /CompactGauge\(gauge, layoutSpec\)/);
   assert.match(widget, /IconGauge\(gauge, layoutSpec\)/);
   assert.match(widget, /EXPANDED_CAPTION_REMAINING_WIDTH_DP = 66/);
@@ -178,6 +186,9 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.doesNotMatch(widget, /class AIUsageGlanceWidgetReceiver/);
   assert.match(repo, /AIUsageCircularWidgetProvider\.updateAll\(context\)/);
   assert.match(circularWidget, /class AIUsageCircularWidgetProvider : AppWidgetProvider/);
+  assert.match(circularWidget, /FirebaseAuth\.getInstance\(\)\.currentUser/);
+  assert.match(circularWidget, /R\.id\.circular_login_message/);
+  assert.match(circularWidget, /if \(isSignedIn\) View\.GONE else View\.VISIBLE/);
   assert.match(circularWidget, /MAX_CIRCULAR_GAUGES = 4/);
   assert.match(circularWidget, /parseWidgetProviderGauges/);
   assert.match(circularWidget, /WidgetSnapshotCache\(context\)\.readState\(\)\.snapshotJson/);
@@ -261,7 +272,9 @@ test("Android main UI uses Firebase auth with device list, rename flow, and snap
   assert.match(main, /Signing in\.\.\./);
   assert.match(main, /stringResource\(R\.string\.settings_sign_out\)/);
   assert.match(strings, /name="settings_connected_devices">Connected devices/);
+  assert.match(strings, /name="widget_sign_in_required">Please sign in\./);
   assert.match(koreanStrings, /name="settings_connected_devices">연결된 장치/);
+  assert.match(koreanStrings, /name="widget_sign_in_required">로그인을 진행해주세요/);
   assert.match(main, /ForegroundRefreshController/);
   assert.match(main, /preciseRefreshEnabled/);
   assert.match(main, /preciseRefreshPromptSeen/);
