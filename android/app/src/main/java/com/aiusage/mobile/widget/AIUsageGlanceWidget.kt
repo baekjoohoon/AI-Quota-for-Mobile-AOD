@@ -8,7 +8,6 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.glance.Image
 import androidx.glance.ImageProvider
-import androidx.glance.LocalSize
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.appwidget.SizeMode
@@ -51,8 +50,7 @@ open class AIUsageGlanceWidget : GlanceAppWidget() {
 
 @Composable
 private fun AIUsageWidgetContent(gauges: List<WidgetProviderGauge>) {
-    val currentSize = LocalSize.current
-    val isCompact = currentSize.width < 140.dp || currentSize.height < 100.dp
+    val isCompact = false
     val visibleGauges = gauges.take(MAX_VISIBLE_GAUGES)
     val layoutSpec = if (isCompact) {
         compactGaugeLayoutSpec(visibleGauges.size)
@@ -74,19 +72,10 @@ private fun AIUsageWidgetContent(gauges: List<WidgetProviderGauge>) {
         }
 
         visibleGauges.forEachIndexed { index, gauge ->
-            val rowModifier = if (layoutSpec.rowHeightDp > 0) {
-                GlanceModifier.height(layoutSpec.rowHeightDp.dp)
-            } else {
-                GlanceModifier
-            }
             if (isCompact) {
-                Box(modifier = rowModifier) {
-                    CompactGauge(gauge, layoutSpec)
-                }
+                CompactGauge(gauge, layoutSpec)
             } else {
-                Box(modifier = rowModifier) {
-                    IconGauge(gauge, layoutSpec)
-                }
+                IconGauge(gauge, layoutSpec)
             }
             if (index < visibleGauges.lastIndex && layoutSpec.rowSpacerHeightDp > 0) {
                 Spacer(modifier = GlanceModifier.height(layoutSpec.rowSpacerHeightDp.dp))

@@ -146,6 +146,8 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(largePreviewLayout, /@drawable\/ic_provider_openai/);
   assert.match(largePreviewLayout, /@drawable\/ic_provider_gemini/);
   assert.match(widget, /widgetBackgroundColor/);
+  assert.match(widget, /val isCompact = false/);
+  assert.doesNotMatch(widget, /LocalSize\.current/);
   assert.match(widget, /\.background\(widgetBackgroundColor\(\)\)/);
   assert.match(widget, /cornerRadius\(if \(isCompact\) 20\.dp else 24\.dp\)/);
   assert.match(widget, /ColorProvider\(R\.color\.widget_background\)/);
@@ -159,9 +161,12 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(widgetLayout, /EXPANDED_GAUGE_WIDTH_DP = 204/);
   assert.match(widgetLayout, /gaugeHeightDp = 10/);
   assert.match(widgetLayout, /rowSpacerHeightDp = 8/);
-  assert.match(widgetLayout, /rowHeightDp = 38/);
-  assert.match(widget, /layoutSpec\.rowHeightDp > 0/);
-  assert.match(widget, /GlanceModifier\.height\(layoutSpec\.rowHeightDp\.dp\)/);
+  assert.match(widgetLayout, /val rowHeightDp: Int = 0/);
+  assert.doesNotMatch(widgetLayout, /rowHeightDp = 38/);
+  assert.doesNotMatch(widget, /horizontalAlignment = Alignment\.Horizontal\.CenterHorizontally/);
+  assert.doesNotMatch(widget, /contentAlignment = Alignment\.Center/);
+  assert.match(widget, /CompactGauge\(gauge, layoutSpec\)/);
+  assert.match(widget, /IconGauge\(gauge, layoutSpec\)/);
   assert.match(widget, /EXPANDED_CAPTION_REMAINING_WIDTH_DP = 66/);
   assert.match(widget, /EXPANDED_CAPTION_SPACER_WIDTH_DP = 8/);
   assert.match(widget, /Row\(\s*modifier = GlanceModifier\.width\(layoutSpec\.gaugeWidthDp\.dp\)/);
