@@ -109,6 +109,8 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(manifest, /android:foregroundServiceType="dataSync"/);
   assert.match(manifest, /AIUsageLargeGlanceWidgetReceiver/);
   assert.match(manifest, /@xml\/ai_usage_widget_large/);
+  assert.equal(existsSync(join(root, "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml")), false);
+  assert.equal(existsSync(join(root, "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml")), false);
   assert.match(widgetXml, /android:targetCellWidth="1"/);
   assert.match(widgetXml, /android:targetCellHeight="1"/);
   assert.match(largeWidgetXml, /android:targetCellWidth="3"/);
