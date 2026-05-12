@@ -445,23 +445,7 @@ private fun LoginScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MutedColor
             )
-            Spacer(modifier = Modifier.height(34.dp))
-            Surface(
-                modifier = Modifier.size(48.dp),
-                shape = PillShape,
-                color = PanelColor,
-                border = BorderStroke(1.dp, DividerColor),
-                shadowElevation = 2.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_google_g),
-                        contentDescription = "Google",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(28.dp))
             GoogleButtonSurface(
                 signingIn = signingIn,
                 onClick = {
