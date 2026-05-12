@@ -7,6 +7,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.aiusage.mobile.widget.AIUsageGlanceWidget
 import com.aiusage.mobile.widget.AIUsageLargeGlanceWidget
+import com.aiusage.mobile.widget.AIUsageCircularWidgetProvider
 import com.aiusage.mobile.widget.WidgetSnapshotCache
 import com.aiusage.mobile.notification.UsageLimitNotificationController
 import com.google.firebase.Timestamp
@@ -151,6 +152,7 @@ class SnapshotRepository(private val context: Context) {
         UsageLimitNotificationController.update(context, snapshotJson)
         AIUsageGlanceWidget().updateAll(context)
         AIUsageLargeGlanceWidget().updateAll(context)
+        AIUsageCircularWidgetProvider.updateAll(context)
     }
 
     fun latestCachedSnapshot(): String {

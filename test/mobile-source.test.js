@@ -59,8 +59,11 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   const widget = source("android/app/src/main/java/com/aiusage/mobile/widget/AIUsageGlanceWidget.kt");
   const widgetLayout = source("android/app/src/main/java/com/aiusage/mobile/widget/WidgetGaugeLayout.kt");
   const widgetParser = source("android/app/src/main/java/com/aiusage/mobile/widget/WidgetGaugeParser.kt");
+  const circularWidget = source("android/app/src/main/java/com/aiusage/mobile/widget/AIUsageCircularWidgetProvider.kt");
   const widgetXml = source("android/app/src/main/res/xml/ai_usage_widget.xml");
   const largeWidgetXml = source("android/app/src/main/res/xml/ai_usage_widget_large.xml");
+  const circularWidgetXml = source("android/app/src/main/res/xml/ai_usage_widget_circular.xml");
+  const circularWidgetLayout = source("android/app/src/main/res/layout/ai_usage_widget_circular.xml");
   const colors = source("android/app/src/main/res/values/colors.xml");
   const nightColors = source("android/app/src/main/res/values-night/colors.xml");
 
@@ -109,12 +112,20 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(manifest, /android:foregroundServiceType="dataSync"/);
   assert.match(manifest, /AIUsageLargeGlanceWidgetReceiver/);
   assert.match(manifest, /@xml\/ai_usage_widget_large/);
+  assert.match(manifest, /AIUsageCircularWidgetProvider/);
+  assert.match(manifest, /@xml\/ai_usage_widget_circular/);
   assert.equal(existsSync(join(root, "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml")), false);
   assert.equal(existsSync(join(root, "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml")), false);
   assert.match(widgetXml, /android:targetCellWidth="1"/);
   assert.match(widgetXml, /android:targetCellHeight="1"/);
   assert.match(largeWidgetXml, /android:targetCellWidth="3"/);
   assert.match(largeWidgetXml, /android:targetCellHeight="2"/);
+  assert.match(circularWidgetXml, /android:targetCellWidth="2"/);
+  assert.match(circularWidgetXml, /android:targetCellHeight="2"/);
+  assert.match(circularWidgetXml, /@layout\/ai_usage_widget_circular/);
+  assert.match(circularWidgetLayout, /@drawable\/widget_background_rounded/);
+  assert.match(circularWidgetLayout, /circular_gauge_0/);
+  assert.match(circularWidgetLayout, /circular_gauge_3/);
   assert.match(widget, /widgetBackgroundColor/);
   assert.match(widget, /\.background\(widgetBackgroundColor\(\)\)/);
   assert.match(widget, /cornerRadius\(if \(isCompact\) 20\.dp else 24\.dp\)/);
@@ -135,6 +146,15 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.doesNotMatch(widgetLayout, /gaugeWidthDp = 53/);
   assert.doesNotMatch(widgetLayout, /gaugeWidthDp = 220/);
   assert.match(widget, /AIUsageLargeGlanceWidget/);
+  assert.match(repo, /AIUsageCircularWidgetProvider\.updateAll\(context\)/);
+  assert.match(circularWidget, /class AIUsageCircularWidgetProvider : AppWidgetProvider/);
+  assert.match(circularWidget, /MAX_CIRCULAR_GAUGES = 4/);
+  assert.match(circularWidget, /parseWidgetProviderGauges/);
+  assert.match(circularWidget, /WidgetSnapshotCache\(context\)\.readState\(\)\.snapshotJson/);
+  assert.match(circularWidget, /drawArc/);
+  assert.match(circularWidget, /drawProviderIcon/);
+  assert.match(circularWidgetLayout, /@drawable\/widget_background_rounded/);
+  assert.match(circularWidget, /providerIconRes/);
   assert.match(foregroundController, /KEY_PRECISE_REFRESH_ENABLED/);
   assert.match(foregroundController, /KEY_PRECISE_REFRESH_PROMPT_SEEN/);
   assert.match(foregroundController, /startForegroundService/);
