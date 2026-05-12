@@ -199,10 +199,6 @@ private fun widgetBackgroundColor(): ColorProvider {
     return ColorProvider(R.color.widget_background)
 }
 
-class AIUsageGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = AIUsageGlanceWidget()
-}
-
 class AIUsageLargeGlanceWidget : AIUsageGlanceWidget()
 
 class AIUsageLargeGlanceWidgetReceiver : GlanceAppWidgetReceiver() {

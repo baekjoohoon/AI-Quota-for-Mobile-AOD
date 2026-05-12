@@ -1,6 +1,5 @@
 <resources>
     <string name="app_name">AI Usage</string>
-    <string name="widget_label_1x1">AI Usage 1x1</string>
     <string name="widget_label_2x2">AI Usage 2x2</string>
     <string name="widget_label_3x2">AI Usage 3x2</string>
     <string name="settings_open">Settings</string>

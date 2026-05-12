@@ -5,4 +5,7 @@
   android:targetCellHeight="2"
   android:resizeMode="horizontal|vertical"
   android:updatePeriodMillis="1800000"
-  android:widgetCategory="home_screen" />
+  android:widgetCategory="home_screen"
+  android:initialLayout="@layout/ai_usage_widget_preview_3x2"
+  android:previewLayout="@layout/ai_usage_widget_preview_3x2"
+  android:description="@string/widget_label_3x2" />
