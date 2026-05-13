@@ -69,6 +69,7 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   const strings = source("android/app/src/main/res/values/strings.xml");
   const colors = source("android/app/src/main/res/values/colors.xml");
   const nightColors = source("android/app/src/main/res/values-night/colors.xml");
+  const rules = source("firestore.rules");
 
   assert.match(models, /data class SnapshotRefreshResult/);
   assert.match(models, /data class SnapshotDevice/);
@@ -88,6 +89,7 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(repo, /resolveSnapshotStatus/);
   assert.match(repo, /saveForWidget/);
   assert.match(repo, /updateDeviceName/);
+  assert.match(repo, /deleteDevice/);
   assert.match(repo, /listDevices/);
   assert.match(repo, /rememberSignedInUser/);
   assert.match(repo, /scheduleWidgetRefresh/);
@@ -156,7 +158,7 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(widget, /R\.string\.widget_sign_in_required/);
   assert.match(widget, /SignInRequiredWidgetContent/);
   assert.match(widget, /val isCompact = false/);
-  assert.doesNotMatch(widget, /LocalSize\.current/);
+  assert.match(widget, /LocalSize\.current\.width\.value\.roundToInt\(\)/);
   assert.match(widget, /\.background\(widgetBackgroundColor\(\)\)/);
   assert.match(widget, /cornerRadius\(if \(isCompact\) 20\.dp else 24\.dp\)/);
   assert.match(widget, /ColorProvider\(R\.color\.widget_background\)/);
@@ -165,9 +167,11 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(colors, /name="widget_caption">#475569/);
   assert.match(nightColors, /name="widget_background">#B30F172A/);
   assert.match(nightColors, /name="widget_caption">#CBD5E1/);
-  assert.match(widgetLayout, /gaugeWidthDp = 41/);
-  assert.match(widgetLayout, /gaugeWidthDp = 42/);
+  assert.match(widgetLayout, /gaugeWidthDp = 51/);
+  assert.match(widgetLayout, /gaugeWidthDp = 53/);
   assert.match(widgetLayout, /EXPANDED_GAUGE_WIDTH_DP = 204/);
+  assert.match(widgetLayout, /EXPANDED_MAX_GAUGE_WIDTH_DP = 420/);
+  assert.match(widgetLayout, /widgetWidthDp -/);
   assert.match(widgetLayout, /gaugeHeightDp = 10/);
   assert.match(widgetLayout, /rowSpacerHeightDp = 8/);
   assert.match(widgetLayout, /val rowHeightDp: Int = 0/);
@@ -179,9 +183,10 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(widget, /EXPANDED_CAPTION_SPACER_WIDTH_DP = 8/);
   assert.match(widget, /Row\(\s*modifier = GlanceModifier\.width\(layoutSpec\.gaugeWidthDp\.dp\)/);
   assert.match(widget, /layoutSpec\.gaugeWidthDp - EXPANDED_CAPTION_REMAINING_WIDTH_DP - EXPANDED_CAPTION_SPACER_WIDTH_DP/);
-  assert.doesNotMatch(widgetLayout, /gaugeWidthDp = 51/);
-  assert.doesNotMatch(widgetLayout, /gaugeWidthDp = 53/);
+  assert.doesNotMatch(widgetLayout, /gaugeWidthDp = 41/);
+  assert.doesNotMatch(widgetLayout, /gaugeWidthDp = 42/);
   assert.doesNotMatch(widgetLayout, /gaugeWidthDp = 220/);
+  assert.match(rules, /allow delete: if isOwner\(userId\);/);
   assert.match(widget, /AIUsageLargeGlanceWidget/);
   assert.doesNotMatch(widget, /class AIUsageGlanceWidgetReceiver/);
   assert.match(repo, /AIUsageCircularWidgetProvider\.updateAll\(context\)/);
@@ -222,7 +227,6 @@ test("Android main UI uses Firebase auth with device list, rename flow, and snap
   const strings = source("android/app/src/main/res/values/strings.xml");
   const koreanStrings = source("android/app/src/main/res/values-ko/strings.xml");
   const gradle = source("android/app/build.gradle.kts");
-  const accountDeletion = source("docs/account-deletion.md");
   const privacyPolicy = source("docs/privacy-policy.md");
 
   assert.match(manifest, /android:theme="@style\/Theme\.AIUsage"/);
@@ -258,6 +262,10 @@ test("Android main UI uses Firebase auth with device list, rename flow, and snap
   assert.match(main, /SettingsPanel/);
   assert.match(main, /stringResource\(R\.string\.settings_rename_selected_device\)/);
   assert.match(main, /stringResource\(R\.string\.settings_save_device_name\)/);
+  assert.match(main, /stringResource\(R\.string\.settings_delete_device\)/);
+  assert.match(main, /combinedClickable/);
+  assert.match(main, /onLongClick/);
+  assert.match(main, /deleteCandidateDeviceId/);
   assert.match(main, /stringResource\(R\.string\.settings_selected_device\)/);
   assert.match(main, /stringResource\(R\.string\.settings_connected_devices\)/);
   assert.match(main, /Usage Limits/);
@@ -272,8 +280,10 @@ test("Android main UI uses Firebase auth with device list, rename flow, and snap
   assert.match(main, /Signing in\.\.\./);
   assert.match(main, /stringResource\(R\.string\.settings_sign_out\)/);
   assert.match(strings, /name="settings_connected_devices">Connected devices/);
+  assert.match(strings, /name="settings_delete_device">Delete device/);
   assert.match(strings, /name="widget_sign_in_required">Please sign in\./);
   assert.match(koreanStrings, /name="settings_connected_devices">연결된 장치/);
+  assert.match(koreanStrings, /name="settings_delete_device">장치 삭제/);
   assert.match(koreanStrings, /name="widget_sign_in_required">로그인을 진행해주세요/);
   assert.match(main, /ForegroundRefreshController/);
   assert.match(main, /preciseRefreshEnabled/);
@@ -281,17 +291,14 @@ test("Android main UI uses Firebase auth with device list, rename flow, and snap
   assert.match(main, /settings_precise_refresh/);
   assert.match(main, /precise_refresh_prompt_title/);
   assert.match(main, /stopPreciseRefresh/);
-  assert.match(main, /Intent\.ACTION_SENDTO/);
-  assert.match(main, /settings_request_account_deletion/);
+  assert.doesNotMatch(main, /Intent\.ACTION_SENDTO/);
+  assert.doesNotMatch(main, /settings_request_account_deletion/);
   assert.match(strings, /name="settings_precise_refresh">1-minute pinned refresh/);
   assert.match(strings, /name="precise_refresh_prompt_title">Keep widgets closer to real time\?/);
-  assert.match(strings, /name="support_email">datell1357@naver\.com/);
-  assert.match(strings, /name="settings_request_account_deletion">Request account deletion/);
+  assert.doesNotMatch(strings, /name="settings_request_account_deletion">Request account deletion/);
   assert.match(koreanStrings, /name="settings_precise_refresh">1분 고정 갱신/);
   assert.match(koreanStrings, /name="precise_refresh_prompt_title">위젯을 더 실시간에 가깝게 유지할까요\?/);
-  assert.match(koreanStrings, /name="settings_request_account_deletion">계정 삭제 요청/);
-  assert.match(accountDeletion, /datell1357@naver\.com/);
-  assert.match(accountDeletion, /Request account deletion/);
+  assert.doesNotMatch(koreanStrings, /name="settings_request_account_deletion">계정 삭제 요청/);
   assert.match(privacyPolicy, /datell1357@naver\.com/);
   assert.match(main, /providers\.forEach/);
   assert.doesNotMatch(main, /Text\(\s*"Windows PC"/);

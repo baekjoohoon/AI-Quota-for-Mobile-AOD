@@ -13,6 +13,9 @@
     <string name="settings_rename_selected_device">Rename selected device</string>
     <string name="settings_device_name">Device name</string>
     <string name="settings_save_device_name">Save device name</string>
+    <string name="settings_delete_device">Delete device</string>
+    <string name="settings_device_deleted">Device deleted</string>
+    <string name="settings_delete_device_failed">Could not delete device</string>
     <string name="settings_snapshot_status">Snapshot status</string>
     <string name="settings_refresh_latest_snapshot">Refresh latest snapshot</string>
     <string name="settings_refreshing_snapshot">Refreshing snapshot...</string>
@@ -22,12 +25,5 @@
     <string name="precise_refresh_prompt_body">AI Usage can keep a silent pinned notification active to refresh limits about every minute. If you skip this, widgets refresh in the background about every 5 minutes when Android allows it.</string>
     <string name="precise_refresh_enable">Enable 1-minute refresh</string>
     <string name="precise_refresh_standard">Use standard refresh</string>
-    <string name="support_email">datell1357@naver.com</string>
-    <string name="settings_account_deletion">Account and data deletion</string>
-    <string name="settings_account_deletion_description">Request deletion of your AI Usage account data and synced snapshots.</string>
-    <string name="settings_request_account_deletion">Request account deletion</string>
-    <string name="account_deletion_email_subject">AI Usage account deletion request</string>
-    <string name="account_deletion_email_body">Please delete my AI Usage account data and synced snapshots.\n\nSigned-in email: %1$s\nFirebase UID: %2$s\n\nI understand this may remove synced device and snapshot data.</string>
-    <string name="account_deletion_no_mail_app">No email app is available. Contact datell1357@naver.com to request deletion.</string>
     <string name="settings_sign_out">Sign out</string>
 </resources>

@@ -15,14 +15,6 @@ Deletion requests can include:
 
 AI Usage does not store provider access tokens, refresh tokens, API keys, provider credential files, local file paths, or raw logs in Firebase.
 
-## Request deletion in the app
-
-1. Open AI Usage on Android.
-2. Sign in with the Google account used for sync.
-3. Open Settings.
-4. Tap **Request account deletion**.
-5. Send the generated email.
-
 ## Request data deletion without deleting your account
 
 You may request deletion of synced Windows device records, synced usage snapshots, or display cache data without deleting your AI Usage account.
@@ -31,15 +23,15 @@ Email `datell1357@naver.com` with the subject:
 
 `AI Usage data deletion request`
 
-In the email, include the Google email address used to sign in and describe which data you want deleted, such as synced device records or synced snapshots. If available, include your Firebase UID from the app's generated email body.
+In the email, include the Google email address used to sign in and describe which data you want deleted, such as synced device records or synced snapshots.
 
-## Request deletion without the app
+## Request account deletion
 
 Email `datell1357@naver.com` with the subject:
 
 `AI Usage account deletion request`
 
-Include the Google email address used to sign in. If available, include your Firebase UID from the app's generated email body.
+Include the Google email address used to sign in.
 
 ## Processing
 

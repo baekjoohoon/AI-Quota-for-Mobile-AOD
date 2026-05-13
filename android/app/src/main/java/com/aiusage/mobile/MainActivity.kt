@@ -2,8 +2,6 @@ package com.aiusage.mobile
 
 import android.Manifest
 import android.app.Activity.RESULT_OK
-import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -11,8 +9,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -177,22 +177,6 @@ fun AIUsageApp(
         preciseRefreshPromptSeen = true
         preciseRefreshEnabled = false
         foregroundRefreshController.setPreciseRefreshEnabled(false)
-    }
-
-    fun requestAccountDeletion() {
-        val email = activity.getString(R.string.support_email)
-        val userEmail = currentUser?.email.orEmpty()
-        val uid = currentUser?.uid.orEmpty()
-        val intent = Intent(Intent.ACTION_SENDTO).apply {
-            data = Uri.parse("mailto:$email")
-            putExtra(Intent.EXTRA_SUBJECT, activity.getString(R.string.account_deletion_email_subject))
-            putExtra(Intent.EXTRA_TEXT, activity.getString(R.string.account_deletion_email_body, userEmail, uid))
-        }
-        runCatching {
-            activity.startActivity(intent)
-        }.onFailure {
-            snapshotMessage = activity.getString(R.string.account_deletion_no_mail_app)
-        }
     }
 
     fun loadDevices(uid: String) {
@@ -370,11 +354,26 @@ fun AIUsageApp(
                     }
                 }
             },
+            onDeleteDevice = { device ->
+                val uid = currentUser?.uid ?: return@SignedInContent
+                coroutineScope.launch {
+                    try {
+                        repository.deleteDevice(uid, device.deviceId)
+                        if (selectedDeviceId == device.deviceId) {
+                            selectedDeviceId = null
+                            renameDraft = ""
+                            snapshotResult = null
+                        }
+                        snapshotMessage = activity.getString(R.string.settings_device_deleted)
+                        loadDevices(uid)
+                        refreshLatestSnapshot(uid)
+                    } catch (error: Throwable) {
+                        snapshotMessage = error.message ?: activity.getString(R.string.settings_delete_device_failed)
+                    }
+                }
+            },
             onRefreshSnapshot = {
                 currentUser?.uid?.let(::refreshLatestSnapshot)
-            },
-            onRequestAccountDeletion = {
-                requestAccountDeletion()
             },
             onToggleSettings = {
                 showSettings = !showSettings
@@ -510,8 +509,8 @@ private fun SignedInContent(
     onSelectDevice: (SnapshotDevice) -> Unit,
     onRenameDraftChanged: (String) -> Unit,
     onSaveDeviceName: () -> Unit,
+    onDeleteDevice: (SnapshotDevice) -> Unit,
     onRefreshSnapshot: () -> Unit,
-    onRequestAccountDeletion: () -> Unit,
     onToggleSettings: () -> Unit,
     onSignOut: () -> Unit
 ) {
@@ -571,8 +570,8 @@ private fun SignedInContent(
             onSelectDevice = onSelectDevice,
             onRenameDraftChanged = onRenameDraftChanged,
             onSaveDeviceName = onSaveDeviceName,
+            onDeleteDevice = onDeleteDevice,
             onRefreshSnapshot = onRefreshSnapshot,
-            onRequestAccountDeletion = onRequestAccountDeletion,
             onSignOut = onSignOut
         )
     } else {
@@ -741,6 +740,7 @@ private fun limitIndicatorColor(ratio: Float?): Color {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SettingsPanel(
     user: FirebaseUser?,
@@ -757,10 +757,12 @@ private fun SettingsPanel(
     onSelectDevice: (SnapshotDevice) -> Unit,
     onRenameDraftChanged: (String) -> Unit,
     onSaveDeviceName: () -> Unit,
+    onDeleteDevice: (SnapshotDevice) -> Unit,
     onRefreshSnapshot: () -> Unit,
-    onRequestAccountDeletion: () -> Unit,
     onSignOut: () -> Unit
 ) {
+    var deleteCandidateDeviceId by remember(deviceList) { mutableStateOf<String?>(null) }
+
     Text(user?.email ?: user?.uid.orEmpty(), style = MaterialTheme.typography.bodyMedium)
 
     Row(
@@ -796,14 +798,46 @@ private fun SettingsPanel(
         Text(stringResource(R.string.settings_no_pc_linked))
     } else {
         deviceList.forEach { device ->
-            Button(
-                onClick = { onSelectDevice(device) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    Text(device.deviceName)
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(device.status.name)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(PillShape)
+                        .combinedClickable(
+                            onClick = {
+                                deleteCandidateDeviceId = null
+                                onSelectDevice(device)
+                            },
+                            onLongClick = {
+                                deleteCandidateDeviceId = device.deviceId
+                                onSelectDevice(device)
+                            }
+                        ),
+                    shape = PillShape,
+                    color = BrandPurple,
+                    contentColor = Color.White
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 10.dp)
+                    ) {
+                        Text(device.deviceName, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(device.status.name, fontWeight = FontWeight.Bold)
+                    }
+                }
+                if (deleteCandidateDeviceId == device.deviceId) {
+                    Button(
+                        onClick = {
+                            deleteCandidateDeviceId = null
+                            onDeleteDevice(device)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = DangerColor)
+                    ) {
+                        Text(stringResource(R.string.settings_delete_device))
+                    }
                 }
             }
         }
@@ -840,12 +874,6 @@ private fun SettingsPanel(
     }
 
     snapshotMessage?.let { Text(it) }
-
-    Text(stringResource(R.string.settings_account_deletion), style = MaterialTheme.typography.titleMedium)
-    Text(stringResource(R.string.settings_account_deletion_description), color = Color(0xFF64748B))
-    Button(onClick = onRequestAccountDeletion, modifier = Modifier.fillMaxWidth()) {
-        Text(stringResource(R.string.settings_request_account_deletion))
-    }
 
     Button(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
         Text(stringResource(R.string.settings_sign_out))

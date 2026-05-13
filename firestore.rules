@@ -17,12 +17,12 @@ service cloud.firestore {
       match /devices/{deviceId} {
         allow read: if isOwner(userId);
         allow create, update: if isOwner(userId);
-        allow delete: if false;
+        allow delete: if isOwner(userId);
 
         match /snapshots/{snapshotId} {
           allow read: if isOwner(userId);
           allow create, update: if isOwner(userId);
-          allow delete: if false;
+          allow delete: if isOwner(userId);
         }
       }
     }

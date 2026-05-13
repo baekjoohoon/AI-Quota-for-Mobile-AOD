@@ -141,6 +141,21 @@ class SnapshotRepository(private val context: Context) {
             .await()
     }
 
+    suspend fun deleteDevice(uid: String, deviceId: String) {
+        val deviceReference = firestore.collection("users")
+            .document(uid)
+            .collection("devices")
+            .document(deviceId)
+        deviceReference
+            .collection("snapshots")
+            .document("latest")
+            .delete()
+            .await()
+        deviceReference
+            .delete()
+            .await()
+    }
+
     suspend fun saveForWidget(
         snapshotJson: String,
         status: String = "NotLinked",

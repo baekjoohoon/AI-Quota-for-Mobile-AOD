@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.glance.LocalSize
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.GlanceId
@@ -32,6 +33,7 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.aiusage.mobile.R
 import com.google.firebase.auth.FirebaseAuth
+import kotlin.math.roundToInt
 
 open class AIUsageGlanceWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Responsive(
@@ -85,10 +87,11 @@ private fun SignInRequiredWidgetContent(message: String) {
 private fun AIUsageWidgetContent(gauges: List<WidgetProviderGauge>) {
     val isCompact = false
     val visibleGauges = gauges.take(MAX_VISIBLE_GAUGES)
+    val widgetWidthDp = LocalSize.current.width.value.roundToInt()
     val layoutSpec = if (isCompact) {
         compactGaugeLayoutSpec(visibleGauges.size)
     } else {
-        expandedGaugeLayoutSpec(visibleGauges.size)
+        expandedGaugeLayoutSpec(visibleGauges.size, widgetWidthDp)
     }
 
     Column(

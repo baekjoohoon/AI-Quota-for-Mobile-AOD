@@ -51,9 +51,9 @@ Data is transmitted over encrypted connections. Firestore security rules restric
 
 ## Data Retention and Deletion
 
-Synced snapshots and device records remain stored until they are deleted from the backend or you request deletion.
+Synced snapshots and device records remain stored until they are deleted from the backend, removed from the app settings, or you request deletion.
 
-You can request account and data deletion in the Android app by opening Settings and selecting **Request account deletion**. You can also request deletion without the app by emailing `datell1357@naver.com` with the subject `AI Usage account deletion request`.
+You can remove connected Windows device records from the Android app settings. You can request account and data deletion by emailing `datell1357@naver.com` with the subject `AI Usage account deletion request`.
 
 Deletion requests can include Firebase account-linked user records, connected Windows device records, and synced usage snapshots. Some data may be retained when required for security, fraud prevention, legal, or operational reasons.
 

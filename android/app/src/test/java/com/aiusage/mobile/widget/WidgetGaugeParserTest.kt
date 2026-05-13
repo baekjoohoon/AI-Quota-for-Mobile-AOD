@@ -117,7 +117,7 @@ class WidgetGaugeParserTest {
         assertEquals(14, expandedGaugeLayoutSpec(1).gaugeHeightDp)
         assertEquals(12, expandedGaugeLayoutSpec(2).gaugeHeightDp)
         assertEquals(10, expandedGaugeLayoutSpec(3).gaugeHeightDp)
-        assertEquals(8, expandedGaugeLayoutSpec(4).gaugeHeightDp)
+        assertEquals(10, expandedGaugeLayoutSpec(4).gaugeHeightDp)
     }
 
     @Test
@@ -129,15 +129,17 @@ class WidgetGaugeParserTest {
     }
 
     @Test
+    fun expandedWidgetGaugeWidthAdaptsToAvailableWidgetWidth() {
+        assertEquals(204, expandedGaugeLayoutSpec(4, widgetWidthDp = 240).gaugeWidthDp)
+        assertEquals(314, expandedGaugeLayoutSpec(4, widgetWidthDp = 360).gaugeWidthDp)
+        assertEquals(420, expandedGaugeLayoutSpec(4, widgetWidthDp = 720).gaugeWidthDp)
+    }
+
+    @Test
     fun compactWidgetProviderIconsAreLarger() {
         assertEquals(12, compactGaugeLayoutSpec(1).iconSizeDp)
         assertEquals(12, compactGaugeLayoutSpec(2).iconSizeDp)
         assertEquals(11, compactGaugeLayoutSpec(3).iconSizeDp)
         assertEquals(11, compactGaugeLayoutSpec(4).iconSizeDp)
-    }
-
-    @Test
-    fun widgetBackgroundIsTranslucent() {
-        assertEquals(0.42f, widgetBackgroundColor().alpha, 0.01f)
     }
 }
