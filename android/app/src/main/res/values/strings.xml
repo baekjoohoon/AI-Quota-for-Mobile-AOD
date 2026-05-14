@@ -7,6 +7,8 @@
     <string name="settings_close">Close</string>
     <string name="settings_status_bar_gauges">Status bar gauges</string>
     <string name="settings_status_bar_gauges_description">Pinned silent notification with active provider gauges</string>
+    <string name="settings_notifications_permission_required">Android notifications are off for AI Usage. Turn them on to show status bar gauges.</string>
+    <string name="settings_open_notification_settings">Open notification settings</string>
     <string name="settings_connected_devices">Connected devices</string>
     <string name="settings_no_pc_linked">No PC linked</string>
     <string name="settings_selected_device">Selected device</string>
@@ -25,5 +27,6 @@
     <string name="precise_refresh_prompt_body">AI Usage can keep a silent pinned notification active to refresh limits about every minute. If you skip this, widgets refresh in the background about every 5 minutes when Android allows it.</string>
     <string name="precise_refresh_enable">Enable 1-minute refresh</string>
     <string name="precise_refresh_standard">Use standard refresh</string>
+    <string name="settings_privacy_choices">Privacy choices</string>
     <string name="settings_sign_out">Sign out</string>
 </resources>

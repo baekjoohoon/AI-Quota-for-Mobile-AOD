@@ -3,7 +3,6 @@ package com.aiusage.mobile.widget
 private const val EXPANDED_GAUGE_WIDTH_DP = 204
 private const val EXPANDED_HORIZONTAL_PADDING_DP = 10
 private const val EXPANDED_ICON_SPACER_DP = 8
-private const val EXPANDED_MAX_GAUGE_WIDTH_DP = 420
 
 data class WidgetGaugeLayoutSpec(
     val iconSizeDp: Int,
@@ -37,7 +36,7 @@ fun expandedGaugeLayoutSpec(visibleGaugeCount: Int, widgetWidthDp: Int = 0): Wid
             (EXPANDED_HORIZONTAL_PADDING_DP * 2) -
             base.iconSizeDp -
             EXPANDED_ICON_SPACER_DP
-        ).coerceIn(EXPANDED_GAUGE_WIDTH_DP, EXPANDED_MAX_GAUGE_WIDTH_DP)
+        ).coerceAtLeast(EXPANDED_GAUGE_WIDTH_DP)
 
     return base.copy(gaugeWidthDp = adaptiveGaugeWidth)
 }

@@ -5,6 +5,8 @@
     <string name="settings_close">닫기</string>
     <string name="settings_status_bar_gauges">상태 표시줄 게이지</string>
     <string name="settings_status_bar_gauges_description">활성 게이지를 고정 알림으로 표시합니다.</string>
+    <string name="settings_notifications_permission_required">AI Usage의 Android 알림이 꺼져 있습니다. 상태 표시줄 게이지를 보려면 알림을 켜세요.</string>
+    <string name="settings_open_notification_settings">알림 설정 열기</string>
     <string name="settings_connected_devices">연결된 장치</string>
     <string name="settings_no_pc_linked">연결된 PC 없음</string>
     <string name="settings_selected_device">선택된 장치</string>
@@ -23,5 +25,6 @@
     <string name="precise_refresh_prompt_body">AI Usage는 조용한 고정 알림을 유지해 약 1분마다 한도를 갱신할 수 있습니다. 건너뛰면 Android가 허용할 때 백그라운드에서 약 5분 간격으로 위젯을 갱신합니다.</string>
     <string name="precise_refresh_enable">1분 갱신 켜기</string>
     <string name="precise_refresh_standard">기본 갱신 사용</string>
+    <string name="settings_privacy_choices">개인정보 선택</string>
     <string name="settings_sign_out">로그아웃</string>
 </resources>

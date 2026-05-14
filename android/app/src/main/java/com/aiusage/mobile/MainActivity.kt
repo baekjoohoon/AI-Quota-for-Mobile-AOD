@@ -2,8 +2,11 @@ package com.aiusage.mobile
 
 import android.Manifest
 import android.app.Activity.RESULT_OK
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -15,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -48,10 +52,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import com.aiusage.mobile.ads.AdConsentManager
 import com.aiusage.mobile.notification.UsageLimitNotificationController
 import com.aiusage.mobile.sync.ForegroundRefreshController
 import com.aiusage.mobile.sync.SnapshotDevice
@@ -62,10 +69,17 @@ import com.aiusage.mobile.sync.SnapshotRepository
 import com.aiusage.mobile.sync.SnapshotStatus
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.common.api.ApiException
+import com.google.ads.mediation.admob.AdMobAdapter
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -134,15 +148,59 @@ fun AIUsageApp(
     var selectedDeviceId by remember { mutableStateOf<String?>(null) }
     var renameDraft by remember { mutableStateOf("") }
     var showSettings by remember { mutableStateOf(false) }
-    var notificationEnabled by remember { mutableStateOf(UsageLimitNotificationController.isEnabled(activity)) }
+    var canPostNotifications by remember { mutableStateOf(UsageLimitNotificationController.canPostNotifications(activity)) }
+    var notificationEnabled by remember {
+        mutableStateOf(UsageLimitNotificationController.isEnabled(activity) && canPostNotifications)
+    }
     val foregroundRefreshController = remember { ForegroundRefreshController(activity.applicationContext) }
     var preciseRefreshEnabled by remember { mutableStateOf(foregroundRefreshController.preciseRefreshEnabled()) }
     var preciseRefreshPromptSeen by remember { mutableStateOf(foregroundRefreshController.preciseRefreshPromptSeen()) }
+    val adConsentManager = remember { AdConsentManager(activity.applicationContext) }
+    var canRequestAds by remember { mutableStateOf(BuildConfig.ADS_ENABLED && adConsentManager.canRequestAds) }
+    var privacyOptionsRequired by remember {
+        mutableStateOf(BuildConfig.ADS_ENABLED && adConsentManager.privacyOptionsRequired)
+    }
+    var mobileAdsInitialized by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+
+    fun refreshAdConsentState() {
+        canRequestAds = BuildConfig.ADS_ENABLED && adConsentManager.canRequestAds
+        privacyOptionsRequired = BuildConfig.ADS_ENABLED && adConsentManager.privacyOptionsRequired
+    }
+
+    fun initializeMobileAdsIfReady() {
+        if (!BuildConfig.ADS_ENABLED || !canRequestAds || mobileAdsInitialized) {
+            return
+        }
+        MobileAds.initialize(activity.applicationContext) {
+            mobileAdsInitialized = true
+        }
+    }
+
+    fun refreshNotificationState() {
+        canPostNotifications = UsageLimitNotificationController.canPostNotifications(activity)
+        notificationEnabled = UsageLimitNotificationController.isEnabled(activity) && canPostNotifications
+        if (!canPostNotifications && preciseRefreshEnabled) {
+            preciseRefreshEnabled = false
+            foregroundRefreshController.setPreciseRefreshEnabled(false)
+        }
+    }
+
+    fun openNotificationSettings() {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, activity.packageName)
+        } else {
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.parse("package:${activity.packageName}"))
+        }
+        activity.startActivity(intent)
+    }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
+        canPostNotifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || granted
         notificationEnabled = granted
         UsageLimitNotificationController.setEnabled(activity, granted)
         if (granted) {
@@ -252,8 +310,30 @@ fun AIUsageApp(
         onDispose { auth.removeAuthStateListener(listener) }
     }
 
+    DisposableEffect(activity) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refreshNotificationState()
+                refreshAdConsentState()
+                initializeMobileAdsIfReady()
+            }
+        }
+        activity.lifecycle.addObserver(observer)
+        onDispose { activity.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(Unit) {
+        if (BuildConfig.ADS_ENABLED) {
+            adConsentManager.gatherConsent(activity) {
+                refreshAdConsentState()
+                initializeMobileAdsIfReady()
+            }
+        }
+    }
+
     LaunchedEffect(currentUser?.uid) {
         val uid = currentUser?.uid ?: return@LaunchedEffect
+        refreshNotificationState()
         repository.rememberSignedInUser(uid)
         loadDevices(uid)
         refreshLatestSnapshot(uid)
@@ -287,113 +367,142 @@ fun AIUsageApp(
         return
     }
 
-    Column(
+    val showFixedAdBanner = !showSettings && canRequestAds && mobileAdsInitialized
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(WindowsAppBackground)
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        SignedInContent(
-            user = currentUser,
-            deviceList = deviceList,
-            selectedDeviceId = selectedDeviceId,
-            renameDraft = renameDraft,
-            snapshotResult = snapshotResult,
-            snapshotMessage = snapshotMessage,
-            refreshingSnapshot = refreshingSnapshot,
-            showSettings = showSettings,
-            notificationEnabled = notificationEnabled,
-            preciseRefreshEnabled = preciseRefreshEnabled,
-            preciseRefreshPromptSeen = preciseRefreshPromptSeen,
-            onPreciseRefreshEnabledChanged = { enabled ->
-                if (enabled) {
-                    enablePreciseRefresh()
-                } else {
-                    disablePreciseRefresh()
-                }
-            },
-            onDismissPreciseRefreshPrompt = {
-                foregroundRefreshController.markPreciseRefreshPromptSeen()
-                preciseRefreshPromptSeen = true
-            },
-            onNotificationEnabledChanged = { enabled ->
-                if (!enabled) {
-                    notificationEnabled = false
-                    UsageLimitNotificationController.setEnabled(activity, false)
-                    return@SignedInContent
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    !UsageLimitNotificationController.canPostNotifications(activity)
-                ) {
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                } else {
-                    notificationEnabled = true
-                    UsageLimitNotificationController.setEnabled(activity, true)
-                    UsageLimitNotificationController.updateFromCache(activity)
-                }
-            },
-            onSelectDevice = { device ->
-                selectedDeviceId = device.deviceId
-                renameDraft = device.deviceName
-                currentUser?.uid?.let(::refreshLatestSnapshot)
-            },
-            onRenameDraftChanged = { renameDraft = it },
-            onSaveDeviceName = {
-                val uid = currentUser?.uid ?: return@SignedInContent
-                val deviceId = selectedDeviceId ?: return@SignedInContent
-                coroutineScope.launch {
-                    try {
-                        repository.updateDeviceName(uid, deviceId, renameDraft)
-                        snapshotMessage = "Device name updated"
-                        loadDevices(uid)
-                        refreshLatestSnapshot(uid)
-                    } catch (error: Throwable) {
-                        snapshotMessage = error.message ?: "Could not update device name"
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    start = 20.dp,
+                    top = 20.dp,
+                    end = 20.dp,
+                    bottom = if (showFixedAdBanner) 96.dp else 20.dp
+                ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            SignedInContent(
+                user = currentUser,
+                deviceList = deviceList,
+                selectedDeviceId = selectedDeviceId,
+                renameDraft = renameDraft,
+                snapshotResult = snapshotResult,
+                snapshotMessage = snapshotMessage,
+                refreshingSnapshot = refreshingSnapshot,
+                showSettings = showSettings,
+                notificationEnabled = notificationEnabled,
+                canPostNotifications = canPostNotifications,
+                preciseRefreshEnabled = preciseRefreshEnabled,
+                preciseRefreshPromptSeen = preciseRefreshPromptSeen,
+                privacyOptionsRequired = privacyOptionsRequired,
+                onPreciseRefreshEnabledChanged = { enabled ->
+                    if (enabled) {
+                        enablePreciseRefresh()
+                    } else {
+                        disablePreciseRefresh()
                     }
-                }
-            },
-            onDeleteDevice = { device ->
-                val uid = currentUser?.uid ?: return@SignedInContent
-                coroutineScope.launch {
-                    try {
-                        repository.deleteDevice(uid, device.deviceId)
-                        if (selectedDeviceId == device.deviceId) {
-                            selectedDeviceId = null
-                            renameDraft = ""
-                            snapshotResult = null
+                },
+                onDismissPreciseRefreshPrompt = {
+                    foregroundRefreshController.markPreciseRefreshPromptSeen()
+                    preciseRefreshPromptSeen = true
+                },
+                onNotificationEnabledChanged = { enabled ->
+                    if (!enabled) {
+                        notificationEnabled = false
+                        UsageLimitNotificationController.setEnabled(activity, false)
+                        return@SignedInContent
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        !UsageLimitNotificationController.canPostNotifications(activity)
+                    ) {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        notificationEnabled = true
+                        UsageLimitNotificationController.setEnabled(activity, true)
+                        UsageLimitNotificationController.updateFromCache(activity)
+                    }
+                },
+                onOpenNotificationSettings = {
+                    openNotificationSettings()
+                },
+                onPrivacyChoices = {
+                    adConsentManager.showPrivacyOptionsForm(activity) {
+                        refreshAdConsentState()
+                        initializeMobileAdsIfReady()
+                    }
+                },
+                onSelectDevice = { device ->
+                    selectedDeviceId = device.deviceId
+                    renameDraft = device.deviceName
+                    currentUser?.uid?.let(::refreshLatestSnapshot)
+                },
+                onRenameDraftChanged = { renameDraft = it },
+                onSaveDeviceName = {
+                    val uid = currentUser?.uid ?: return@SignedInContent
+                    val deviceId = selectedDeviceId ?: return@SignedInContent
+                    coroutineScope.launch {
+                        try {
+                            repository.updateDeviceName(uid, deviceId, renameDraft)
+                            snapshotMessage = "Device name updated"
+                            loadDevices(uid)
+                            refreshLatestSnapshot(uid)
+                        } catch (error: Throwable) {
+                            snapshotMessage = error.message ?: "Could not update device name"
                         }
-                        snapshotMessage = activity.getString(R.string.settings_device_deleted)
-                        loadDevices(uid)
-                        refreshLatestSnapshot(uid)
-                    } catch (error: Throwable) {
-                        snapshotMessage = error.message ?: activity.getString(R.string.settings_delete_device_failed)
                     }
+                },
+                onDeleteDevice = { device ->
+                    val uid = currentUser?.uid ?: return@SignedInContent
+                    coroutineScope.launch {
+                        try {
+                            repository.deleteDevice(uid, device.deviceId)
+                            if (selectedDeviceId == device.deviceId) {
+                                selectedDeviceId = null
+                                renameDraft = ""
+                                snapshotResult = null
+                            }
+                            snapshotMessage = activity.getString(R.string.settings_device_deleted)
+                            loadDevices(uid)
+                            refreshLatestSnapshot(uid)
+                        } catch (error: Throwable) {
+                            snapshotMessage = error.message ?: activity.getString(R.string.settings_delete_device_failed)
+                        }
+                    }
+                },
+                onRefreshSnapshot = {
+                    currentUser?.uid?.let(::refreshLatestSnapshot)
+                },
+                onToggleSettings = {
+                    showSettings = !showSettings
+                },
+                onSignOut = {
+                    auth.signOut()
+                    GoogleSignIn.getClient(activity, activity.googleSignInOptions()).signOut()
+                    repository.clearSignedInUser()
+                    foregroundRefreshController.stopPreciseRefresh()
+                    preciseRefreshEnabled = false
+                    signingIn = false
+                    authMessage = null
+                    snapshotResult = null
+                    snapshotMessage = null
+                    deviceList = emptyList()
+                    selectedDeviceId = null
+                    renameDraft = ""
+                    showSettings = false
                 }
-            },
-            onRefreshSnapshot = {
-                currentUser?.uid?.let(::refreshLatestSnapshot)
-            },
-            onToggleSettings = {
-                showSettings = !showSettings
-            },
-            onSignOut = {
-                auth.signOut()
-                GoogleSignIn.getClient(activity, activity.googleSignInOptions()).signOut()
-                repository.clearSignedInUser()
-                foregroundRefreshController.stopPreciseRefresh()
-                preciseRefreshEnabled = false
-                signingIn = false
-                authMessage = null
-                snapshotResult = null
-                snapshotMessage = null
-                deviceList = emptyList()
-                selectedDeviceId = null
-                renameDraft = ""
-                showSettings = false
-            }
-        )
+            )
+        }
+
+        if (showFixedAdBanner) {
+            AdBannerBottomBar(
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
     }
 }
 
@@ -501,11 +610,15 @@ private fun SignedInContent(
     refreshingSnapshot: Boolean,
     showSettings: Boolean,
     notificationEnabled: Boolean,
+    canPostNotifications: Boolean,
     preciseRefreshEnabled: Boolean,
     preciseRefreshPromptSeen: Boolean,
+    privacyOptionsRequired: Boolean,
     onPreciseRefreshEnabledChanged: (Boolean) -> Unit,
     onDismissPreciseRefreshPrompt: () -> Unit,
     onNotificationEnabledChanged: (Boolean) -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+    onPrivacyChoices: () -> Unit,
     onSelectDevice: (SnapshotDevice) -> Unit,
     onRenameDraftChanged: (String) -> Unit,
     onSaveDeviceName: () -> Unit,
@@ -564,9 +677,13 @@ private fun SignedInContent(
             snapshotMessage = snapshotMessage,
             refreshingSnapshot = refreshingSnapshot,
             notificationEnabled = notificationEnabled,
+            canPostNotifications = canPostNotifications,
             preciseRefreshEnabled = preciseRefreshEnabled,
+            privacyOptionsRequired = privacyOptionsRequired,
             onPreciseRefreshEnabledChanged = onPreciseRefreshEnabledChanged,
             onNotificationEnabledChanged = onNotificationEnabledChanged,
+            onOpenNotificationSettings = onOpenNotificationSettings,
+            onPrivacyChoices = onPrivacyChoices,
             onSelectDevice = onSelectDevice,
             onRenameDraftChanged = onRenameDraftChanged,
             onSaveDeviceName = onSaveDeviceName,
@@ -646,6 +763,72 @@ private fun LimitDashboard(
                 stringResource(R.string.settings_refresh_latest_snapshot)
             }
         )
+    }
+}
+
+@Composable
+private fun AdBannerBottomBar(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = WindowsAppBackground,
+        tonalElevation = 0.dp,
+        shadowElevation = 4.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            AdBanner(
+                modifier = Modifier.fillMaxWidth(),
+                adUnitId = BuildConfig.ADMOB_BANNER_AD_UNIT_ID,
+                canRequestAds = true
+            )
+        }
+    }
+}
+
+@Composable
+private fun AdBanner(
+    modifier: Modifier = Modifier,
+    adUnitId: String,
+    canRequestAds: Boolean
+) {
+    if (!BuildConfig.ADS_ENABLED || adUnitId.isBlank() || !canRequestAds) {
+        return
+    }
+
+    val context = LocalContext.current
+    BoxWithConstraints(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        val adWidthDp = maxWidth.value.toInt()
+        if (adWidthDp > 0) {
+            val adView = remember(adUnitId, adWidthDp) {
+                AdView(context).apply {
+                    this.adUnitId = adUnitId
+                    setAdSize(AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(context, adWidthDp))
+                }
+            }
+            DisposableEffect(adView) {
+                onDispose { adView.destroy() }
+            }
+            LaunchedEffect(adView, canRequestAds) {
+                val extras = Bundle().apply {
+                    putString("npa", "1")
+                }
+                val adRequest = AdRequest.Builder()
+                    .addNetworkExtrasBundle(AdMobAdapter::class.java, extras)
+                    .build()
+                adView.loadAd(adRequest)
+            }
+            AndroidView(
+                factory = { adView },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 }
 
@@ -751,9 +934,13 @@ private fun SettingsPanel(
     snapshotMessage: String?,
     refreshingSnapshot: Boolean,
     notificationEnabled: Boolean,
+    canPostNotifications: Boolean,
     preciseRefreshEnabled: Boolean,
+    privacyOptionsRequired: Boolean,
     onPreciseRefreshEnabledChanged: (Boolean) -> Unit,
     onNotificationEnabledChanged: (Boolean) -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+    onPrivacyChoices: () -> Unit,
     onSelectDevice: (SnapshotDevice) -> Unit,
     onRenameDraftChanged: (String) -> Unit,
     onSaveDeviceName: () -> Unit,
@@ -778,6 +965,28 @@ private fun SettingsPanel(
             onCheckedChange = onNotificationEnabledChanged
         )
     }
+    if (!canPostNotifications) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            color = Color(0xFFFFFBEB),
+            border = BorderStroke(1.dp, Color(0xFFFDE68A))
+        ) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(stringResource(R.string.settings_notifications_permission_required), color = Color(0xFF92400E))
+                Button(
+                    onClick = onOpenNotificationSettings,
+                    shape = PillShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandPurple)
+                ) {
+                    Text(stringResource(R.string.settings_open_notification_settings))
+                }
+            }
+        }
+    }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -791,6 +1000,12 @@ private fun SettingsPanel(
             checked = preciseRefreshEnabled,
             onCheckedChange = onPreciseRefreshEnabledChanged
         )
+    }
+
+    if (privacyOptionsRequired) {
+        Button(onClick = onPrivacyChoices, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.settings_privacy_choices))
+        }
     }
 
     Text(stringResource(R.string.settings_connected_devices), style = MaterialTheme.typography.titleMedium)

@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: May 7, 2026
+Last updated: May 14, 2026
 
 AI Usage is an Android app that displays sanitized AI usage limit snapshots synced from AI Usage for Windows.
 
@@ -15,6 +15,8 @@ The app stores display-only usage snapshots in Firebase Firestore. These snapsho
 - AI provider names and IDs.
 - Provider plan labels.
 - Remaining usage, used usage, limit values, reset times, and provider status.
+
+AI Usage may show ads inside the Android app through Google AdMob and the Google Mobile Ads SDK. The ads SDK may collect and share data such as IP address, app interactions, diagnostic information, and device or account identifiers including the Android advertising ID for advertising, analytics, and fraud prevention. AI Usage uses Google's User Messaging Platform to manage privacy choices where required.
 
 ## Information We Do Not Collect
 
@@ -36,14 +38,17 @@ We use the collected information to:
 - Link your Android app to your synced Windows devices.
 - Display current AI usage limits in the app, widgets, and pinned notification.
 - Refresh cached display data.
+- Show and measure in-app ads where enabled.
 
 ## Third-Party Services
 
 AI Usage uses Firebase services provided by Google, including Firebase Authentication and Cloud Firestore. These services process data needed for authentication and sync.
 
+AI Usage may also use Google AdMob, the Google Mobile Ads SDK, and Google's User Messaging Platform for in-app ads and privacy choices. Home screen widgets and the pinned notification do not contain ads.
+
 ## Data Sharing
 
-We do not sell your personal data. Data is processed by Firebase/Google as the infrastructure provider for authentication and sync.
+We do not sell your personal data. Data is processed by Firebase/Google as the infrastructure provider for authentication and sync. If ads are enabled, advertising-related data may be processed by Google AdMob and the Google Mobile Ads SDK for ad delivery, measurement, analytics, and fraud prevention.
 
 ## Data Security
 

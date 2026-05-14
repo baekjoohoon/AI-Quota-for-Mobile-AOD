@@ -163,6 +163,8 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(widget, /cornerRadius\(if \(isCompact\) 20\.dp else 24\.dp\)/);
   assert.match(widget, /ColorProvider\(R\.color\.widget_background\)/);
   assert.match(widget, /ColorProvider\(R\.color\.widget_caption\)/);
+  assert.equal((widget.match(/actionStartActivity<MainActivity>\(\)/g) || []).length, 2);
+  assert.match(widget, /\.clickable\(onClick = actionStartActivity<MainActivity>\(\)\)/);
   assert.match(colors, /name="widget_background">#B3FFFFFF/);
   assert.match(colors, /name="widget_caption">#475569/);
   assert.match(nightColors, /name="widget_background">#B30F172A/);
@@ -170,8 +172,10 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(widgetLayout, /gaugeWidthDp = 51/);
   assert.match(widgetLayout, /gaugeWidthDp = 53/);
   assert.match(widgetLayout, /EXPANDED_GAUGE_WIDTH_DP = 204/);
-  assert.match(widgetLayout, /EXPANDED_MAX_GAUGE_WIDTH_DP = 420/);
+  assert.match(widget, /DpSize\(width = 480\.dp, height = 180\.dp\)/);
+  assert.match(widget, /DpSize\(width = 520\.dp, height = 180\.dp\)/);
   assert.match(widgetLayout, /widgetWidthDp -/);
+  assert.match(widgetLayout, /coerceAtLeast\(EXPANDED_GAUGE_WIDTH_DP\)/);
   assert.match(widgetLayout, /gaugeHeightDp = 10/);
   assert.match(widgetLayout, /rowSpacerHeightDp = 8/);
   assert.match(widgetLayout, /val rowHeightDp: Int = 0/);
@@ -193,6 +197,9 @@ test("Android app has device-list snapshot sync and non-placeholder widget cache
   assert.match(circularWidget, /class AIUsageCircularWidgetProvider : AppWidgetProvider/);
   assert.match(circularWidget, /FirebaseAuth\.getInstance\(\)\.currentUser/);
   assert.match(circularWidget, /R\.id\.circular_login_message/);
+  assert.match(circularWidget, /setOnClickPendingIntent\(\s*R\.id\.circular_widget_root/);
+  assert.match(circularWidget, /PendingIntent\.getActivity/);
+  assert.match(circularWidget, /MainActivity::class\.java/);
   assert.match(circularWidget, /if \(isSignedIn\) View\.GONE else View\.VISIBLE/);
   assert.match(circularWidget, /MAX_CIRCULAR_GAUGES = 4/);
   assert.match(circularWidget, /parseWidgetProviderGauges/);
@@ -313,6 +320,72 @@ test("Android main UI uses Firebase auth with device list, rename flow, and snap
   assert.match(gradle, /lifecycle-runtime-ktx/);
   assert.match(gradle, /kotlinx-coroutines-play-services/);
   assert.match(gradle, /buildConfig = true/);
+});
+
+test("Android app uses one consent-gated AdMob dashboard banner and updates Play disclosures", () => {
+  const main = source("android/app/src/main/java/com/aiusage/mobile/MainActivity.kt");
+  const consentManager = source("android/app/src/main/java/com/aiusage/mobile/ads/AdConsentManager.kt");
+  const gradle = source("android/app/build.gradle.kts");
+  const manifest = source("android/app/src/main/AndroidManifest.xml");
+  const strings = source("android/app/src/main/res/values/strings.xml");
+  const privacyPolicy = source("docs/privacy-policy.md");
+  const dataSafety = source("store-assets/google-play/data-safety-draft.md");
+  const storeListingEn = source("store-assets/google-play/store-listing-en.md");
+  const storeListingKo = source("store-assets/google-play/store-listing-ko.md");
+
+  assert.match(gradle, /com\.google\.android\.gms:play-services-ads/);
+  assert.match(gradle, /com\.google\.android\.ump:user-messaging-platform/);
+  assert.match(gradle, /ADMOB_BANNER_AD_UNIT_ID/);
+  assert.match(gradle, /ADS_ENABLED/);
+  assert.match(gradle, /ca-app-pub-3940256099942544\/9214589741/);
+
+  assert.match(manifest, /com\.google\.android\.gms\.permission\.AD_ID/);
+  assert.match(manifest, /com\.google\.android\.gms\.ads\.APPLICATION_ID/);
+  assert.match(manifest, /\$\{adMobApplicationId\}/);
+
+  assert.match(consentManager, /UserMessagingPlatform\.getConsentInformation/);
+  assert.match(consentManager, /requestConsentInfoUpdate/);
+  assert.match(consentManager, /loadAndShowConsentFormIfRequired/);
+  assert.match(consentManager, /showPrivacyOptionsForm/);
+  assert.match(consentManager, /PrivacyOptionsRequirementStatus\.REQUIRED/);
+
+  assert.match(main, /MobileAds\.initialize/);
+  assert.match(main, /AdBanner/);
+  assert.match(main, /AndroidView/);
+  assert.match(main, /AdView\(context\)/);
+  assert.match(main, /AdSize\.getCurrentOrientationAnchoredAdaptiveBannerAdSize/);
+  assert.match(main, /AdRequest\.Builder\(\)/);
+  assert.match(main, /Bundle\(\)\.apply/);
+  assert.match(main, /putString\("npa", "1"\)/);
+  assert.match(main, /AdMobAdapter::class\.java/);
+  assert.match(main, /adView\.destroy\(\)/);
+  assert.match(main, /onPrivacyChoices/);
+  assert.match(main, /settings_privacy_choices/);
+  assert.match(main, /showPrivacyOptionsForm/);
+  assert.match(main, /val showFixedAdBanner = !showSettings && canRequestAds && mobileAdsInitialized/);
+  assert.match(main, /Modifier\.align\(Alignment\.BottomCenter\)/);
+  assert.match(main, /AdBannerBottomBar/);
+  assert.match(main, /bottom = if \(showFixedAdBanner\) 96\.dp else 20\.dp/);
+  assert.equal((main.match(/AdBannerBottomBar\(\s*modifier = Modifier/g) || []).length, 1);
+  assert.equal((main.match(/AdBanner\(\s*modifier = Modifier\.fillMaxWidth\(\)/g) || []).length, 1);
+  assert.doesNotMatch(main, /showAdBanner/);
+  assert.doesNotMatch(main, /InterstitialAd/);
+  assert.doesNotMatch(main, /RewardedAd/);
+  assert.doesNotMatch(main, /NativeAd/);
+
+  assert.match(strings, /name="settings_privacy_choices">Privacy choices/);
+  assert.match(privacyPolicy, /Google AdMob/);
+  assert.match(privacyPolicy, /Google Mobile Ads SDK/);
+  assert.match(privacyPolicy, /User Messaging Platform/);
+  assert.match(dataSafety, /Advertising ID/);
+  assert.match(dataSafety, /IP address/);
+  assert.match(dataSafety, /App interactions/);
+  assert.match(dataSafety, /Diagnostic information/);
+  assert.match(dataSafety, /Advertising or marketing/);
+  assert.match(storeListingEn, /AI Usage may show ads inside the Android app\./);
+  assert.match(storeListingEn, /Home screen widgets and the pinned notification do not contain ads\./);
+  assert.match(storeListingKo, /AI Usage는 Android 앱 안에 광고를 표시할 수 있습니다\./);
+  assert.match(storeListingKo, /홈 화면 위젯과 고정 알림에는 광고가 표시되지 않습니다\./);
 });
 
 test("iOS main UI exposes pre-production mobile flow up to snapshot display", () => {

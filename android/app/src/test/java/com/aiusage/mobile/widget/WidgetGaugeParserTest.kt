@@ -132,7 +132,9 @@ class WidgetGaugeParserTest {
     fun expandedWidgetGaugeWidthAdaptsToAvailableWidgetWidth() {
         assertEquals(204, expandedGaugeLayoutSpec(4, widgetWidthDp = 240).gaugeWidthDp)
         assertEquals(314, expandedGaugeLayoutSpec(4, widgetWidthDp = 360).gaugeWidthDp)
-        assertEquals(420, expandedGaugeLayoutSpec(4, widgetWidthDp = 720).gaugeWidthDp)
+        assertEquals(434, expandedGaugeLayoutSpec(4, widgetWidthDp = 480).gaugeWidthDp)
+        assertEquals(474, expandedGaugeLayoutSpec(4, widgetWidthDp = 520).gaugeWidthDp)
+        assertEquals(674, expandedGaugeLayoutSpec(4, widgetWidthDp = 720).gaugeWidthDp)
     }
 
     @Test

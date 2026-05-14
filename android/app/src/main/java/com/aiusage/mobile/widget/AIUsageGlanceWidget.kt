@@ -11,6 +11,8 @@ import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.action.actionStartActivity
+import androidx.glance.action.clickable
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
@@ -31,6 +33,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import com.aiusage.mobile.MainActivity
 import com.aiusage.mobile.R
 import com.google.firebase.auth.FirebaseAuth
 import kotlin.math.roundToInt
@@ -39,7 +42,11 @@ open class AIUsageGlanceWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Responsive(
         setOf(
             DpSize(width = 64.dp, height = 64.dp),
-            DpSize(width = 180.dp, height = 110.dp)
+            DpSize(width = 180.dp, height = 110.dp),
+            DpSize(width = 300.dp, height = 110.dp),
+            DpSize(width = 420.dp, height = 140.dp),
+            DpSize(width = 480.dp, height = 180.dp),
+            DpSize(width = 520.dp, height = 180.dp)
         )
     )
 
@@ -68,6 +75,7 @@ private fun SignInRequiredWidgetContent(message: String) {
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
+            .clickable(onClick = actionStartActivity<MainActivity>())
             .cornerRadius(24.dp)
             .background(widgetBackgroundColor())
             .padding(14.dp),
@@ -97,6 +105,7 @@ private fun AIUsageWidgetContent(gauges: List<WidgetProviderGauge>) {
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
+            .clickable(onClick = actionStartActivity<MainActivity>())
             .cornerRadius(if (isCompact) 20.dp else 24.dp)
             .background(widgetBackgroundColor())
             .padding(if (isCompact) 4.dp else 10.dp),
