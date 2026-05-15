@@ -2,6 +2,9 @@
     <string name="app_name">AI Usage</string>
     <string name="widget_label_2x2">AI Usage 2x2</string>
     <string name="widget_label_3x2">AI Usage 3x2</string>
+    <string name="widget_label_unified">AI Usage Dashboard</string>
+    <string name="widget_label_provider">AI Usage Provider</string>
+    <string name="widget_no_data">No data</string>
     <string name="widget_sign_in_required">Please sign in.</string>
     <string name="settings_open">Settings</string>
     <string name="settings_close">Close</string>
@@ -27,6 +30,10 @@
     <string name="precise_refresh_prompt_body">AI Usage can keep a silent pinned notification active to refresh limits about every minute. If you skip this, widgets refresh in the background about every 5 minutes when Android allows it.</string>
     <string name="precise_refresh_enable">Enable 1-minute refresh</string>
     <string name="precise_refresh_standard">Use standard refresh</string>
+    <string name="provider_connect">Connect</string>
+    <string name="provider_refresh">Refresh</string>
+    <string name="provider_disconnect">Disconnect</string>
+    <string name="provider_unavailable">Unavailable</string>
     <string name="settings_privacy_choices">Privacy choices</string>
     <string name="settings_sign_out">Sign out</string>
 </resources>

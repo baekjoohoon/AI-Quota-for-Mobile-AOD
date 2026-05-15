@@ -1,5 +1,8 @@
 <resources>
     <string name="app_name">AI Usage</string>
+    <string name="widget_label_unified">AI Usage 대시보드</string>
+    <string name="widget_label_provider">AI Usage 제공자</string>
+    <string name="widget_no_data">데이터 없음</string>
     <string name="widget_sign_in_required">로그인을 진행해주세요</string>
     <string name="settings_open">설정</string>
     <string name="settings_close">닫기</string>
@@ -25,6 +28,10 @@
     <string name="precise_refresh_prompt_body">AI Usage는 조용한 고정 알림을 유지해 약 1분마다 한도를 갱신할 수 있습니다. 건너뛰면 Android가 허용할 때 백그라운드에서 약 5분 간격으로 위젯을 갱신합니다.</string>
     <string name="precise_refresh_enable">1분 갱신 켜기</string>
     <string name="precise_refresh_standard">기본 갱신 사용</string>
+    <string name="provider_connect">연결</string>
+    <string name="provider_refresh">새로고침</string>
+    <string name="provider_disconnect">연결 해제</string>
+    <string name="provider_unavailable">사용할 수 없음</string>
     <string name="settings_privacy_choices">개인정보 선택</string>
     <string name="settings_sign_out">로그아웃</string>
 </resources>

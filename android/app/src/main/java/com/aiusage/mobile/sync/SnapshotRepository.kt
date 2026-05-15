@@ -5,9 +5,8 @@ import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import com.aiusage.mobile.widget.AIUsageGlanceWidget
-import com.aiusage.mobile.widget.AIUsageLargeGlanceWidget
-import com.aiusage.mobile.widget.AIUsageCircularWidgetProvider
+import com.aiusage.mobile.widget.AIUsageUnifiedGlanceWidget
+import com.aiusage.mobile.widget.ProviderUsageGlanceWidget
 import com.aiusage.mobile.widget.WidgetSnapshotCache
 import com.aiusage.mobile.notification.UsageLimitNotificationController
 import com.google.firebase.Timestamp
@@ -164,10 +163,9 @@ class SnapshotRepository(private val context: Context) {
     ) {
         // Stores display-only snapshot cache for app and widget rendering.
         cache.write(snapshotJson, status, deviceName, updatedAt)
-        UsageLimitNotificationController.update(context, snapshotJson)
-        AIUsageGlanceWidget().updateAll(context)
-        AIUsageLargeGlanceWidget().updateAll(context)
-        AIUsageCircularWidgetProvider.updateAll(context)
+        UsageLimitNotificationController.updateFromCache(context)
+        AIUsageUnifiedGlanceWidget().updateAll(context)
+        ProviderUsageGlanceWidget().updateAll(context)
     }
 
     fun latestCachedSnapshot(): String {

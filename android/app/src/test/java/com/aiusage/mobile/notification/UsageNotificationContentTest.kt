@@ -28,6 +28,28 @@ class UsageNotificationContentTest {
     }
 
     @Test
+    fun buildsLocalDisplayOnlyNotificationInVisibleProviderOrder() {
+        val snapshotJson = """
+            {
+              "schema":"local-provider-display-v1",
+              "providers":[
+                {"providerId":"cursor","displayName":"Cursor","connectionState":"CONNECTED","visible":true,"lines":[{"label":"Fast requests","remainingPercent":0.4,"remainingText":"40","resetText":"Resets in 2h","severity":"WARNING"}]},
+                {"providerId":"codex","displayName":"Codex","connectionState":"CONNECTED","visible":false,"lines":[{"label":"Session","remainingPercent":0.2,"remainingText":"20","resetText":"Resets in 1h","severity":"DANGER"}]},
+                {"providerId":"gemini","displayName":"Gemini","connectionState":"CONNECTED","hidden":true,"lines":[{"label":"Pro","remainingPercent":1.0,"remainingText":"100","resetText":"Tomorrow","severity":"NORMAL"}]},
+                {"providerId":"claude","displayName":"Claude","connectionState":"CONNECTED","visible":true,"lines":[{"label":"Session","remainingPercent":0.8,"remainingText":"80","resetText":"Resets in 4h","severity":"NORMAL"}]}
+              ]
+            }
+        """.trimIndent()
+
+        val content = buildUsageNotificationContent(snapshotJson, Instant.parse("2026-05-15T00:00:00Z"))
+
+        assertEquals(listOf("cursor", "claude"), content.gauges.map { it.providerId })
+        assertEquals("Cursor 40 | Claude 80", content.summary)
+        assertEquals(listOf("40", "80"), content.gaugeRows.map { it.remainingText })
+        assertEquals(listOf("Resets in 2h", "Resets in 4h"), content.gaugeRows.map { it.resetText })
+    }
+
+    @Test
     fun splitsFourProviderNotificationSummaryAcrossTwoLines() {
         val snapshotJson = """
             {

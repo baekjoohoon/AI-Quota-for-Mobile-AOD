@@ -7,7 +7,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.view.View
@@ -104,7 +103,7 @@ object UsageLimitNotificationController {
     }
 
     private fun contentIntent(context: Context): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java)
+        val intent = MainActivity.createHomeIntent(context)
         return PendingIntent.getActivity(
             context,
             0,

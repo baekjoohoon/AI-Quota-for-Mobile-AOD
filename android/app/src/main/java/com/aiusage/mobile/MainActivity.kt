@@ -2,6 +2,7 @@ package com.aiusage.mobile
 
 import android.Manifest
 import android.app.Activity.RESULT_OK
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -67,6 +68,8 @@ import com.aiusage.mobile.sync.SnapshotUsageLimitLine
 import com.aiusage.mobile.sync.SnapshotRefreshResult
 import com.aiusage.mobile.sync.SnapshotRepository
 import com.aiusage.mobile.sync.SnapshotStatus
+import com.aiusage.mobile.ui.AIUsageAppShell
+import com.aiusage.mobile.ui.AppRoute
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.ads.AdRequest
@@ -105,6 +108,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val initialRoute = AppRoute.fromExtras(
+            route = intent?.getStringExtra(AppRoute.EXTRA_ROUTE),
+            providerIdStorageId = intent?.getStringExtra(AppRoute.EXTRA_PROVIDER_ID),
+            legacyProviderIdStorageId = intent?.getStringExtra(AppRoute.EXTRA_PROVIDER_ID_LEGACY)
+        )
         UsageLimitNotificationController.updateFromCache(applicationContext)
         setContent {
             MaterialTheme(
@@ -115,10 +123,16 @@ class MainActivity : ComponentActivity() {
                     onSurface = InkColor
                 )
             ) {
-                AIUsageApp(
-                    activity = this,
-                    auth = auth,
-                    repository = repository
+                AIUsageAppShell(
+                    context = applicationContext,
+                    legacyWindowsSyncContent = {
+                        AIUsageApp(
+                            activity = this@MainActivity,
+                            auth = auth,
+                            repository = repository
+                        )
+                    },
+                    initialRoute = initialRoute
                 )
             }
         }
@@ -129,6 +143,24 @@ class MainActivity : ComponentActivity() {
             .requestEmail()
             .requestIdToken(getString(R.string.default_web_client_id))
             .build()
+    }
+
+    companion object {
+        fun createHomeIntent(context: Context): Intent {
+            return routeIntent(context, AppRoute.ROUTE_HOME)
+        }
+
+        fun createProviderDetailIntent(context: Context, providerIdStorageId: String): Intent {
+            return routeIntent(context, AppRoute.ROUTE_PROVIDER)
+                .putExtra(AppRoute.EXTRA_PROVIDER_ID, providerIdStorageId)
+                .putExtra(AppRoute.EXTRA_PROVIDER_ID_LEGACY, providerIdStorageId)
+        }
+
+        private fun routeIntent(context: Context, route: String): Intent {
+            return Intent(context, MainActivity::class.java)
+                .putExtra(AppRoute.EXTRA_ROUTE, route)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
     }
 }
 

@@ -52,6 +52,31 @@ class WidgetGaugeParserTest {
     }
 
     @Test
+    fun parsesLocalDisplayOnlyGaugesInPayloadOrderAndSkipsHiddenProviders() {
+        val snapshotJson = """
+            {
+              "schema":"local-provider-display-v1",
+              "updatedAt":"2026-05-15T00:00:00Z",
+              "providers":[
+                {"providerId":"claude","displayName":"Claude","connectionState":"CONNECTED","refreshState":"IDLE","planLabel":"Pro","updatedAt":"2026-05-15T00:00:00Z","message":null,"visible":true,"lines":[{"label":"Session","remainingPercent":0.8,"remainingText":"80% left","resetText":"Resets in 1h","detailText":"Fast requests","severity":"NORMAL"}]},
+                {"providerId":"codex","displayName":"Codex","connectionState":"CONNECTED","refreshState":"IDLE","planLabel":"Pro","updatedAt":"2026-05-15T00:00:00Z","message":null,"visible":false,"lines":[{"label":"Session","remainingPercent":0.7,"remainingText":"70% left","resetText":"Resets in 2h","detailText":null,"severity":"WARNING"}]},
+                {"providerId":"cursor","displayName":"Cursor","connectionState":"CONNECTED","refreshState":"IDLE","planLabel":"Pro","updatedAt":"2026-05-15T00:00:00Z","message":null,"visible":true,"lines":[{"label":"Fast requests","remainingPercent":0.25,"remainingText":"25% left","resetText":"Resets in 3h","detailText":null,"severity":"DANGER"}]}
+              ]
+            }
+        """.trimIndent()
+
+        val gauges = parseWidgetProviderGauges(snapshotJson)
+
+        assertEquals(listOf("claude", "cursor"), gauges.map { it.providerId })
+        assertEquals(0.8f, gauges[0].remainingRatio)
+        assertEquals("80% left", gauges[0].remainingText)
+        assertEquals("Resets in 1h", gauges[0].resetText)
+        assertEquals(0.25f, gauges[1].remainingRatio)
+        assertEquals("25% left", gauges[1].remainingText)
+        assertEquals("Resets in 3h", gauges[1].resetText)
+    }
+
+    @Test
     fun skipsProvidersWithoutAGaugeableLimitLine() {
         val snapshotJson = """
             {
