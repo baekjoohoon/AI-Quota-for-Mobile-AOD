@@ -477,7 +477,12 @@ test("Android local provider shell localizes Korean-first UI and scales layout m
   assert.match(providerDetail, /UsageAnalysisSection/);
   assert.match(providerDetail, /provider_analysis_title/);
   assert.match(providerDetail, /snapshot\.lines\.forEach/);
-  assert.match(providerDetail, /OutlinedButton\(\s*onClick = if \(isHidden\)/);
+  assert.match(providerDetail, /ProviderSummaryBlock/);
+  assert.match(providerDetail, /ClassicInfoLineWithRefresh/);
+  assert.match(providerDetail, /RefreshIconButton/);
+  assert.match(providerDetail, /IconButton\(\s*onClick = onRefresh/);
+  assert.match(providerDetail, /Button\(\s*onClick = if \(isConnected\) onDisconnect else onConnect/);
+  assert.doesNotMatch(providerDetail, /OutlinedButton\(\s*onClick = if \(isHidden\)/);
   assert.match(strings, /name="settings_theme_title">Theme/);
   assert.match(strings, /name="settings_theme_body">Current theme: %1\$s/);
   assert.match(strings, /name="settings_theme_windows">Windows theme/);
