@@ -267,6 +267,8 @@ class ProviderLocalUsageCollectorTest {
         assertTrue(cursorScript.contains("/api/usage-summary"))
         assertTrue(cursorScript.contains("/api/subscription"))
         assertTrue(cursorScript.contains("/api/auth/session"))
+        assertTrue(cursorScript.contains("/auth/usage"))
+        assertTrue(cursorScript.contains("/auth/me"))
     }
 
     @Test
@@ -279,7 +281,7 @@ class ProviderLocalUsageCollectorTest {
         assertTrue(script.contains("remainingRequestUsage"))
         assertTrue(script.contains("remainingCap"))
         assertTrue(script.contains("authenticatedEndpointMarker"))
-        assertTrue(script.contains("/^\\/api\\/(?:usage|auth\\/me)$/"))
+        assertTrue(script.contains("/^\\/(?:api\\/(?:usage|auth\\/me)|auth\\/(?:usage|me))$/"))
         assertTrue(script.contains("scanCursorUsageSummary"))
         assertTrue(script.contains("rememberCursorPlan"))
         assertTrue(script.contains("scanCursorPlanUsage"))

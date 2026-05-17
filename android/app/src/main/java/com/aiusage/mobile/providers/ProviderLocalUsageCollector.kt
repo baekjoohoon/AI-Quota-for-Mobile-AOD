@@ -1079,7 +1079,7 @@ object ProviderLocalUsageCollector {
           }
           function authenticatedEndpointMarker() {
             if (PROVIDER_ID === "cursor") {
-              return hasSuccessfulEndpoint(/^\/api\/(?:usage|auth\/me)$/);
+              return hasSuccessfulEndpoint(/^\/(?:api\/(?:usage|auth\/me)|auth\/(?:usage|me))$/);
             }
             return false;
           }
@@ -1157,6 +1157,12 @@ object ProviderLocalUsageCollector {
               ];
             }
             if (PROVIDER_ID === "cursor") {
+              if (hostEndsWith("api2.cursor.sh")) {
+                return [
+                  "/auth/usage",
+                  "/auth/me"
+                ];
+              }
               return [
                 "/dashboard",
                 "/dashboard/usage",

@@ -51,5 +51,7 @@ class ProviderUsageProbeTargetsTest {
         assertTrue(urls.contains("https://cursor.com/api/subscription"))
         assertTrue(urls.contains("https://cursor.com/api/me"))
         assertTrue(urls.contains("https://cursor.com/api/dashboard/get-plan-info"))
+        assertTrue(urls.contains("https://api2.cursor.sh/auth/usage"))
+        assertTrue(urls.contains("https://api2.cursor.sh/auth/me"))
     }
 }

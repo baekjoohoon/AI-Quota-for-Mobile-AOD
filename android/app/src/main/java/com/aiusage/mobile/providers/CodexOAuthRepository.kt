@@ -322,6 +322,8 @@ class CodexOAuthRepository(context: Context) {
                     ?: usage.optNullableString("plan")
                 appendWhamWindowLimits(limits, usage.optJSONObject("rate_limit"), "Codex")
                 appendWhamWindowLimits(limits, usage.optJSONObject("code_review_rate_limit"), "Code review")
+                appendWhamWindowLimits(limits, usage.optJSONObject("spark_rate_limit"), "Spark")
+                appendWhamWindowLimits(limits, usage.optJSONObject("spark_rate_limits"), "Spark")
                 appendCreditLimit(limits, usage.optJSONObject("credits"))
             }
             return JSONObject()
@@ -359,8 +361,8 @@ class CodexOAuthRepository(context: Context) {
                 val windowSeconds = window.optLongOrNull("limit_window_seconds")
                     ?: window.optLongOrNull("window_seconds")
                 val label = when (windowSeconds) {
-                    18_000L -> "$prefix 5-hour limit"
-                    604_800L -> "$prefix weekly limit"
+                    18_000L -> if (prefix == "Spark") "Spark" else "$prefix 5-hour limit"
+                    604_800L -> if (prefix == "Spark") "Spark weekly" else "$prefix weekly limit"
                     else -> "$prefix $fallbackLabel"
                 }
                 limits.put(

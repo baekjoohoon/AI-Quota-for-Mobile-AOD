@@ -78,4 +78,35 @@ class CodexOAuthRepositoryTest {
         assertNotNull(snapshot.lines.first { it.label == "Codex weekly limit" }.remainingPercent)
         assertEquals(12.5, snapshot.lines.first { it.label == "Credits" }.remainingAmount ?: -1.0, 0.001)
     }
+
+    @Test
+    fun whamUsagePayloadMapsSparkWindowsWhenPresent() {
+        val payload = CodexOAuthRepository.structuredPayloadFromWhamBodyForTest(
+            planLabel = "Pro",
+            body = """
+                {
+                  "spark_rate_limit": {
+                    "primary_window": {
+                      "used_percent": 0,
+                      "reset_after_seconds": 18000,
+                      "limit_window_seconds": 18000
+                    },
+                    "secondary_window": {
+                      "used_percent": 10,
+                      "reset_after_seconds": 604800,
+                      "limit_window_seconds": 604800
+                    }
+                  }
+                }
+            """.trimIndent()
+        )
+
+        val snapshot = TextUsageExtractor.extract(ProviderId.CODEX, payload)
+
+        assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
+        assertEquals("Pro", snapshot.planLabel)
+        assertEquals(2, snapshot.lines.size)
+        assertTrue(snapshot.lines.any { it.label == "Spark" && it.remainingPercent == 1f })
+        assertTrue(snapshot.lines.any { it.label == "Spark weekly" })
+    }
 }
