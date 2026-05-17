@@ -74,4 +74,99 @@ class ProviderCardOrderTest {
             moved
         )
     }
+
+    @Test
+    fun moveToVisibleTargetIndexKeepsHiddenSlotsAndReordersVisibleProviders() {
+        val moved = ProviderCardOrder.moveToVisibleTargetIndex(
+            order = ProviderId.defaultOrder(),
+            hidden = setOf(ProviderId.CODEX),
+            providerId = ProviderId.CURSOR,
+            targetVisibleIndex = 0
+        )
+
+        assertEquals(
+            listOf(
+                ProviderId.CURSOR,
+                ProviderId.CODEX,
+                ProviderId.CLAUDE,
+                ProviderId.GEMINI,
+                ProviderId.COPILOT
+            ),
+            moved
+        )
+        assertEquals(
+            listOf(ProviderId.CURSOR, ProviderId.CLAUDE, ProviderId.GEMINI, ProviderId.COPILOT),
+            ProviderPreferencesCodec.visibleProviders(moved, setOf(ProviderId.CODEX))
+        )
+    }
+
+    @Test
+    fun dragTargetIndexUsesMeasuredCardCenters() {
+        val cardCenters = listOf(
+            DashboardCardCenter(x = 0f, y = 40f),
+            DashboardCardCenter(x = 0f, y = 160f),
+            DashboardCardCenter(x = 0f, y = 315f),
+            DashboardCardCenter(x = 0f, y = 530f)
+        )
+
+        assertEquals(
+            3,
+            dragTargetIndexFromCenter(
+                cardCenters = cardCenters,
+                currentVisibleIndex = 0,
+                draggedCenter = DashboardCardCenter(x = 0f, y = 500f)
+            )
+        )
+        assertEquals(
+            1,
+            dragTargetIndexFromCenter(
+                cardCenters = cardCenters,
+                currentVisibleIndex = 3,
+                draggedCenter = DashboardCardCenter(x = 0f, y = 170f)
+            )
+        )
+    }
+
+    @Test
+    fun dragTargetIndexUsesNearestGridCardCenterOnTablet() {
+        val cardCenters = listOf(
+            DashboardCardCenter(x = 240f, y = 160f),
+            DashboardCardCenter(x = 760f, y = 160f),
+            DashboardCardCenter(x = 240f, y = 420f),
+            DashboardCardCenter(x = 760f, y = 420f)
+        )
+
+        assertEquals(
+            3,
+            dragTargetIndexFromCenter(
+                cardCenters = cardCenters,
+                currentVisibleIndex = 0,
+                draggedCenter = DashboardCardCenter(x = 760f, y = 410f)
+            )
+        )
+        assertEquals(
+            1,
+            dragTargetIndexFromCenter(
+                cardCenters = cardCenters,
+                currentVisibleIndex = 2,
+                draggedCenter = DashboardCardCenter(x = 760f, y = 165f)
+            )
+        )
+    }
+
+    @Test
+    fun dragTargetIndexFallsBackForMissingMeasurements() {
+        assertEquals(
+            2,
+            dragTargetIndexFromCenter(
+                cardCenters = listOf(
+                    DashboardCardCenter(x = Float.NaN, y = Float.NaN),
+                    DashboardCardCenter(x = Float.NaN, y = Float.NaN),
+                    DashboardCardCenter(x = Float.NaN, y = Float.NaN)
+                ),
+                currentVisibleIndex = 2,
+                draggedCenter = DashboardCardCenter(x = 0f, y = 180f)
+            )
+        )
+    }
 }

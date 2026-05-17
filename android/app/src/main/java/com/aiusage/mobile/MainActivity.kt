@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -40,6 +41,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -53,13 +55,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.aiusage.mobile.ads.AdConsentManager
+import com.aiusage.mobile.localization.withAppLanguageForDeviceLanguage
 import com.aiusage.mobile.notification.UsageLimitNotificationController
 import com.aiusage.mobile.sync.ForegroundRefreshController
 import com.aiusage.mobile.sync.SnapshotDevice
@@ -69,6 +75,7 @@ import com.aiusage.mobile.sync.SnapshotRefreshResult
 import com.aiusage.mobile.sync.SnapshotRepository
 import com.aiusage.mobile.sync.SnapshotStatus
 import com.aiusage.mobile.ui.AIUsageAppShell
+import com.aiusage.mobile.ui.AIUsageColors
 import com.aiusage.mobile.ui.AppRoute
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -87,27 +94,69 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-private val WindowsAppBackground = Color(0xFFF4F6F8)
-private val PanelColor = Color(0xFFFFFFFF)
-private val InkColor = Color(0xFF111827)
-private val MutedColor = Color(0xFF64748B)
-private val DividerColor = Color(0xFFE5E7EB)
-private val GaugeTrackColor = Color(0xFFE9ECF2)
-private val GaugeFillColor = Color(0xFF0F172A)
-private val BrandPurple = Color(0xFF6E52B5)
+private val WindowsAppBackground = AIUsageColors.SurfaceMuted
+private val PanelColor = AIUsageColors.SurfaceMuted
+private val InkColor = AIUsageColors.TextPrimary
+private val MutedColor = AIUsageColors.TextSecondary
+private val DividerColor = AIUsageColors.BorderDefault.copy(alpha = 0.32f)
+private val GaugeTrackColor = AIUsageColors.WindowChrome
+private val GaugeFillColor = AIUsageColors.SurfaceStrong
+private val BrandPurple = AIUsageColors.SurfaceStrong
 private val SuccessColor = Color(0xFF22C55E)
-private val WarningColor = Color(0xFFF59E0B)
+private val WarningColor = AIUsageColors.SurfaceRaised
 private val DangerColor = Color(0xFFEF4444)
 private val HeaderTopOffset = 22.dp
 private val WindowsCardShape = RoundedCornerShape(10.dp)
 private val PillShape = RoundedCornerShape(999.dp)
 
+private val PretendardFontFamily = FontFamily(
+    Font(R.font.pretendard_regular, FontWeight.Normal),
+    Font(R.font.pretendard_medium, FontWeight.Medium),
+    Font(R.font.pretendard_semibold, FontWeight.SemiBold),
+    Font(R.font.pretendard_bold, FontWeight.Bold)
+)
+
+private val AIUsageTypography = Typography().withAppFont(PretendardFontFamily)
+
+private fun Typography.withAppFont(fontFamily: FontFamily): Typography {
+    return copy(
+        displayLarge = displayLarge.copy(fontFamily = fontFamily),
+        displayMedium = displayMedium.copy(fontFamily = fontFamily),
+        displaySmall = displaySmall.copy(fontFamily = fontFamily),
+        headlineLarge = headlineLarge.copy(fontFamily = fontFamily),
+        headlineMedium = headlineMedium.copy(fontFamily = fontFamily),
+        headlineSmall = headlineSmall.copy(fontFamily = fontFamily),
+        titleLarge = titleLarge.copy(fontFamily = fontFamily),
+        titleMedium = titleMedium.copy(fontFamily = fontFamily),
+        titleSmall = titleSmall.copy(fontFamily = fontFamily),
+        bodyLarge = bodyLarge.copy(fontFamily = fontFamily),
+        bodyMedium = bodyMedium.copy(fontFamily = fontFamily),
+        bodySmall = bodySmall.copy(fontFamily = fontFamily),
+        labelLarge = labelLarge.copy(fontFamily = fontFamily),
+        labelMedium = labelMedium.copy(fontFamily = fontFamily),
+        labelSmall = labelSmall.copy(fontFamily = fontFamily)
+    )
+}
+
 class MainActivity : ComponentActivity() {
     private val repository by lazy { SnapshotRepository(applicationContext) }
     private val auth by lazy { FirebaseAuth.getInstance() }
 
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.withAppLanguageForDeviceLanguage())
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.statusBarColor = AIUsageColors.MacOSCanvas.toArgb()
+        window.navigationBarColor = AIUsageColors.MacOSCanvas.toArgb()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            var systemUiVisibility = window.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                systemUiVisibility = systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            }
+            window.decorView.systemUiVisibility = systemUiVisibility
+        }
         val initialRoute = AppRoute.fromExtras(
             route = intent?.getStringExtra(AppRoute.EXTRA_ROUTE),
             providerIdStorageId = intent?.getStringExtra(AppRoute.EXTRA_PROVIDER_ID),
@@ -118,20 +167,23 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(
                 colorScheme = lightColorScheme(
                     primary = BrandPurple,
+                    onPrimary = AIUsageColors.SurfaceMuted,
+                    primaryContainer = AIUsageColors.SurfaceRaised,
+                    onPrimaryContainer = AIUsageColors.BorderDefault,
+                    secondary = AIUsageColors.SurfaceRaised,
                     background = WindowsAppBackground,
                     surface = PanelColor,
-                    onSurface = InkColor
-                )
+                    surfaceVariant = AIUsageColors.WindowChrome,
+                    onSurface = InkColor,
+                    onSurfaceVariant = AIUsageColors.TextSecondary,
+                    outline = AIUsageColors.BorderDefault,
+                    outlineVariant = AIUsageColors.BorderDefault.copy(alpha = 0.48f),
+                    error = DangerColor
+                ),
+                typography = AIUsageTypography
             ) {
                 AIUsageAppShell(
                     context = applicationContext,
-                    legacyWindowsSyncContent = {
-                        AIUsageApp(
-                            activity = this@MainActivity,
-                            auth = auth,
-                            repository = repository
-                        )
-                    },
                     initialRoute = initialRoute
                 )
             }

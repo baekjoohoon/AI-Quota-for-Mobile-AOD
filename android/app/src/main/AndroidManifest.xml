@@ -32,6 +32,10 @@
       android:name=".sync.ForegroundRefreshService"
       android:exported="false"
       android:foregroundServiceType="dataSync" />
+    <service
+      android:name=".providers.ProviderUsageCollectionService"
+      android:exported="false"
+      android:foregroundServiceType="dataSync" />
     <receiver
       android:name=".widget.AIUsageUnifiedGlanceWidgetReceiver"
       android:label="@string/widget_label_unified"

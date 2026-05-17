@@ -25,10 +25,13 @@ class ProviderConnectorRegistry private constructor(
             return when (providerId) {
                 ProviderId.CLAUDE -> "https://claude.ai/"
                 ProviderId.CODEX -> "https://chatgpt.com/"
-                ProviderId.GEMINI -> "https://gemini.google.com/app"
+                ProviderId.GEMINI -> GEMINI_GOOGLE_ACCOUNT_CHOOSER_URL
                 ProviderId.COPILOT -> "https://github.com/settings/copilot"
                 ProviderId.CURSOR -> "https://cursor.com/dashboard"
             }
         }
+
+        private const val GEMINI_GOOGLE_ACCOUNT_CHOOSER_URL =
+            "https://accounts.google.com/AccountChooser?continue=https%3A%2F%2Fgemini.google.com%2Fapp&hl=ko"
     }
 }

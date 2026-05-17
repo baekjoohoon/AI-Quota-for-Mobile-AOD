@@ -83,19 +83,19 @@ class ProviderUsageGlanceWidget : GlanceAppWidget() {
 
     private fun selectedProvider(context: Context, appWidgetId: Int): ProviderId? {
         val repository = ProviderPreferencesRepository(context)
-        return visibleProviderWidgetSelection(
+        return providerWidgetSelection(
             savedSelection = repository.providerWidgetSelection(appWidgetId),
-            visibleProviders = repository.visibleProviders()
+            providers = repository.providerOrder()
         )
     }
 }
 
-internal fun visibleProviderWidgetSelection(
+internal fun providerWidgetSelection(
     savedSelection: ProviderId?,
-    visibleProviders: List<ProviderId>
+    providers: List<ProviderId>
 ): ProviderId? {
-    return savedSelection?.takeIf { it in visibleProviders }
-        ?: visibleProviders.firstOrNull()
+    return savedSelection?.takeIf { it in providers }
+        ?: providers.firstOrNull()
 }
 
 @Composable
@@ -189,7 +189,7 @@ private fun ProviderLine(line: ProviderWidgetLine, spec: ProviderWidgetLayoutSpe
             radius = spec.gaugeRadiusDp.dp
         )
         if (spec.cellHeight > 1) {
-            val detail = line.detailText ?: line.resetText
+            val detail = line.resetText ?: line.detailText
             if (!detail.isNullOrBlank()) {
                 Spacer(modifier = GlanceModifier.height(2.dp))
                 Text(

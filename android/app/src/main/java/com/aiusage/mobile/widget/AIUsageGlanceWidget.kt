@@ -175,7 +175,7 @@ private fun UnifiedProviderRow(provider: ProviderWidgetPayload, layoutSpec: Unif
             radius = layoutSpec.gaugeRadiusDp.dp
         )
         if (layoutSpec.cellHeight > 2) {
-            val detail = line?.detailText ?: line?.resetText
+            val detail = line?.resetText ?: line?.detailText
             if (!detail.isNullOrBlank()) {
                 Spacer(modifier = GlanceModifier.height(2.dp))
                 Text(

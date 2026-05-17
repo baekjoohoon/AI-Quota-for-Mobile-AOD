@@ -7,30 +7,30 @@ import org.junit.Test
 
 class ProviderWidgetSelectionTest {
     @Test
-    fun usesSavedSelectionWhenItIsVisible() {
-        val selection = visibleProviderWidgetSelection(
+    fun usesSavedSelectionWhenItExistsInProviderOrder() {
+        val selection = providerWidgetSelection(
             savedSelection = ProviderId.CURSOR,
-            visibleProviders = listOf(ProviderId.CLAUDE, ProviderId.CURSOR)
+            providers = listOf(ProviderId.CLAUDE, ProviderId.CURSOR)
         )
 
         assertEquals(ProviderId.CURSOR, selection)
     }
 
     @Test
-    fun fallsBackToFirstVisibleProviderWhenSavedSelectionIsHidden() {
-        val selection = visibleProviderWidgetSelection(
+    fun keepsHiddenProviderSelectionWhenItExistsInProviderOrder() {
+        val selection = providerWidgetSelection(
             savedSelection = ProviderId.CURSOR,
-            visibleProviders = listOf(ProviderId.CLAUDE, ProviderId.CODEX)
+            providers = listOf(ProviderId.CLAUDE, ProviderId.CODEX, ProviderId.CURSOR)
         )
 
-        assertEquals(ProviderId.CLAUDE, selection)
+        assertEquals(ProviderId.CURSOR, selection)
     }
 
     @Test
-    fun returnsNullWhenAllProvidersAreHidden() {
-        val selection = visibleProviderWidgetSelection(
+    fun returnsNullWhenNoProvidersExist() {
+        val selection = providerWidgetSelection(
             savedSelection = ProviderId.CURSOR,
-            visibleProviders = emptyList()
+            providers = emptyList()
         )
 
         assertNull(selection)

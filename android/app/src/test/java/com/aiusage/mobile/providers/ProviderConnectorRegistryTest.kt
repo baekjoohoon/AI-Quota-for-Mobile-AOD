@@ -17,7 +17,7 @@ class ProviderConnectorRegistryTest {
             listOf(
                 "https://claude.ai/",
                 "https://chatgpt.com/",
-                "https://gemini.google.com/app",
+                "https://accounts.google.com/AccountChooser?continue=https%3A%2F%2Fgemini.google.com%2Fapp&hl=ko",
                 "https://github.com/settings/copilot",
                 "https://cursor.com/dashboard"
             ),

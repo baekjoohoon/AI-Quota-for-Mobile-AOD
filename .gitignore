@@ -18,8 +18,10 @@ android/keystores/
 .android-home/
 .tmp/
 android/.gradle/
+android/.kotlin/
 android/app/build/
 android-emulator-*.png
+screenshot/
 artifacts/
 store-assets/
 icons/

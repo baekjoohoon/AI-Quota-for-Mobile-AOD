@@ -2,9 +2,25 @@ package com.aiusage.mobile.widget
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
+import java.util.Locale
 
 class ProviderWidgetPayloadTest {
+    private lateinit var previousLocale: Locale
+
+    @Before
+    fun useEnglishLocale() {
+        previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.ENGLISH)
+    }
+
+    @After
+    fun restoreLocale() {
+        Locale.setDefault(previousLocale)
+    }
+
     @Test
     fun returnsSelectedProviderPayload() {
         val snapshotJson = """

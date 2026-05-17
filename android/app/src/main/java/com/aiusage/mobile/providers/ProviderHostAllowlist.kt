@@ -27,10 +27,36 @@ object ProviderHostAllowlist {
     }
 
     private val allowedHosts = mapOf(
-        ProviderId.CLAUDE to listOf("claude.ai", "www.claude.ai"),
-        ProviderId.CODEX to listOf("chatgpt.com", "auth.openai.com", "platform.openai.com"),
-        ProviderId.GEMINI to listOf("gemini.google.com", "accounts.google.com"),
+        ProviderId.CLAUDE to listOf(
+            "claude.ai",
+            "www.claude.ai",
+            "accounts.google.com",
+            "myaccount.google.com",
+            "appleid.apple.com"
+        ),
+        ProviderId.CODEX to listOf(
+            "chatgpt.com",
+            "chat.openai.com",
+            "auth.openai.com",
+            "accounts.openai.com",
+            "login.openai.com",
+            "accounts.google.com",
+            "myaccount.google.com",
+            "appleid.apple.com",
+            "login.microsoftonline.com"
+        ),
+        ProviderId.GEMINI to listOf("gemini.google.com", "accounts.google.com", "myaccount.google.com"),
         ProviderId.COPILOT to listOf("github.com", "githubcopilot.com"),
-        ProviderId.CURSOR to listOf("cursor.com", "www.cursor.com")
+        ProviderId.CURSOR to listOf(
+            "cursor.com",
+            "www.cursor.com",
+            "api.workos.com",
+            "api2.cursor.sh",
+            "authenticate.cursor.sh",
+            "authenticator.cursor.sh",
+            "accounts.google.com",
+            "github.com",
+            "appleid.apple.com"
+        )
     )
 }

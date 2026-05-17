@@ -2,6 +2,7 @@ package com.aiusage.mobile.widget
 
 import android.app.Activity
 import android.appwidget.AppWidgetManager
+import android.content.Context
 import android.content.Intent
 import android.graphics.Typeface
 import android.os.Bundle
@@ -13,14 +14,20 @@ import androidx.activity.ComponentActivity
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.lifecycle.lifecycleScope
 import com.aiusage.mobile.R
+import com.aiusage.mobile.localization.withAppLanguageForDeviceLanguage
 import com.aiusage.mobile.local.ProviderId
 import com.aiusage.mobile.local.ProviderPreferencesRepository
+import com.aiusage.mobile.ui.appLayoutMetrics
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 class ProviderWidgetConfigureActivity : ComponentActivity() {
     private var appWidgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID
     private var isFinishingWithSelection = false
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.withAppLanguageForDeviceLanguage())
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,7 +43,7 @@ class ProviderWidgetConfigureActivity : ComponentActivity() {
             return
         }
 
-        val providers = ProviderPreferencesRepository(this).visibleProviders()
+        val providers = ProviderPreferencesRepository(this).providerOrder()
             .ifEmpty { ProviderId.defaultOrder() }
 
         if (providers.size == 1) {
@@ -47,15 +54,24 @@ class ProviderWidgetConfigureActivity : ComponentActivity() {
     }
 
     private fun showProviderSelection(providers: List<ProviderId>) {
+        val layoutMetrics = appLayoutMetrics(
+            screenWidthDp = resources.configuration.screenWidthDp,
+            screenHeightDp = resources.configuration.screenHeightDp
+        )
         title = getString(R.string.widget_label_provider)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(24.dp(), 24.dp(), 24.dp(), 24.dp())
+            setPadding(
+                layoutMetrics.contentHorizontalPaddingDp.dp(),
+                layoutMetrics.contentVerticalPaddingDp.dp(),
+                layoutMetrics.contentHorizontalPaddingDp.dp(),
+                layoutMetrics.contentVerticalPaddingDp.dp()
+            )
         }
         root.addView(
             TextView(this).apply {
                 text = getString(R.string.widget_label_provider)
-                textSize = 18f
+                textSize = if (resources.configuration.screenWidthDp >= 600) 20f else 18f
                 setTypeface(typeface, Typeface.BOLD)
             },
             LinearLayout.LayoutParams(
@@ -73,7 +89,7 @@ class ProviderWidgetConfigureActivity : ComponentActivity() {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    topMargin = 8.dp()
+                    topMargin = layoutMetrics.cardSpacingDp.dp()
                 }
             )
         }

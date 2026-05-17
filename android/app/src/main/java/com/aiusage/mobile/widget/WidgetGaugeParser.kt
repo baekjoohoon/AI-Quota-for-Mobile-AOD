@@ -1,5 +1,9 @@
 package com.aiusage.mobile.widget
 
+import com.aiusage.mobile.local.displayResetText
+import com.aiusage.mobile.local.displayRemainingText
+import com.aiusage.mobile.local.displayResetTextForLocale
+import com.aiusage.mobile.local.displayUsageLabel
 import org.json.JSONArray
 import org.json.JSONObject
 import java.math.RoundingMode
@@ -38,7 +42,16 @@ data class ProviderWidgetLine(
     val remainingText: String,
     val resetText: String?,
     val detailText: String?,
-    val severity: String
+    val severity: String,
+    val usedAmount: Double? = null,
+    val limitAmount: Double? = null,
+    val remainingAmount: Double? = null,
+    val unit: String? = null,
+    val category: String? = null,
+    val windowText: String? = null,
+    val startsAt: String? = null,
+    val resetsAt: String? = null,
+    val confidence: Float? = null
 )
 
 fun parseWidgetProviderGauges(snapshotJson: String, now: Instant = Instant.now()): List<WidgetProviderGauge> {
@@ -54,7 +67,14 @@ fun parseWidgetProviderGauges(snapshotJson: String, now: Instant = Instant.now()
                 val line = firstGaugeableLine(provider.optJSONArray(KEY_LINES) ?: JSONArray(), now)
                     ?: provider.errorGaugeLine()
                     ?: continue
-                add(WidgetProviderGauge(providerId = providerId, remainingRatio = line.ratio, remainingText = line.remainingText, resetText = line.resetText))
+                add(
+                    WidgetProviderGauge(
+                        providerId = providerId,
+                        remainingRatio = line.ratio,
+                        remainingText = displayRemainingText(line.remainingText),
+                        resetText = displayResetTextForLocale(line.resetText)
+                    )
+                )
             }
         }
     }.getOrDefault(emptyList())
@@ -70,14 +90,18 @@ fun parseUnifiedWidgetPayload(snapshotJson: String, now: Instant = Instant.now()
             val provider = providers.optJSONObject(index) ?: continue
             if (!provider.isVisibleProvider()) continue
             val providerId = provider.providerId()
-            providerPayloads.add(provider.toProviderWidgetPayload(providerId))
+            providerPayloads.add(provider.toProviderWidgetPayload(providerId, now))
             provider.toWidgetGauge(providerId, now)?.let { gauges.add(it) }
         }
         UnifiedWidgetPayload(providers = providerPayloads, gauges = gauges)
     }.getOrDefault(UnifiedWidgetPayload.EMPTY)
 }
 
-fun providerWidgetPayload(snapshotJson: String, providerId: String): ProviderWidgetPayload {
+fun providerWidgetPayload(
+    snapshotJson: String,
+    providerId: String,
+    now: Instant = Instant.now()
+): ProviderWidgetPayload {
     val requestedProviderId = providerId.requestedProviderId()
     if (snapshotJson.isBlank()) return disconnectedProviderPayload(requestedProviderId)
     return runCatching {
@@ -87,7 +111,7 @@ fun providerWidgetPayload(snapshotJson: String, providerId: String): ProviderWid
             val provider = providers.optJSONObject(index) ?: continue
             val currentProviderId = provider.providerId()
             if (currentProviderId.equals(requestedProviderId, ignoreCase = true)) {
-                selected = provider.toProviderWidgetPayload(currentProviderId)
+                selected = provider.toProviderWidgetPayload(currentProviderId, now)
                 break
             }
         }
@@ -117,29 +141,30 @@ private fun JSONObject.errorGaugeLine(): ParsedGaugeLine? {
 private fun firstGaugeableLine(lines: JSONArray, now: Instant): ParsedGaugeLine? {
     for (index in 0 until lines.length()) {
         val line = lines.optJSONObject(index) ?: continue
-        line.displayOnlyGaugeLine()?.let { return it }
+        line.displayOnlyGaugeLine(now)?.let { return it }
         val limit = line.optNullableDouble(KEY_LIMIT) ?: continue
         if (limit <= 0.0) continue
         val remaining = line.optNullableDouble(KEY_REMAINING)
             ?: line.optNullableDouble(KEY_USED)?.let { used -> limit - used }
             ?: continue
         val ratio = (remaining / limit).coerceIn(0.0, 1.0)
+        val unit = line.optionalString(KEY_UNIT)
         return ParsedGaugeLine(
             ratio = ratio.toFloat(),
-            remainingText = "${formatNumber(ratio * 100)}% left",
+            remainingText = amountRemainingText(remaining, limit, unit),
             resetText = line.optionalString(KEY_RESETS_AT)?.let { resetText(it, now) }
         )
     }
     return null
 }
 
-private fun JSONObject.displayOnlyGaugeLine(): ParsedGaugeLine? {
+private fun JSONObject.displayOnlyGaugeLine(now: Instant): ParsedGaugeLine? {
     val remainingPercent = optNullableDouble(KEY_REMAINING_PERCENT) ?: return null
     val ratio = remainingPercent.coerceIn(0.0, 1.0)
     return ParsedGaugeLine(
         ratio = ratio.toFloat(),
         remainingText = optionalString(KEY_REMAINING_TEXT) ?: "${formatNumber(ratio * 100)}% left",
-        resetText = optionalString(KEY_RESET_TEXT)
+        resetText = displayResetText(optionalString(KEY_RESET_TEXT), optionalString(KEY_RESETS_AT), now)
     )
 }
 
@@ -150,38 +175,58 @@ private fun JSONObject.toWidgetGauge(providerId: String, now: Instant): WidgetPr
     return WidgetProviderGauge(
         providerId = providerId,
         remainingRatio = line.ratio,
-        remainingText = line.remainingText,
-        resetText = line.resetText
+        remainingText = displayRemainingText(line.remainingText),
+        resetText = displayResetTextForLocale(line.resetText)
     )
 }
 
-private fun JSONObject.toProviderWidgetPayload(providerId: String): ProviderWidgetPayload {
+private fun JSONObject.toProviderWidgetPayload(providerId: String, now: Instant): ProviderWidgetPayload {
     val linesJson = optJSONArray(KEY_LINES) ?: JSONArray()
     return ProviderWidgetPayload(
         providerId = providerId,
-        displayName = optionalString(KEY_DISPLAY_NAME) ?: defaultProviderDisplayName(providerId),
+        displayName = normalizedProviderDisplayName(providerId, optionalString(KEY_DISPLAY_NAME)),
         status = optionalString(KEY_CONNECTION_STATE) ?: optionalString(KEY_STATUS) ?: DISCONNECTED_STATUS,
         visible = isVisibleProvider(),
         lines = buildList {
             for (index in 0 until linesJson.length()) {
                 val line = linesJson.optJSONObject(index) ?: continue
-                add(line.toProviderWidgetLine())
+                add(line.toProviderWidgetLine(providerId, index, now))
             }
         }
     )
 }
 
-private fun JSONObject.toProviderWidgetLine(): ProviderWidgetLine {
+private fun JSONObject.toProviderWidgetLine(providerId: String, lineIndex: Int, now: Instant): ProviderWidgetLine {
+    val used = optNullableDouble(KEY_USED)
+    val limit = optNullableDouble(KEY_LIMIT)
+    val remaining = optNullableDouble(KEY_REMAINING)
+        ?: if (used != null && limit != null) limit - used else null
     val remainingPercent = optNullableDouble(KEY_REMAINING_PERCENT)?.coerceIn(0.0, 1.0)?.toFloat()
+        ?: if (remaining != null && limit != null && limit > 0.0) {
+            (remaining / limit).coerceIn(0.0, 1.0).toFloat()
+        } else {
+            null
+        }
+    val unit = optionalString(KEY_UNIT)
     return ProviderWidgetLine(
-        label = optionalString(KEY_LABEL) ?: DEFAULT_LINE_LABEL,
+        label = displayUsageLabel(providerId, optionalString(KEY_LABEL) ?: DEFAULT_LINE_LABEL, lineIndex),
         remainingPercent = remainingPercent,
-        remainingText = optionalString(KEY_REMAINING_TEXT)
+        remainingText = displayRemainingText(optionalString(KEY_REMAINING_TEXT)
+            ?: if (remaining != null && limit != null && limit > 0.0) amountRemainingText(remaining, limit, unit) else null
             ?: remainingPercent?.let { "${formatNumber(it.toDouble() * 100)}% left" }
-            ?: "",
-        resetText = optionalString(KEY_RESET_TEXT),
+            ?: ""),
+        resetText = displayResetTextForLocale(displayResetText(optionalString(KEY_RESET_TEXT), optionalString(KEY_RESETS_AT), now)),
         detailText = optionalString(KEY_DETAIL_TEXT),
-        severity = optionalString(KEY_SEVERITY) ?: UNKNOWN_SEVERITY
+        severity = optionalString(KEY_SEVERITY) ?: UNKNOWN_SEVERITY,
+        usedAmount = used,
+        limitAmount = limit,
+        remainingAmount = remaining,
+        unit = unit,
+        category = optionalString(KEY_CATEGORY),
+        windowText = optionalString(KEY_WINDOW_TEXT),
+        startsAt = optionalString(KEY_STARTS_AT),
+        resetsAt = optionalString(KEY_RESETS_AT),
+        confidence = optNullableDouble(KEY_CONFIDENCE)?.coerceIn(0.0, 1.0)?.toFloat()
     )
 }
 
@@ -224,11 +269,21 @@ private fun defaultProviderDisplayName(providerId: String): String {
         "claude" -> "Claude"
         "codex" -> "Codex"
         "gemini" -> "Gemini"
-        "copilot" -> "GitHub Copilot"
+        "copilot" -> "Copilot"
         "cursor" -> "Cursor"
         UNKNOWN_PROVIDER_ID -> "Unknown"
         else -> providerId.ifBlank { "Unknown" }
     }
+}
+
+private fun normalizedProviderDisplayName(providerId: String, displayName: String?): String {
+    if (
+        providerId.trim().equals("copilot", ignoreCase = true) &&
+        displayName?.trim().equals("GitHub Copilot", ignoreCase = true)
+    ) {
+        return defaultProviderDisplayName(providerId)
+    }
+    return displayName?.trim()?.takeIf { it.isNotBlank() } ?: defaultProviderDisplayName(providerId)
 }
 
 private fun resetText(value: String, now: Instant): String? {
@@ -247,6 +302,16 @@ private fun resetText(value: String, now: Instant): String? {
 
 private fun formatNumber(value: Double): String {
     return DECIMAL_FORMAT.format(value)
+}
+
+private fun amountRemainingText(remaining: Double, limit: Double, unit: String?): String {
+    val unitText = unit?.trim().orEmpty()
+    if (unitText.isBlank()) {
+        val ratio = if (limit > 0.0) remaining / limit else 0.0
+        return "${formatNumber(ratio.coerceIn(0.0, 1.0) * 100)}% left"
+    }
+    val unitSuffix = if (unitText.isNotBlank()) " $unitText" else ""
+    return "${formatNumber(remaining.coerceAtLeast(0.0))} of ${formatNumber(limit)}$unitSuffix left"
 }
 
 private data class ParsedGaugeLine(
@@ -270,7 +335,12 @@ private const val KEY_LABEL = "label"
 private const val KEY_LIMIT = "limit"
 private const val KEY_USED = "used"
 private const val KEY_REMAINING = "remaining"
+private const val KEY_UNIT = "unit"
+private const val KEY_CATEGORY = "category"
+private const val KEY_WINDOW_TEXT = "windowText"
+private const val KEY_STARTS_AT = "startsAt"
 private const val KEY_RESETS_AT = "resetsAt"
+private const val KEY_CONFIDENCE = "confidence"
 private const val KEY_REMAINING_PERCENT = "remainingPercent"
 private const val KEY_REMAINING_TEXT = "remainingText"
 private const val KEY_RESET_TEXT = "resetText"

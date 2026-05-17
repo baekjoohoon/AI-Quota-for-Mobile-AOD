@@ -27,6 +27,7 @@ class ProviderModelsTest {
         assertEquals("gemini", ProviderId.GEMINI.storageId)
         assertEquals("copilot", ProviderId.COPILOT.storageId)
         assertEquals("cursor", ProviderId.CURSOR.storageId)
+        assertEquals("Copilot", ProviderId.COPILOT.displayName)
     }
 
     @Test

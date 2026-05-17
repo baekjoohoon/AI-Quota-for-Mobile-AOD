@@ -57,6 +57,21 @@ class WidgetCacheSanitizerTest {
     }
 
     @Test
+    fun exportJsonNormalizesLegacyCopilotDisplayName() {
+        val json = WidgetCacheSanitizer.toDisplayOnlyJson(
+            snapshots = listOf(connectedSnapshot(ProviderId.COPILOT, "GitHub Copilot", 0.6f)),
+            order = listOf(ProviderId.COPILOT),
+            hidden = ProviderId.defaultOrder().filterNot { it == ProviderId.COPILOT }.toSet(),
+            updatedAt = UPDATED_AT
+        )
+
+        val provider = JSONObject(json).getJSONArray("providers").getJSONObject(0)
+
+        assertEquals("copilot", provider.getString("providerId"))
+        assertEquals("Copilot", provider.getString("displayName"))
+    }
+
+    @Test
     fun exportJsonUsesOnlyDisplayProviderAndLineKeys() {
         val json = WidgetCacheSanitizer.toDisplayOnlyJson(
             snapshots = listOf(connectedSnapshot(ProviderId.CURSOR, "Cursor", 0.4f)),
@@ -89,10 +104,25 @@ class WidgetCacheSanitizerTest {
                 "remainingText",
                 "resetText",
                 "detailText",
-                "severity"
+                "severity",
+                "used",
+                "limit",
+                "remaining",
+                "unit",
+                "category",
+                "windowText",
+                "startsAt",
+                "resetsAt",
+                "confidence"
             ),
             line.namesSet()
         )
+        assertEquals(12.0, line.getDouble("used"), 0.0001)
+        assertEquals(40.0, line.getDouble("limit"), 0.0001)
+        assertEquals(28.0, line.getDouble("remaining"), 0.0001)
+        assertEquals("requests", line.getString("unit"))
+        assertEquals("fast_requests", line.getString("category"))
+        assertEquals("5h", line.getString("windowText"))
     }
 
     @Test
@@ -155,7 +185,17 @@ class WidgetCacheSanitizerTest {
                     remainingText = "${(remaining * 100).toInt()}% left",
                     resetText = "Resets in 1h",
                     detailText = "Fast requests",
-                    severity = UsageSeverity.WARNING
+                    severity = UsageSeverity.WARNING,
+                    usedAmount = 12.0,
+                    limitAmount = 40.0,
+                    remainingAmount = 28.0,
+                    unit = "requests",
+                    category = "fast_requests",
+                    windowText = "5h",
+                    startsAt = "2026-05-15T00:00:00Z",
+                    resetsAt = "2026-05-15T05:00:00Z",
+                    sourceLabel = "dashboard",
+                    confidence = 0.9f
                 )
             ),
             message = "Ready"

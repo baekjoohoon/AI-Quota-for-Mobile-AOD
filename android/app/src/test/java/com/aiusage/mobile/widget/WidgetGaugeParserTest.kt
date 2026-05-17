@@ -2,10 +2,26 @@ package com.aiusage.mobile.widget
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import java.time.Instant
+import java.util.Locale
 
 class WidgetGaugeParserTest {
+    private lateinit var previousLocale: Locale
+
+    @Before
+    fun useEnglishLocale() {
+        previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.ENGLISH)
+    }
+
+    @After
+    fun restoreLocale() {
+        Locale.setDefault(previousLocale)
+    }
+
     @Test
     fun parsesUpToFourProviderGaugesInSnapshotOrder() {
         val now = Instant.parse("2026-05-06T00:00:00Z")

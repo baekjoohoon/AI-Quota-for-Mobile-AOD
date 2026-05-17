@@ -36,7 +36,7 @@ object WidgetCacheSanitizer {
     private fun ProviderUsageSnapshot.toDisplayOnlyJson(): JSONObject {
         return JSONObject()
             .put(KEY_PROVIDER_ID, providerId.storageId)
-            .put(KEY_DISPLAY_NAME, displayName.ifBlank { providerId.displayName })
+            .put(KEY_DISPLAY_NAME, providerId.normalizedDisplayName(displayName))
             .put(KEY_CONNECTION_STATE, connectionState.name)
             .put(KEY_REFRESH_STATE, refreshState.name)
             .putNullable(KEY_PLAN_LABEL, planLabel)
@@ -58,6 +58,15 @@ object WidgetCacheSanitizer {
             .putNullable(KEY_RESET_TEXT, resetText)
             .putNullable(KEY_DETAIL_TEXT, detailText)
             .put(KEY_SEVERITY, severity.name)
+            .putNullable(KEY_USED, usedAmount)
+            .putNullable(KEY_LIMIT, limitAmount)
+            .putNullable(KEY_REMAINING, remainingAmount)
+            .putNullable(KEY_UNIT, unit)
+            .putNullable(KEY_CATEGORY, category)
+            .putNullable(KEY_WINDOW_TEXT, windowText)
+            .putNullable(KEY_STARTS_AT, startsAt)
+            .putNullable(KEY_RESETS_AT, resetsAt)
+            .putNullable(KEY_CONFIDENCE, confidence?.toDouble())
     }
 
     private fun JSONArray?.sanitizeProviders(): JSONArray {
@@ -74,7 +83,7 @@ object WidgetCacheSanitizer {
         val providerId = optionalString(KEY_PROVIDER_ID).orEmpty().ifBlank { "unknown" }
         return JSONObject()
             .put(KEY_PROVIDER_ID, providerId)
-            .put(KEY_DISPLAY_NAME, optionalString(KEY_DISPLAY_NAME).orEmpty().ifBlank { providerId })
+            .put(KEY_DISPLAY_NAME, normalizedDisplayName(providerId, optionalString(KEY_DISPLAY_NAME)))
             .put(
                 KEY_CONNECTION_STATE,
                 optionalString(KEY_CONNECTION_STATE).orEmpty().ifBlank {
@@ -110,6 +119,15 @@ object WidgetCacheSanitizer {
             .putNullable(KEY_RESET_TEXT, optionalString(KEY_RESET_TEXT))
             .putNullable(KEY_DETAIL_TEXT, optionalString(KEY_DETAIL_TEXT))
             .put(KEY_SEVERITY, optionalString(KEY_SEVERITY).orEmpty().ifBlank { UsageSeverity.UNKNOWN.name })
+            .putNullable(KEY_USED, optionalDouble(KEY_USED))
+            .putNullable(KEY_LIMIT, optionalDouble(KEY_LIMIT))
+            .putNullable(KEY_REMAINING, optionalDouble(KEY_REMAINING))
+            .putNullable(KEY_UNIT, optionalString(KEY_UNIT))
+            .putNullable(KEY_CATEGORY, optionalString(KEY_CATEGORY))
+            .putNullable(KEY_WINDOW_TEXT, optionalString(KEY_WINDOW_TEXT))
+            .putNullable(KEY_STARTS_AT, optionalString(KEY_STARTS_AT))
+            .putNullable(KEY_RESETS_AT, optionalString(KEY_RESETS_AT))
+            .putNullable(KEY_CONFIDENCE, optionalDouble(KEY_CONFIDENCE))
     }
 
     private fun JSONObject.optionalString(key: String): String? {
@@ -129,6 +147,29 @@ object WidgetCacheSanitizer {
 
     private fun JSONObject.putNullable(key: String, value: Any?): JSONObject {
         return put(key, value ?: JSONObject.NULL)
+    }
+
+    private fun ProviderId.normalizedDisplayName(value: String): String {
+        val normalized = value.trim()
+        if (this == ProviderId.COPILOT && normalized.equals("GitHub Copilot", ignoreCase = true)) {
+            return displayName
+        }
+        return normalized.ifBlank { displayName }
+    }
+
+    private fun normalizedDisplayName(providerId: String, displayName: String?): String {
+        val normalizedProviderId = providerId.trim()
+        val normalizedDisplayName = displayName?.trim().orEmpty()
+        val knownProvider = ProviderId.fromStorageId(normalizedProviderId)
+        if (
+            knownProvider == ProviderId.COPILOT &&
+            normalizedDisplayName.equals("GitHub Copilot", ignoreCase = true)
+        ) {
+            return ProviderId.COPILOT.displayName
+        }
+        return normalizedDisplayName.ifBlank {
+            knownProvider?.displayName ?: normalizedProviderId.ifBlank { "unknown" }
+        }
     }
 
     private fun requireNoSensitiveKeys(value: Any?) {
@@ -173,6 +214,15 @@ object WidgetCacheSanitizer {
     private const val KEY_RESET_TEXT = "resetText"
     private const val KEY_DETAIL_TEXT = "detailText"
     private const val KEY_SEVERITY = "severity"
+    private const val KEY_USED = "used"
+    private const val KEY_LIMIT = "limit"
+    private const val KEY_REMAINING = "remaining"
+    private const val KEY_UNIT = "unit"
+    private const val KEY_CATEGORY = "category"
+    private const val KEY_WINDOW_TEXT = "windowText"
+    private const val KEY_STARTS_AT = "startsAt"
+    private const val KEY_RESETS_AT = "resetsAt"
+    private const val KEY_CONFIDENCE = "confidence"
 
     private val SENSITIVE_KEY_PARTS = listOf(
         "accesstoken",

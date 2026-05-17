@@ -20,6 +20,26 @@ object ProviderCardOrder {
         return ProviderPreferencesCodec.moveProvider(order, providerId, targetIndex)
     }
 
+    fun moveToVisibleTargetIndex(
+        order: List<ProviderId>,
+        hidden: Set<ProviderId>,
+        providerId: ProviderId,
+        targetVisibleIndex: Int
+    ): List<ProviderId> {
+        val normalized = normalizedOrder(order)
+        val visible = ProviderPreferencesCodec.visibleProviders(normalized, hidden)
+        if (providerId !in visible || visible.size <= 1) return normalized
+
+        val reorderedVisible = visible.toMutableList()
+        reorderedVisible.remove(providerId)
+        reorderedVisible.add(targetVisibleIndex.coerceIn(0, reorderedVisible.size), providerId)
+
+        val nextVisible = ArrayDeque(reorderedVisible)
+        return normalized.map { candidate ->
+            if (candidate in hidden) candidate else nextVisible.removeFirst()
+        }
+    }
+
     fun targetIndex(order: List<ProviderId>, providerId: ProviderId, offset: Int): Int {
         val normalized = normalizedOrder(order)
         val currentIndex = normalized.indexOf(providerId).takeIf { it >= 0 } ?: 0

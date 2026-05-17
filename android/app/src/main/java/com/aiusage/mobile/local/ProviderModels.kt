@@ -4,7 +4,7 @@ enum class ProviderId(val storageId: String, val displayName: String) {
     CLAUDE("claude", "Claude"),
     CODEX("codex", "Codex"),
     GEMINI("gemini", "Gemini"),
-    COPILOT("copilot", "GitHub Copilot"),
+    COPILOT("copilot", "Copilot"),
     CURSOR("cursor", "Cursor");
 
     companion object {
@@ -46,7 +46,17 @@ data class ProviderUsageLine(
     val remainingText: String,
     val resetText: String? = null,
     val detailText: String? = null,
-    val severity: UsageSeverity = UsageSeverity.UNKNOWN
+    val severity: UsageSeverity = UsageSeverity.UNKNOWN,
+    val usedAmount: Double? = null,
+    val limitAmount: Double? = null,
+    val remainingAmount: Double? = null,
+    val unit: String? = null,
+    val category: String? = null,
+    val windowText: String? = null,
+    val startsAt: String? = null,
+    val resetsAt: String? = null,
+    val sourceLabel: String? = null,
+    val confidence: Float? = null
 )
 
 data class ProviderUsageSnapshot(

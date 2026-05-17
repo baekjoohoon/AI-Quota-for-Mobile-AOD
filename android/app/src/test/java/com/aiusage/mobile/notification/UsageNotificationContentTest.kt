@@ -1,10 +1,26 @@
 package com.aiusage.mobile.notification
 
 import org.junit.Assert.assertEquals
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import java.time.Instant
+import java.util.Locale
 
 class UsageNotificationContentTest {
+    private lateinit var previousLocale: Locale
+
+    @Before
+    fun useEnglishLocale() {
+        previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.ENGLISH)
+    }
+
+    @After
+    fun restoreLocale() {
+        Locale.setDefault(previousLocale)
+    }
+
     @Test
     fun buildsGaugeNotificationContentFromActiveProvidersOnly() {
         val snapshotJson = """
