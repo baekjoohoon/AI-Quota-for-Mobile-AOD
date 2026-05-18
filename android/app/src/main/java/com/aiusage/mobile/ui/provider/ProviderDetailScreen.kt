@@ -91,7 +91,6 @@ fun ProviderDetailScreen(
     ) {
         ClassicProviderWindow(
             snapshot = snapshot,
-            isHidden = isHidden,
             isBusy = isBusy,
             layoutMetrics = layoutMetrics,
             onConnect = onConnect,
@@ -104,7 +103,6 @@ fun ProviderDetailScreen(
 @Composable
 private fun ClassicProviderWindow(
     snapshot: ProviderUsageSnapshot,
-    isHidden: Boolean,
     isBusy: Boolean,
     layoutMetrics: AppLayoutMetrics,
     onConnect: () -> Unit,
@@ -202,7 +200,6 @@ private fun ClassicProviderWindow(
                 ) {
                     ProviderSummaryBlock(
                         snapshot = snapshot,
-                        isHidden = isHidden,
                         isBusy = isBusy,
                         layoutMetrics = layoutMetrics,
                         onConnect = onConnect,
@@ -238,7 +235,6 @@ private fun ClassicProviderWindow(
 @Composable
 private fun ProviderSummaryBlock(
     snapshot: ProviderUsageSnapshot,
-    isHidden: Boolean,
     isBusy: Boolean,
     layoutMetrics: AppLayoutMetrics,
     onConnect: () -> Unit,
@@ -285,24 +281,6 @@ private fun ProviderSummaryBlock(
             }
             snapshot.updatedAt.takeIf { it.isNotBlank() }?.let { updatedAt ->
                 ClassicInfoLine(text = stringResource(R.string.provider_updated, updatedAt))
-            }
-            ClassicInfoLine(
-                text = if (isHidden) {
-                    stringResource(R.string.provider_detail_visibility_hidden)
-                } else {
-                    stringResource(R.string.provider_detail_visibility_visible)
-                }
-            )
-            snapshot.message?.let { message ->
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (snapshot.connectionState == ProviderConnectionState.ERROR) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        if (colors.theme == AppTheme.MACOS) colors.textMuted else colors.textSecondary
-                    }
-                )
             }
         }
         Button(

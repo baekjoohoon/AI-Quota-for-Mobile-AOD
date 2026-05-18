@@ -554,6 +554,11 @@ private fun UsageLinePreview(line: ProviderUsageLine, providerId: ProviderId, li
     val colors = AIUsageTheme.colors
     val locale = java.util.Locale.getDefault()
     val resetText = displayResetTextForLocale(line.effectiveResetText(), locale)
+        ?: if (line.remainingPercent != null) {
+            stringResource(R.string.dashboard_reset_timer_pending)
+        } else {
+            null
+        }
 
     Column(
         modifier = Modifier.fillMaxWidth(),

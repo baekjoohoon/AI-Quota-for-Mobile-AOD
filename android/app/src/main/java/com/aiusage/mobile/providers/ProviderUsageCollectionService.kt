@@ -318,7 +318,8 @@ class ProviderUsageCollectionService : Service() {
             freshConnectionObserved -> existingLines
             else -> existingLines
         }
-        val hasUsageEvidence = snapshotLines.isNotEmpty()
+        val sortedSnapshotLines = sortStoredLines(provider, snapshotLines)
+        val hasUsageEvidence = sortedSnapshotLines.isNotEmpty()
         repository.saveSnapshot(
             ProviderUsageSnapshot(
                 providerId = provider,
@@ -332,8 +333,8 @@ class ProviderUsageCollectionService : Service() {
                     freshConnectionObserved || hasUsageEvidence
                 },
                 updatedAt = Instant.now().toString(),
-                lines = snapshotLines,
-                message = if (snapshotLines.isNotEmpty()) {
+                lines = sortedSnapshotLines,
+                message = if (sortedSnapshotLines.isNotEmpty()) {
                     getString(R.string.provider_usage_updated_message)
                 } else if (freshConnectionObserved) {
                     getString(R.string.provider_usage_not_found_message, provider.displayName)
@@ -366,6 +367,7 @@ class ProviderUsageCollectionService : Service() {
             currentSnapshot.copy(
                 refreshState = ProviderRefreshState.IDLE,
                 updatedAt = Instant.now().toString(),
+                lines = sortStoredLines(provider, currentSnapshot.lines),
                 message = getString(R.string.provider_usage_updated_message)
             )
         )
@@ -541,7 +543,24 @@ class ProviderUsageCollectionService : Service() {
                 .lowercase()
             deduped.putIfAbsent(key, line)
         }
-        return deduped.values.toList()
+        return sortStoredLines(providerId ?: return deduped.values.toList(), deduped.values.toList())
+    }
+
+    private fun sortStoredLines(
+        provider: ProviderId,
+        lines: List<com.aiusage.mobile.local.ProviderUsageLine>
+    ): List<com.aiusage.mobile.local.ProviderUsageLine> {
+        if (provider != ProviderId.GEMINI) return lines
+        val order = mapOf(
+            "pro" to 0,
+            "flash" to 1,
+            "deep research" to 2
+        )
+        return lines.sortedWith(
+            compareBy<com.aiusage.mobile.local.ProviderUsageLine> {
+                order[it.label.lowercase()] ?: 100
+            }.thenBy { it.label.lowercase() }
+        )
     }
 
     private fun com.aiusage.mobile.local.ProviderUsageLine.isPlanOnlyLine(): Boolean {
@@ -580,6 +599,7 @@ class ProviderUsageCollectionService : Service() {
             if ("/features/copilot/plans" in allText) return false
             if (Regex("""\b[a-z0-9-]+\.(com|net|org|io|dev|ai)\b""").containsMatchIn(labelText)) return false
         }
+        if (providerId == ProviderId.GEMINI && labelText.startsWith("gemini quota")) return false
         return true
     }
 

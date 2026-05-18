@@ -271,6 +271,8 @@ class ProviderLocalUsageCollectorTest {
         assertTrue(copilotScript.contains("/github-copilot/chat/entitlement"))
         assertTrue(copilotScript.contains("scanCopilotEntitlement"))
         assertTrue(copilotScript.contains("chatPercentage"))
+        assertTrue(copilotScript.contains("quotaLimits.completions"))
+        assertTrue(copilotScript.contains("completionsRemaining <= 4000"))
         assertTrue(copilotScript.contains("premiumInteractionsPercentage"))
         assertTrue(copilotScript.contains("quotas.resetDate"))
         assertTrue(copilotScript.contains("/settings/copilot/usage"))
@@ -306,6 +308,20 @@ class ProviderLocalUsageCollectorTest {
         assertTrue(script.contains("membershipType"))
         assertTrue(script.contains("planInfo"))
         assertTrue(script.contains("billingCycleStart"))
+    }
+
+    @Test
+    fun geminiExtractorFetchesQuotaRpcEndpoints() {
+        val script = ProviderLocalUsageCollector.scriptFor(com.aiusage.mobile.local.ProviderId.GEMINI)
+
+        assertTrue(script.contains("fetchGeminiQuotaEndpoints"))
+        assertTrue(script.contains("VxUbXb"))
+        assertTrue(script.contains("qpEbW"))
+        assertTrue(script.contains("aPya6c"))
+        assertTrue(script.contains("scanGeminiQuotaResponse"))
+        assertTrue(script.contains("CheckGeminiQuota action"))
+        assertTrue(script.contains("case 3:"))
+        assertTrue(script.contains("case 4:"))
     }
 
     @Test

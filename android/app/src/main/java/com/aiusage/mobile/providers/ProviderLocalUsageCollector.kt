@@ -848,10 +848,21 @@ object ProviderLocalUsageCollector {
             if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text + "T00:00:00Z";
             return text;
           }
-          function pushRemainingCounter(limits, title, remainingValue, unitValue, remainingPercentValue, context, resetValue) {
+          function pushRemainingCounter(limits, title, remainingValue, unitValue, remainingPercentValue, limitValue, context, resetValue) {
             if (limits.length >= 8) return;
             var remaining = parseNumber(remainingValue);
             if (!isNumber(remaining)) return;
+            var cap = parseNumber(limitValue);
+            if (isNumber(cap) && cap > 0) {
+              pushAmountLimit(limits, title, null, cap, remaining, unitValue, context, 0.98);
+              var amountLast = limits[limits.length - 1];
+              if (amountLast) {
+                amountLast.window = "monthly";
+                var amountReset = resetDateToIso(resetValue);
+                if (amountReset) amountLast.r = amountReset;
+              }
+              return;
+            }
             var percent = parseNumber(remainingPercentValue);
             if (isNumber(percent)) {
               var usedPercent = Math.max(0, Math.min(100, 100 - percent));
@@ -884,12 +895,17 @@ object ProviderLocalUsageCollector {
             if (!isPlainObject(remaining)) return false;
             var quotaLimits = isPlainObject(quotas.limits) ? quotas.limits : {};
             var resetDate = quotas.resetDate || quotas.reset_date || quotas.resetAt || quotas.reset_at;
+            var planText = safeText(value.plan || value.sku || value.licenseType || value.license_type).toLowerCase();
+            var completionsRemaining = parseNumber(remaining.completions);
+            var defaultCompletionsLimit = /(^|[^a-z])(free|licensed_limited)([^a-z]|$)/.test(planText) ||
+              (isNumber(completionsRemaining) && completionsRemaining >= 0 && completionsRemaining <= 4000) ? 4000 : null;
             pushRemainingCounter(
               limits,
               "Chat",
               remaining.chat,
               "messages",
               remaining.chatPercentage,
+              quotaLimits.chat || quotaLimits.messages,
               source + " " + path.concat("quotas", "remaining", "chat").join("."),
               resetDate
             );
@@ -899,6 +915,7 @@ object ProviderLocalUsageCollector {
               remaining.completions,
               "completions",
               remaining.completionsPercentage,
+              quotaLimits.completions || quotaLimits.completion || quotaLimits.codeCompletions || quotaLimits.code_completions || defaultCompletionsLimit,
               source + " " + path.concat("quotas", "remaining", "completions").join("."),
               resetDate
             );
@@ -926,6 +943,90 @@ object ProviderLocalUsageCollector {
                 if (premiumReset) premiumLast.r = premiumReset;
               }
             }
+            return true;
+          }
+          function geminiQuotaLabel(action) {
+            switch (Number(action)) {
+              case 3:
+                return "Pro";
+              case 4:
+                return "Flash";
+              case 5:
+                return "Deep Research";
+              default:
+                return null;
+            }
+          }
+          function geminiTimestampToIso(value) {
+            if (!Array.isArray(value) || value.length < 1) return null;
+            var seconds = parseNumber(value[0]);
+            var nanos = parseNumber(value[1]);
+            if (!isNumber(seconds) || seconds <= 0) return null;
+            var millis = seconds * 1000 + (isNumber(nanos) ? Math.floor(nanos / 1000000) : 0);
+            try {
+              return new Date(millis).toISOString();
+            } catch (error) {
+              return null;
+            }
+          }
+          function scanGeminiQuotaResponse(value, path, source, limits) {
+            if (PROVIDER_ID !== "gemini" || !Array.isArray(value)) return false;
+            var rows = [];
+            function collect(node, depth) {
+              if (!Array.isArray(node) || depth > 8) return;
+              if (
+                node.length >= 6 &&
+                Array.isArray(node[0]) &&
+                Array.isArray(node[3]) &&
+                isNumber(parseNumber(node[4])) &&
+                isNumber(parseNumber(node[5]))
+              ) {
+                rows.push(node);
+                return;
+              }
+              node.forEach(function(child) { collect(child, depth + 1); });
+            }
+            collect(value, 0);
+            if (!rows.length) return false;
+            var order = { 3: 0, 4: 1, 5: 2 };
+            rows
+              .filter(function(row) {
+                var action = parseNumber(row[0] && row[0][1]);
+                var cap = parseNumber(row[5]);
+                return isNumber(action) && geminiQuotaLabel(action) && isNumber(cap) && cap > 0;
+              })
+              .sort(function(left, right) {
+                var leftAction = parseNumber(left[0] && left[0][1]);
+                var rightAction = parseNumber(right[0] && right[0][1]);
+                var leftOrder = Object.prototype.hasOwnProperty.call(order, leftAction) ? order[leftAction] : 100 + leftAction;
+                var rightOrder = Object.prototype.hasOwnProperty.call(order, rightAction) ? order[rightAction] : 100 + rightAction;
+                return leftOrder - rightOrder;
+              })
+              .forEach(function(row) {
+                if (limits.length >= 8) return;
+                var action = parseNumber(row[0] && row[0][1]);
+                var remaining = parseNumber(row[4]);
+                var cap = parseNumber(row[5]);
+                if (!isNumber(action) || !isNumber(remaining) || !isNumber(cap) || cap <= 0) return;
+                var label = geminiQuotaLabel(action);
+                pushAmountLimit(
+                  limits,
+                  label,
+                  null,
+                  cap,
+                  remaining,
+                  "requests",
+                  source + " CheckGeminiQuota action " + action,
+                  0.97
+                );
+                var last = limits[limits.length - 1];
+                if (last) {
+                  last.window = "daily";
+                  var reset = geminiTimestampToIso(row[3]);
+                  if (reset) last.r = reset;
+                  last.category = "usage_window";
+                }
+              });
             return true;
           }
           function pushClaudeUsageApiLimit(limits, label, utilizationValue, resetsAtValue, source, windowText) {
@@ -984,6 +1085,7 @@ object ProviderLocalUsageCollector {
               return;
             }
             if (Array.isArray(value)) {
+              if (scanGeminiQuotaResponse(value, path, source, limits)) return;
               value.forEach(function(item, index) {
                 scanJson(item, path.concat(String(index)), source, limits, depth + 1);
               });
@@ -1629,6 +1731,85 @@ object ProviderLocalUsageCollector {
               ].forEach(fetchEndpoint);
             });
           }
+          function geminiAtToken() {
+            try {
+              if (window.WIZ_global_data && window.WIZ_global_data.SNlM0e) {
+                return safeText(window.WIZ_global_data.SNlM0e);
+              }
+            } catch (error) {}
+            try {
+              var input = document.querySelector('input[name="at"]');
+              if (input && input.value) return safeText(input.value);
+            } catch (error) {}
+            try {
+              var match = (document.documentElement && document.documentElement.innerHTML || "").match(/"SNlM0e"\s*:\s*"([^"]+)"/);
+              if (match) return safeText(match[1]);
+            } catch (error) {}
+            return "";
+          }
+          function fetchGeminiBatchExecute(rpcId, payload, label) {
+            try {
+              if (PROVIDER_ID !== "gemini" || !isProviderOrigin()) return;
+              if (typeof fetch !== "function") {
+                rememberEndpointError(label || rpcId, -2);
+                return;
+              }
+              if (!window.__AI_USAGE_GEMINI_RPC_STARTED__) window.__AI_USAGE_GEMINI_RPC_STARTED__ = {};
+              var key = rpcId + ":" + JSON.stringify(payload || []);
+              if (window.__AI_USAGE_GEMINI_RPC_STARTED__[key]) return;
+              window.__AI_USAGE_GEMINI_RPC_STARTED__[key] = true;
+              var endpoint = "/_/BardChatUi/data/batchexecute?rpcids=" +
+                encodeURIComponent(rpcId) +
+                "&source-path=" + encodeURIComponent(location.pathname || "/app") +
+                "&_reqid=" + Math.floor(Math.random() * 900000 + 100000) +
+                "&rt=c";
+              var body = "f.req=" + encodeURIComponent(JSON.stringify([[[rpcId, JSON.stringify(payload || []), null, "generic"]]]));
+              var at = geminiAtToken();
+              if (at) body += "&at=" + encodeURIComponent(at);
+              fetch(new URL(endpoint, location.origin).toString(), {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                  "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+                  "x-same-domain": "1"
+                },
+                body: body
+              })
+                .then(function(response) {
+                  return response.clone().text()
+                    .then(function(value) {
+                      rememberEndpointSummary("/_/BardChatUi/data/batchexecute#" + (label || rpcId), response, value);
+                      return value;
+                    })
+                    .catch(function() {
+                      rememberEndpointSummary("/_/BardChatUi/data/batchexecute#" + (label || rpcId), response, "");
+                      return "";
+                    });
+                })
+                .then(function(value) {
+                  rememberSignal("/_/BardChatUi/data/batchexecute#" + (label || rpcId) + " " + value);
+                  emitResponse(buildResponse());
+                })
+                .catch(function() {
+                  rememberEndpointError("/_/BardChatUi/data/batchexecute#" + (label || rpcId), -1);
+                  emitResponse(buildResponse());
+                });
+            } catch (error) {}
+          }
+          function fetchGeminiQuotaEndpoints() {
+            if (PROVIDER_ID !== "gemini" || !isProviderOrigin()) return;
+            fetchGeminiBatchExecute("VxUbXb", [], "CheckModeFeatureQuota");
+            [1, 3, 6].forEach(function(mode) {
+              fetchGeminiBatchExecute("aPya6c", [mode], "CheckQuota:" + mode);
+            });
+            var contexts = [];
+            [1, 3, 6].forEach(function(mode) {
+              [3, 4, 5, 6, 7, 8, 9, 11, 12, 14, 17, 21, 27].forEach(function(action) {
+                contexts.push([mode, action]);
+              });
+            });
+            fetchGeminiBatchExecute("qpEbW", [contexts], "CheckGeminiQuota");
+          }
           function fetchAccountScopedEndpoints(text) {
             if (PROVIDER_ID !== "codex") return;
             var ids = extractAccountIds(text);
@@ -1663,6 +1844,7 @@ object ProviderLocalUsageCollector {
             if (PROVIDER_ID === "claude") {
               fetchClaudeScopedEndpoints(document.cookie || "");
             }
+            fetchGeminiQuotaEndpoints();
             var endpoints = providerEndpointCandidates();
             endpoints.forEach(fetchEndpoint);
           }

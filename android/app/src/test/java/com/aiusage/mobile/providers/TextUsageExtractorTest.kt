@@ -469,7 +469,8 @@ class TextUsageExtractorTest {
                   "plan": "free",
                   "quotas": {
                     "limits": {
-                      "premiumInteractions": 0
+                      "premiumInteractions": 0,
+                      "completions": 4000
                     },
                     "remaining": {
                       "chat": 500,
@@ -493,8 +494,111 @@ class TextUsageExtractorTest {
         assertEquals("500 messages left", snapshot.lines[0].remainingText)
         assertEquals("2026-06-15T00:00:00Z", snapshot.lines[0].resetsAt)
         assertEquals("Completions", snapshot.lines[1].label)
-        assertNull(snapshot.lines[1].remainingPercent)
-        assertEquals("4,000 completions left", snapshot.lines[1].remainingText)
+        assertEquals(1f, snapshot.lines[1].remainingPercent)
+        assertEquals("4,000 of 4,000 completions left", snapshot.lines[1].remainingText)
+    }
+
+    @Test
+    fun derivesCopilotFreeCompletionLimitWhenEntitlementOmitsLimit() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.COPILOT,
+            visibleText = """
+                {
+                  "licenseType": "licensed_limited",
+                  "plan": "free",
+                  "quotas": {
+                    "limits": {
+                      "premiumInteractions": 0
+                    },
+                    "remaining": {
+                      "chat": 500,
+                      "completions": 3200,
+                      "chatPercentage": 100.0
+                    },
+                    "resetDate": "2026-06-15"
+                  }
+                }
+            """.trimIndent()
+        )
+
+        val completions = snapshot.lines.first { it.label == "Completions" }
+        assertEquals(0.8f, completions.remainingPercent ?: -1f, 0.0001f)
+        assertEquals("3,200 of 4,000 completions left", completions.remainingText)
+        assertEquals("800 used of 4,000", completions.detailText)
+    }
+
+    @Test
+    fun derivesCopilotCompletionLimitWhenEntitlementOmitsPlanAndLimit() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.COPILOT,
+            visibleText = """
+                {
+                  "quotas": {
+                    "limits": {
+                      "premiumInteractions": 0
+                    },
+                    "remaining": {
+                      "chat": 500,
+                      "completions": 4000,
+                      "chatPercentage": 100.0
+                    },
+                    "resetDate": "2026-06-15"
+                  }
+                }
+            """.trimIndent()
+        )
+
+        val completions = snapshot.lines.first { it.label == "Completions" }
+        assertEquals(1f, completions.remainingPercent ?: -1f, 0.0001f)
+        assertEquals("4,000 of 4,000 completions left", completions.remainingText)
+        assertEquals("0 used of 4,000", completions.detailText)
+    }
+
+    @Test
+    fun extractsGeminiQuotaRowsFromStructuredCollectorPayload() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.GEMINI,
+            visibleText = """
+                {
+                  "s": "s",
+                  "provider": "gemini",
+                  "d": {
+                    "x": [
+                      {
+                        "l": "Flash",
+                        "used": 0,
+                        "limit": 25,
+                        "remaining": 25,
+                        "unit": "requests",
+                        "category": "usage_window",
+                        "window": "daily",
+                        "r": "2026-05-18T10:56:26.773Z",
+                        "source": "/_/BardChatUi/data/batchexecute CheckGeminiQuota action 4",
+                        "confidence": 0.97
+                      },
+                      {
+                        "l": "Pro",
+                        "used": 0,
+                        "limit": 5,
+                        "remaining": 5,
+                        "unit": "requests",
+                        "category": "usage_window",
+                        "window": "daily",
+                        "r": "2026-05-18T10:56:26.773Z",
+                        "source": "/_/BardChatUi/data/batchexecute CheckGeminiQuota action 3",
+                        "confidence": 0.97
+                      }
+                    ]
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
+        assertEquals(listOf("Pro", "Flash"), snapshot.lines.take(2).map { it.label })
+        assertEquals(1f, snapshot.lines[0].remainingPercent)
+        assertEquals("5 of 5 requests left", snapshot.lines[0].remainingText)
+        assertEquals("2026-05-18T10:56:26.773Z", snapshot.lines[0].resetsAt)
     }
 
     @Test

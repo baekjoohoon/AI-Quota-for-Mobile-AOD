@@ -97,12 +97,14 @@ object TextUsageExtractor {
         val resetDate = quotas.optNullableString("resetDate")?.toResetInstantString()
         val lines = buildList {
             remaining.optNumber("chat")?.let { chatRemaining ->
+                val chatLimit = limits.optFirstNumber("chat", "messages")
                 val remainingPercent = remaining.optNumber("chatPercentage")
                     ?.let { (it / 100.0).coerceIn(0.0, 1.0).toFloat() }
                 add(
                     remainingCounterLine(
                         label = "Chat",
                         remaining = chatRemaining,
+                        limit = chatLimit,
                         unit = "messages",
                         remainingPercent = remainingPercent,
                         resetsAt = resetDate,
@@ -111,12 +113,19 @@ object TextUsageExtractor {
                 )
             }
             remaining.optNumber("completions")?.let { completionsRemaining ->
+                val completionsLimit = limits.optFirstNumber(
+                    "completions",
+                    "completion",
+                    "codeCompletions",
+                    "code_completions"
+                ) ?: defaultCopilotCompletionsLimit(json, completionsRemaining)
                 val remainingPercent = remaining.optNumber("completionsPercentage")
                     ?.let { (it / 100.0).coerceIn(0.0, 1.0).toFloat() }
                 add(
                     remainingCounterLine(
                         label = "Completions",
                         remaining = completionsRemaining,
+                        limit = completionsLimit,
                         unit = "completions",
                         remainingPercent = remainingPercent,
                         resetsAt = resetDate,
@@ -154,18 +163,39 @@ object TextUsageExtractor {
     private fun remainingCounterLine(
         label: String,
         remaining: Double,
+        limit: Double?,
         unit: String,
         remainingPercent: Float?,
         resetsAt: String?,
         category: String
     ): ProviderUsageLine {
+        val used = if (limit != null && limit > 0.0) {
+            (limit - remaining).coerceAtLeast(0.0)
+        } else {
+            null
+        }
+        val ratio = when {
+            limit != null && limit > 0.0 -> (remaining / limit).coerceIn(0.0, 1.0).toFloat()
+            remainingPercent != null -> remainingPercent
+            else -> null
+        }
         return ProviderUsageLine(
             label = label,
-            remainingPercent = remainingPercent,
-            remainingText = remainingOnlyText(remaining, unit),
+            remainingPercent = ratio,
+            remainingText = if (limit != null && limit > 0.0) {
+                remainingLimitText(remaining, limit, unit, ratio ?: 0f)
+            } else {
+                remainingOnlyText(remaining, unit)
+            },
             resetText = null,
-            detailText = null,
-            severity = remainingPercent?.let(::severityForStructured) ?: UsageSeverity.UNKNOWN,
+            detailText = if (limit != null && limit > 0.0 && used != null) {
+                usedLimitText(used, limit, (used / limit) * 100.0)
+            } else {
+                null
+            },
+            severity = ratio?.let(::severityForStructured) ?: UsageSeverity.UNKNOWN,
+            usedAmount = used,
+            limitAmount = limit,
             remainingAmount = remaining,
             unit = unit,
             category = category,
@@ -174,6 +204,20 @@ object TextUsageExtractor {
             sourceLabel = "/github-copilot/chat/entitlement",
             confidence = 0.98f
         )
+    }
+
+    private fun defaultCopilotCompletionsLimit(json: JSONObject, remaining: Double): Double? {
+        val plan = json.optNullableString("plan").orEmpty().lowercase(Locale.US)
+        val licenseType = json.optNullableString("licenseType").orEmpty().lowercase(Locale.US)
+        return if (
+            plan == "free" ||
+            licenseType == "licensed_limited" ||
+            remaining in 0.0..COPILOT_FREE_COMPLETIONS_LIMIT
+        ) {
+            COPILOT_FREE_COMPLETIONS_LIMIT
+        } else {
+            null
+        }
     }
 
     private fun amountLine(
@@ -649,10 +693,24 @@ object TextUsageExtractor {
     ): List<ProviderUsageLine> {
         val providerNormalized = when (providerId) {
             ProviderId.CLAUDE -> normalizeClaudeRateLimitLabels(lines)
+            ProviderId.GEMINI -> normalizeGeminiUsageLines(lines)
             ProviderId.CURSOR -> normalizeCursorUsageLines(lines)
             else -> lines
         }
         return providerNormalized
+    }
+
+    private fun normalizeGeminiUsageLines(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {
+        val order = mapOf(
+            "pro" to 0,
+            "flash" to 1,
+            "deep research" to 2
+        )
+        return lines.sortedWith(
+            compareBy<ProviderUsageLine> {
+                order[it.label.lowercase(Locale.US)] ?: 100
+            }.thenBy { it.label.lowercase(Locale.US) }
+        )
     }
 
     private fun normalizeClaudeRateLimitLabels(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {
@@ -826,6 +884,13 @@ object TextUsageExtractor {
         }
     }
 
+    private fun JSONObject.optFirstNumber(vararg names: String): Double? {
+        names.forEach { name ->
+            optNumber(name)?.let { return it }
+        }
+        return null
+    }
+
     private data class NormalizedText(
         val lines: List<String>,
         val fullText: String
@@ -856,4 +921,5 @@ object TextUsageExtractor {
     private val RESET_PHRASE = Regex("""\b(?:resets?|reset)\b(?:\s+[^.!?;|,]+)?""", RegexOption.IGNORE_CASE)
     private const val DANGER_THRESHOLD = 0.15f
     private const val WARNING_THRESHOLD = 0.35f
+    private const val COPILOT_FREE_COMPLETIONS_LIMIT = 4000.0
 }

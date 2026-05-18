@@ -43,6 +43,7 @@
     <string name="dashboard_empty_title">No usage data yet</string>
     <string name="dashboard_empty_body">Connect a provider to start tracking your limits.</string>
     <string name="dashboard_no_lines">No usage lines available</string>
+    <string name="dashboard_reset_timer_pending">Reset timer pending</string>
     <string name="provider_move_up">Move up</string>
     <string name="provider_move_down">Move down</string>
     <string name="provider_hide">Hide</string>
@@ -56,8 +57,6 @@
     <string name="provider_no_lines">No usage lines</string>
     <string name="provider_detail_status">Status: %1$s</string>
     <string name="provider_detail_plan">Plan: %1$s</string>
-    <string name="provider_detail_visibility_hidden">Dashboard visibility: hidden</string>
-    <string name="provider_detail_visibility_visible">Dashboard visibility: visible</string>
     <string name="provider_analysis_title">Usage analysis</string>
     <string name="provider_analysis_empty">No usage data to analyze.</string>
     <string name="provider_analysis_count">Tracked lines: %1$d</string>
