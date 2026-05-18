@@ -647,12 +647,8 @@ class ProviderUsageCollectionService : Service() {
         val compact = value.lowercase()
             .replace(Regex("""[^a-z0-9]+"""), "")
         return when (provider) {
-            ProviderId.CLAUDE -> when (compact) {
-                "pro", "claudepro" -> "Claude Pro"
-                "max", "claudemax" -> "Claude Max"
-                "team", "claudeteam" -> "Claude Team"
-                "enterprise", "claudeenterprise" -> "Claude Enterprise"
-                "free", "claudefree" -> "Free"
+            ProviderId.CODEX -> when (compact) {
+                "prolite" -> "Pro 5x"
                 else -> value
             }
             ProviderId.GEMINI -> when (compact) {

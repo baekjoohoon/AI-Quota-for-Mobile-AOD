@@ -109,4 +109,27 @@ class CodexOAuthRepositoryTest {
         assertTrue(snapshot.lines.any { it.label == "Spark" && it.remainingPercent == 1f })
         assertTrue(snapshot.lines.any { it.label == "Spark weekly" })
     }
+
+    @Test
+    fun whamUsagePayloadDisplaysProliteAsPro5x() {
+        val payload = CodexOAuthRepository.structuredPayloadFromWhamBodyForTest(
+            planLabel = null,
+            body = """
+                {
+                  "plan_type": "prolite",
+                  "rate_limit": {
+                    "primary_window": {
+                      "used_percent": 10,
+                      "reset_after_seconds": 18000,
+                      "limit_window_seconds": 18000
+                    }
+                  }
+                }
+            """.trimIndent()
+        )
+
+        val snapshot = TextUsageExtractor.extract(ProviderId.CODEX, payload)
+
+        assertEquals("Pro 5x", snapshot.planLabel)
+    }
 }

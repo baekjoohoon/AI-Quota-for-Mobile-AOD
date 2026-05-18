@@ -195,9 +195,7 @@ class CodexOAuthRepository(context: Context) {
     private fun storedPlanLabel(): String? {
         return preferences.getString(KEY_PLAN_TYPE, null)
             ?.takeIf { it.isNotBlank() }
-            ?.replaceFirstChar { char ->
-                if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
-            }
+            ?.toCodexPlanLabel()
     }
 
     private fun postForm(url: String, body: Map<String, String>): HttpResponse {
@@ -332,7 +330,7 @@ class CodexOAuthRepository(context: Context) {
                 .put(
                     "d",
                     JSONObject()
-                        .put("p", plan)
+                        .put("p", plan?.toCodexPlanLabel())
                         .put("x", limits)
                         .put("l", System.currentTimeMillis())
                 )
@@ -479,6 +477,18 @@ class CodexOAuthRepository(context: Context) {
 
         private fun String.urlDecode(): String {
             return URLDecoder.decode(this, StandardCharsets.UTF_8.name())
+        }
+
+        private fun String.toCodexPlanLabel(): String {
+            val value = trim().takeIf { it.isNotBlank() } ?: return this
+            val compact = value.lowercase(Locale.US)
+                .replace(Regex("""[^a-z0-9]+"""), "")
+            return when (compact) {
+                "prolite" -> "Pro 5x"
+                else -> value.replaceFirstChar { char ->
+                    if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
+                }
+            }
         }
     }
 }

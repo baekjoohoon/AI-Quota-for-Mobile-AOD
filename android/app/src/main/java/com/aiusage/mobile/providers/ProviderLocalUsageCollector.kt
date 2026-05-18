@@ -42,7 +42,7 @@ object ProviderLocalUsageCollector {
                 labelHints = listOf("Claude", "Weekly limits", "Message limit", "Usage", "Remaining")
             )
             ProviderId.CODEX -> ProviderScriptProfile(
-                planHints = listOf("Free", "Plus", "Pro", "Team", "Enterprise"),
+                planHints = listOf("Free", "Go", "Plus", "Prolite", "Pro", "Team", "Business", "Enterprise", "Edu"),
                 labelHints = listOf("ChatGPT", "GPT-5", "GPT-4o", "Thinking", "Messages", "Usage")
             )
             ProviderId.GEMINI -> ProviderScriptProfile(
@@ -439,13 +439,14 @@ object ProviderLocalUsageCollector {
           }
           function findVisiblePaidPlan(text) {
             if (PROVIDER_ID !== "codex") return null;
-            var safeCodexPlanMatch = /\b(ChatGPT|profile|account|subscription|plan|\ud504\ub85c|\uacc4\uc815|\uad6c\ub3c5)[^\n]{0,80}\b(Plus|Pro|Team|Enterprise)\b/i.exec(text);
+            var codexPlans = "(Free|Go|Plus|Prolite|Pro|Team|Business|Enterprise|Edu)";
+            var safeCodexPlanMatch = new RegExp("\\b(ChatGPT|profile|account|subscription|plan|\\ud504\\ub85c|\\uacc4\\uc815|\\uad6c\\ub3c5)[^\\n]{0,80}\\b" + codexPlans + "\\b", "i").exec(text);
             if (safeCodexPlanMatch) return safeText(safeCodexPlanMatch[2]);
-            safeCodexPlanMatch = /\b(Plus|Pro|Team|Enterprise)\b[^\n]{0,24}(?:plan|account|profile|\uad6c\ub3c5|\uacc4\uc815|\ud504\ub85c)/i.exec(text);
+            safeCodexPlanMatch = new RegExp("\\b" + codexPlans + "\\b[^\\n]{0,24}(?:plan|account|profile|\\uad6c\\ub3c5|\\uacc4\\uc815|\\ud504\\ub85c)", "i").exec(text);
             if (safeCodexPlanMatch) return safeText(safeCodexPlanMatch[1]);
-            var match = /\b(ChatGPT|profile|account|subscription|plan|프로필|계정|구독)[^\n]{0,80}\b(Plus|Pro|Team|Enterprise)\b/i.exec(text);
+            var match = new RegExp("\\b(ChatGPT|profile|account|subscription|plan|\\ud504\\ub85c\\ud544|\\uacc4\\uc815|\\uad6c\\ub3c5)[^\\n]{0,80}\\b" + codexPlans + "\\b", "i").exec(text);
             if (match) return safeText(match[2]);
-            match = /\b(Plus|Pro|Team|Enterprise)\b[^\n]{0,24}(?:님|plan|account|profile|구독|계정|프로필)/i.exec(text);
+            match = new RegExp("\\b" + codexPlans + "\\b[^\\n]{0,24}(?:\\ub2d8|plan|account|profile|\\uad6c\\ub3c5|\\uacc4\\uc815|\\ud504\\ub85c\\ud544)", "i").exec(text);
             return match ? safeText(match[1]) : null;
           }
           function findReset(text) {
