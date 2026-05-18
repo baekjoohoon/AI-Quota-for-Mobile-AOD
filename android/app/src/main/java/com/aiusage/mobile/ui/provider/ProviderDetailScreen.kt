@@ -122,7 +122,7 @@ private fun ClassicProviderWindow(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(if (colors.theme == AppTheme.MACOS) 30.dp else 22.dp)
+                    .height(30.dp)
                     .background(colors.titleBar)
                     .padding(horizontal = 6.dp),
                 verticalAlignment = Alignment.CenterVertically

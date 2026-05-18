@@ -327,7 +327,7 @@ private fun ProviderUsageCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(if (colors.theme == com.aiusage.mobile.local.AppTheme.MACOS) 30.dp else 22.dp)
+                    .height(30.dp)
                     .background(if (isDragging) colors.primary else colors.titleBar)
                     .padding(horizontal = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
