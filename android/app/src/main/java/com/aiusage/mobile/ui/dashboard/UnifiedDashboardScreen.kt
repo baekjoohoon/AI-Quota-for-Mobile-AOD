@@ -73,6 +73,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private val ExplorerAccentColor = AIUsageColors.SurfaceRaised
+private val DashboardGaugeHeight = 5.2.dp
 private val ClassicWindowChrome = AIUsageColors.WindowChrome
 private val ClassicTitleBlue = AIUsageColors.SurfaceStrong
 private val ClassicTitleText = AIUsageColors.SurfaceMuted
@@ -562,7 +563,7 @@ private fun UsageLinePreview(line: ProviderUsageLine, providerId: ProviderId, li
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+        verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -590,15 +591,15 @@ private fun UsageLinePreview(line: ProviderUsageLine, providerId: ProviderId, li
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
+                    .height(DashboardGaugeHeight)
+                    .clip(RoundedCornerShape(3.dp))
                     .background(colors.progressTrack)
             ) {
                 LinearProgressIndicator(
                     progress = { remainingPercent.coerceIn(0f, 1f) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(4.dp),
+                        .height(DashboardGaugeHeight),
                     color = colors.progress,
                     trackColor = colors.progressTrack
                 )

@@ -67,6 +67,7 @@ private val ClassicText = AIUsageColors.TextPrimary
 private val ClassicMutedText = AIUsageColors.TextSecondary
 private val ClassicProgress = AIUsageColors.SurfaceStrong
 private val ClassicProgressTrack = AIUsageColors.WindowChrome
+private val ProviderGaugeHeight = 10.4.dp
 
 @Composable
 fun ProviderDetailScreen(
@@ -407,7 +408,7 @@ private fun ProviderUsageLineRow(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(8.dp)
+                        .height(ProviderGaugeHeight)
                         .clip(RoundedCornerShape(0.dp))
                         .background(colors.progressTrack)
                 ) {
@@ -415,7 +416,7 @@ private fun ProviderUsageLineRow(
                         progress = { remainingPercent.coerceIn(0f, 1f) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(8.dp),
+                            .height(ProviderGaugeHeight),
                         color = colors.progress,
                         trackColor = colors.progressTrack
                     )
