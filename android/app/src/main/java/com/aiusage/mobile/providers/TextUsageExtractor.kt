@@ -18,6 +18,9 @@ import java.util.Locale
 
 object TextUsageExtractor {
     fun extract(providerId: ProviderId, visibleText: String): ProviderUsageSnapshot {
+        val geminiApkStyleSnapshot = extractGeminiApkStyleUsage(providerId, visibleText)
+        if (geminiApkStyleSnapshot != null) return geminiApkStyleSnapshot
+
         val structuredSnapshot = extractStructuredUsage(providerId, visibleText)
         if (structuredSnapshot != null) return structuredSnapshot
 
@@ -158,6 +161,120 @@ object TextUsageExtractor {
             refreshState = ProviderRefreshState.IDLE,
             planLabel = ProviderId.COPILOT.normalizedPlanLabelForDisplay(json.optNullableString("plan")),
             lines = lines
+        )
+    }
+
+    private fun extractGeminiApkStyleUsage(
+        providerId: ProviderId,
+        visibleText: String
+    ): ProviderUsageSnapshot? {
+        if (providerId != ProviderId.GEMINI) return null
+        val trimmed = visibleText.trim()
+        if (!trimmed.startsWith("{")) return null
+        val response = runCatching { JSONObject(trimmed) }.getOrNull() ?: return null
+        val account = response.optJSONObject("account") ?: response.optJSONObject("a")
+        val usage = response.optJSONObject("usage")
+        if (account == null && usage == null) return null
+
+        val provider = response.optNullableString("provider")
+        if (provider != null && !provider.equals(providerId.storageId, ignoreCase = true)) {
+            return ProviderUsageSnapshot.unavailable(
+                providerId = providerId,
+                message = "Usage payload belonged to $provider."
+            )
+        }
+
+        val status = response.optNullableString("s") ?: response.optNullableString("status")
+        if (
+            status != null &&
+            !status.equals("s", ignoreCase = true) &&
+            !status.equals("success", ignoreCase = true)
+        ) {
+            return ProviderUsageSnapshot.unavailable(
+                providerId = providerId,
+                message = response.optNullableString("m")
+                    ?: response.optNullableString("errorMessage")
+                    ?: when (status.lowercase(Locale.US)) {
+                        "login_required" -> "Gemini login is required."
+                        "usage_unavailable" -> "Gemini usage is not exposed in the current page state."
+                        "dom_changed" -> "Gemini usage layout changed."
+                        else -> "No usage limits found in local provider session."
+                    }
+            )
+        }
+
+        val plan = account?.optNullableString("p")
+            ?: account?.optNullableString("plan")
+            ?: account?.optNullableString("planLabel")
+            ?: usage?.optNullableString("p")
+            ?: response.optNullableString("p")
+            ?: response.optNullableString("plan")
+        val limits = usage?.optJSONArray("x")
+            ?: usage?.optJSONArray("limits")
+            ?: response.optJSONArray("x")
+        val lines = buildList {
+            if (limits != null) {
+                for (index in 0 until limits.length()) {
+                    val limit = limits.optJSONObject(index) ?: continue
+                    val usedRate = limit.optNumber("u")
+                        ?: limit.optNumber("usage")
+                        ?: limit.optNumber("usageRate")
+                        ?: limit.optNumber("usedRate")
+                        ?: limit.optNumber("usedPercent")
+                    val usedRatio = usedRate?.let { rate ->
+                        val normalized = if (rate <= 1.0) rate else rate / 100.0
+                        normalized.coerceIn(0.0, 1.0)
+                    } ?: continue
+                    val usedPercent = usedRatio * 100.0
+                    val remainingRatio = (1.0 - usedRatio).coerceIn(0.0, 1.0).toFloat()
+                    val label = (limit.optNullableString("l")
+                        ?: limit.optNullableString("label")
+                        ?: limit.optNullableString("title")
+                        ?: "Gemini Usage").toDisplayLabel()
+                    add(
+                        ProviderUsageLine(
+                            label = label,
+                            remainingPercent = remainingRatio,
+                            remainingText = remainingLimitText(
+                                remaining = null,
+                                limit = null,
+                                unit = limit.optNullableString("unit"),
+                                remainingRatio = remainingRatio
+                            ),
+                            resetText = limit.optNullableString("t") ?: limit.optNullableString("resetText"),
+                            detailText = "${formatPercent(usedPercent)}% used",
+                            severity = severityForStructured(remainingRatio),
+                            unit = limit.optNullableString("unit") ?: "percent",
+                            category = limit.optNullableString("category") ?: "usage_window",
+                            windowText = limit.optNullableString("window") ?: limit.optNullableString("windowText"),
+                            startsAt = limit.optTimeString("startsAt", "s"),
+                            resetsAt = limit.optTimeString("resetsAt", "r"),
+                            sourceLabel = limit.optNullableString("source")
+                                ?: limit.optNullableString("sourceLabel")
+                                ?: "gemini_collector.js",
+                            confidence = limit.optNumber("confidence")?.coerceIn(0.0, 1.0)?.toFloat()
+                        )
+                    )
+                }
+            }
+        }
+        val normalizedLines = normalizeProviderLines(
+            providerId = providerId,
+            lines = lines,
+            plan = plan
+        )
+        val planLabel = structuredPlanLabel(providerId, plan, normalizedLines)
+        return ProviderUsageSnapshot(
+            providerId = providerId,
+            connectionState = ProviderConnectionState.CONNECTED,
+            refreshState = ProviderRefreshState.IDLE,
+            planLabel = planLabel,
+            lines = normalizedLines,
+            message = if (normalizedLines.isEmpty()) {
+                response.optNullableString("m") ?: "No usage limits found in local provider session."
+            } else {
+                null
+            }
         )
     }
 
@@ -706,8 +823,11 @@ object TextUsageExtractor {
     private fun normalizeGeminiUsageLines(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {
         val order = mapOf(
             "pro" to 0,
+            "gemini pro" to 0,
             "flash" to 1,
-            "deep research" to 2
+            "gemini flash" to 1,
+            "deep research" to 2,
+            "gemini deep research" to 2
         )
         return lines.sortedWith(
             compareBy<ProviderUsageLine> {

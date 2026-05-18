@@ -38,9 +38,14 @@ class ProviderModelsTest {
         assertEquals("Pro 5x", ProviderId.CODEX.normalizedPlanLabelForDisplay("prolite"))
         assertEquals("Pro 20x", ProviderId.CODEX.normalizedPlanLabelForDisplay("pro"))
         assertEquals("Plus", ProviderId.CODEX.normalizedPlanLabelForDisplay("plus"))
-        assertEquals("Google AI Plus", ProviderId.GEMINI.normalizedPlanLabelForDisplay("AI Plus"))
-        assertEquals("Google AI Pro", ProviderId.GEMINI.normalizedPlanLabelForDisplay("Pro"))
-        assertEquals("Google AI Ultra", ProviderId.GEMINI.normalizedPlanLabelForDisplay("google_ai_ultra"))
+        assertEquals("Gemini Plus", ProviderId.GEMINI.normalizedPlanLabelForDisplay("AI Plus"))
+        assertEquals("Gemini Pro", ProviderId.GEMINI.normalizedPlanLabelForDisplay("Pro"))
+        assertEquals("Gemini Ultra", ProviderId.GEMINI.normalizedPlanLabelForDisplay("google_ai_ultra"))
+        assertEquals("Gemini Pro", ProviderId.GEMINI.normalizedPlanLabelForDisplay("GEMINI_PRO"))
+        assertEquals("Gemini Plus", ProviderId.GEMINI.normalizedPlanLabelForDisplay("GOOGLE_AI_PLUS"))
+        assertEquals("Gemini Ultra", ProviderId.GEMINI.normalizedPlanLabelForDisplay("GEMINI_ULTRA"))
+        assertEquals("Gemini Free", ProviderId.GEMINI.normalizedPlanLabelForDisplay("GOOGLE_AI_FREE"))
+        assertEquals("Gemini Unknown", ProviderId.GEMINI.normalizedPlanLabelForDisplay("GEMINI_UNKNOWN"))
     }
 
     @Test

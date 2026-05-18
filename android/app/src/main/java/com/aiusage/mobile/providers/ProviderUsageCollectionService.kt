@@ -209,7 +209,12 @@ class ProviderUsageCollectionService : Service() {
             {
                 val provider = providerId ?: return@postDelayed
                 val target = webView ?: return@postDelayed
-                target.evaluateJavascript(ProviderLocalUsageCollector.scriptFor(provider)) { rawValue ->
+                target.evaluateJavascript(
+                    ProviderLocalUsageCollector.scriptFor(
+                        provider,
+                        ProviderCollectorAssets.scriptFor(applicationContext, provider)
+                    )
+                ) { rawValue ->
                     val payload = ProviderLocalUsageCollector.decodeJavascriptString(rawValue)
                     Log.d(
                         ProviderCollectionDiagnostics.TAG,
@@ -228,7 +233,13 @@ class ProviderUsageCollectionService : Service() {
         val provider = providerId ?: return
         val target = webView ?: return
         if (CollectionWebViewClient.shouldBlock(provider, url)) return
-        target.evaluateJavascript(ProviderLocalUsageCollector.hookScriptFor(provider), null)
+        target.evaluateJavascript(
+            ProviderLocalUsageCollector.hookScriptFor(
+                provider,
+                ProviderCollectorAssets.scriptFor(applicationContext, provider)
+            ),
+            null
+        )
     }
 
     private fun handleUsagePayload(payload: String, url: String) {
@@ -324,6 +335,10 @@ class ProviderUsageCollectionService : Service() {
         val existingCounterLines = existingLines.filter { it.isTrustedCounterLine() }
         val fallbackLines = fallbackSession?.lines.orEmpty().filter { it.isTrustedStoredLine() }
         val snapshotLines = when {
+            fallbackLines.isNotEmpty() && provider == ProviderId.GEMINI -> mergeWithExistingGeminiLines(
+                incoming = fallbackLines,
+                existing = existingCounterLines
+            )
             fallbackLines.isNotEmpty() -> fallbackLines
             existingCounterLines.isNotEmpty() -> existingLines
             freshConnectionObserved -> existingLines
@@ -581,7 +596,17 @@ class ProviderUsageCollectionService : Service() {
     private fun saveUsageSnapshot(snapshot: ProviderUsageSnapshot) {
         val repository = LocalUsageRepository(applicationContext)
         val currentSnapshot = repository.readSnapshots().firstOrNull { it.providerId == snapshot.providerId }
-        val mergedLines = dedupeUsageLines(snapshot.providerId, snapshot.lines.filter { it.isTrustedStoredLine() })
+        val incomingLines = snapshot.lines.filter { it.isTrustedStoredLine() }
+        val existingCounterLines = currentSnapshot?.lines.orEmpty().filter { it.isTrustedCounterLine() }
+        val linesForMerge = if (snapshot.providerId == ProviderId.GEMINI && incomingLines.isNotEmpty()) {
+            mergeWithExistingGeminiLines(
+                incoming = incomingLines,
+                existing = existingCounterLines
+            )
+        } else {
+            incomingLines
+        }
+        val mergedLines = dedupeUsageLines(snapshot.providerId, linesForMerge)
         repository.saveSnapshot(
             snapshot.copy(
                 connectionState = ProviderConnectionState.CONNECTED,
@@ -601,6 +626,14 @@ class ProviderUsageCollectionService : Service() {
             )
         )
         refreshDisplayOutputs()
+    }
+
+    private fun mergeWithExistingGeminiLines(
+        incoming: List<com.aiusage.mobile.local.ProviderUsageLine>,
+        existing: List<com.aiusage.mobile.local.ProviderUsageLine>
+    ): List<com.aiusage.mobile.local.ProviderUsageLine> {
+        if (incoming.isEmpty() || existing.isEmpty()) return incoming
+        return incoming + existing
     }
 
     private fun dedupeUsageLines(
@@ -654,8 +687,11 @@ class ProviderUsageCollectionService : Service() {
         if (provider != ProviderId.GEMINI) return lines
         val order = mapOf(
             "pro" to 0,
+            "gemini pro" to 0,
             "flash" to 1,
-            "deep research" to 2
+            "gemini flash" to 1,
+            "deep research" to 2,
+            "gemini deep research" to 2
         )
         return lines.sortedWith(
             compareBy<com.aiusage.mobile.local.ProviderUsageLine> {

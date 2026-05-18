@@ -58,12 +58,13 @@ fun ProviderId.normalizedPlanLabelForDisplay(planLabel: String?): String? {
         }
         ProviderId.GEMINI -> when (compact) {
             "basic", "geminibasic" -> "Basic"
-            "plus", "aiplus", "googleaiplus" -> "Google AI Plus"
-            "pro", "aipro", "googleaipro" -> "Google AI Pro"
-            "ultra", "aiultra", "googleaiultra" -> "Google AI Ultra"
+            "plus", "aiplus", "googleaiplus", "geminiplus" -> "Gemini Plus"
+            "pro", "aipro", "googleaipro", "geminipro" -> "Gemini Pro"
+            "ultra", "aiultra", "googleaiultra", "geminiultra" -> "Gemini Ultra"
             "advanced", "geminiadvanced" -> "Gemini Advanced"
             "aipremium", "googleoneaipremium" -> "Google One AI Premium"
-            "free", "geminifree" -> "Free"
+            "free", "geminifree", "googleaifree" -> "Gemini Free"
+            "unknown", "geminiunknown" -> "Gemini Unknown"
             else -> value
         }
         ProviderId.CLAUDE -> value

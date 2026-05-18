@@ -187,7 +187,13 @@ class WebLoginActivity : Activity() {
 
     private fun installProviderUsageHooks(providerId: ProviderId, target: WebView) {
         if (usageRecorded) return
-        target.evaluateJavascript(ProviderLocalUsageCollector.hookScriptFor(providerId), null)
+        target.evaluateJavascript(
+            ProviderLocalUsageCollector.hookScriptFor(
+                providerId,
+                ProviderCollectorAssets.scriptFor(this, providerId)
+            ),
+            null
+        )
     }
 
     private fun createPopupWindow(providerId: ProviderId): WebView {
@@ -241,7 +247,12 @@ class WebLoginActivity : Activity() {
         target.postDelayed(
             {
                 if (usageRecorded) return@postDelayed
-                target.evaluateJavascript(ProviderLocalUsageCollector.scriptFor(providerId)) { rawValue ->
+                target.evaluateJavascript(
+                    ProviderLocalUsageCollector.scriptFor(
+                        providerId,
+                        ProviderCollectorAssets.scriptFor(this, providerId)
+                    )
+                ) { rawValue ->
                     val localUsagePayload = ProviderLocalUsageCollector.decodeJavascriptString(rawValue)
                     val currentUrl = target.url ?: url
                     handleLocalUsagePayload(

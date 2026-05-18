@@ -7,15 +7,15 @@ object ProviderLocalUsageCollector {
     val SCRIPT: String
         get() = scriptFor(ProviderId.CLAUDE)
 
-    fun scriptFor(providerId: ProviderId): String {
-        return scriptFor(providerId, hookOnly = false)
+    fun scriptFor(providerId: ProviderId, assetCollectorScript: String = ""): String {
+        return scriptFor(providerId, hookOnly = false, assetCollectorScript = assetCollectorScript)
     }
 
-    fun hookScriptFor(providerId: ProviderId): String {
-        return scriptFor(providerId, hookOnly = true)
+    fun hookScriptFor(providerId: ProviderId, assetCollectorScript: String = ""): String {
+        return scriptFor(providerId, hookOnly = true, assetCollectorScript = assetCollectorScript)
     }
 
-    private fun scriptFor(providerId: ProviderId, hookOnly: Boolean): String {
+    private fun scriptFor(providerId: ProviderId, hookOnly: Boolean, assetCollectorScript: String): String {
         val profile = profileFor(providerId)
         return SCRIPT_TEMPLATE
             .replace("__PROVIDER_ID__", providerId.storageId)
@@ -23,6 +23,7 @@ object ProviderLocalUsageCollector {
             .replace("__PLAN_HINTS__", profile.planHints.joinToString("|"))
             .replace("__LABEL_HINTS__", profile.labelHints.joinToString("|"))
             .replace("__HOOK_ONLY__", hookOnly.toString())
+            .replace("__PROVIDER_ASSET_COLLECTOR__", assetCollectorScript)
     }
 
     private fun profileFor(providerId: ProviderId): ProviderScriptProfile {
@@ -1501,6 +1502,18 @@ object ProviderLocalUsageCollector {
               }
             } catch (error) {}
           }
+          function buildAssetCollectorResponse(context) {
+            try {
+              if (
+                SAGE_USAGE_EXTRACTOR &&
+                typeof SAGE_USAGE_EXTRACTOR.buildGeminiUsagePayload === "function"
+              ) {
+                return SAGE_USAGE_EXTRACTOR.buildGeminiUsagePayload(context);
+              }
+            } catch (error) {}
+            return null;
+          }
+          __PROVIDER_ASSET_COLLECTOR__
           function buildResponse() {
             var visibleText = safeText(document.body && document.body.innerText);
             var rows = [
@@ -1518,6 +1531,19 @@ object ProviderLocalUsageCollector {
             var plan = derivedPlans()[0] || findTrustedPlan(rows) || findStructuredPlan(rows) || findVisiblePaidPlan(visibleText);
             var providerPage = PROVIDER_LABEL_PATTERN.test(combinedText);
             var authenticatedApp = authenticatedAppShellMarker(visibleText) || authenticatedEndpointMarker();
+            var assetResponse = buildAssetCollectorResponse({
+              rows: rows,
+              combinedText: combinedText,
+              visibleText: visibleText,
+              limits: limits,
+              plan: plan,
+              login: hasLoginPrompt(visibleText),
+              providerPage: providerPage || authenticatedApp,
+              authenticatedApp: authenticatedApp,
+              endpointSummaries: endpointSummaries().slice(-8),
+              now: Date.now()
+            });
+            if (assetResponse) return assetResponse;
             return {
               s: (limits.length > 0 || plan || (authenticatedApp && !hasLoginPrompt(visibleText))) ? "s" : "e",
               provider: PROVIDER_ID,

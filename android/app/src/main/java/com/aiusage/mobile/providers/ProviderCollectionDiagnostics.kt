@@ -29,10 +29,18 @@ object ProviderCollectionDiagnostics {
             ?: return "provider=${providerId.storageId} payload=text length=${trimmed.length}"
         val completion = root.optJSONObject("c")
         val data = root.optJSONObject("d") ?: root.optJSONObject("data")
-        val limits = data?.optJSONArray("x") ?: data?.optJSONArray("limits")
+        val usage = root.optJSONObject("usage")
+        val account = root.optJSONObject("account")
+        val limits = data?.optJSONArray("x")
+            ?: data?.optJSONArray("limits")
+            ?: usage?.optJSONArray("x")
+            ?: usage?.optJSONArray("limits")
         val planPresent = data?.nonBlankValue("p") == true ||
             data?.nonBlankValue("plan") == true ||
-            data?.nonBlankValue("planLabel") == true
+            data?.nonBlankValue("planLabel") == true ||
+            account?.nonBlankValue("p") == true ||
+            account?.nonBlankValue("plan") == true ||
+            account?.nonBlankValue("planLabel") == true
         val debug = root.optJSONArray("q")
             ?.let { summaries ->
                 buildList {

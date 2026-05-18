@@ -349,6 +349,18 @@ class ProviderLocalUsageCollectorTest {
     }
 
     @Test
+    fun geminiExtractorCanInjectBundledAssetCollector() {
+        val script = ProviderLocalUsageCollector.scriptFor(
+            com.aiusage.mobile.local.ProviderId.GEMINI,
+            "SAGE_USAGE_EXTRACTOR.buildGeminiUsagePayload = function(context) { return context; };"
+        )
+
+        assertTrue(script.contains("buildAssetCollectorResponse"))
+        assertTrue(script.contains("buildGeminiUsagePayload"))
+        assertTrue(script.contains("SAGE_USAGE_EXTRACTOR.buildGeminiUsagePayload = function"))
+    }
+
+    @Test
     fun providerExtractorCombinesSiblingQuotaMapsAndSkipsNavigationCounts() {
         val script = ProviderLocalUsageCollector.scriptFor(com.aiusage.mobile.local.ProviderId.COPILOT)
 

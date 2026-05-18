@@ -188,7 +188,7 @@ class TextUsageExtractorTest {
 
         assertEquals("Claude Max", claude.planLabel)
         assertEquals("Pro 20x", codex.planLabel)
-        assertEquals("Google AI Pro", gemini.planLabel)
+        assertEquals("Gemini Pro", gemini.planLabel)
         assertTrue(claude.lines.isEmpty())
         assertTrue(codex.lines.isEmpty())
         assertTrue(gemini.lines.isEmpty())
@@ -607,6 +607,46 @@ class TextUsageExtractorTest {
         assertEquals(1f, snapshot.lines[0].remainingPercent)
         assertEquals("5 of 5 requests left", snapshot.lines[0].remainingText)
         assertEquals("2026-05-18T10:56:26.773Z", snapshot.lines[0].resetsAt)
+    }
+
+    @Test
+    fun extractsGeminiApkStyleCollectorPayload() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.GEMINI,
+            visibleText = """
+                {
+                  "account": {
+                    "p": "GEMINI_PRO",
+                    "e": "reader@example.com"
+                  },
+                  "usage": {
+                    "x": [
+                      {
+                        "l": "Gemini Pro",
+                        "u": 0.25,
+                        "r": 1710000000000,
+                        "t": "Resets in 23h 59m"
+                      },
+                      {
+                        "l": "Gemini Flash",
+                        "u": 0.0,
+                        "r": 1710000000000,
+                        "t": "Resets in 23h 59m"
+                      }
+                    ]
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
+        assertEquals("Gemini Pro", snapshot.planLabel)
+        assertEquals(listOf("Gemini Pro", "Gemini Flash"), snapshot.lines.map { it.label })
+        assertEquals(0.75f, snapshot.lines[0].remainingPercent ?: -1f, 0.0001f)
+        assertEquals("75% left", snapshot.lines[0].remainingText)
+        assertEquals("25% used", snapshot.lines[0].detailText)
+        assertEquals("Resets in 23h 59m", snapshot.lines[0].resetText)
+        assertEquals("2024-03-09T16:00:00Z", snapshot.lines[0].resetsAt)
     }
 
     @Test
