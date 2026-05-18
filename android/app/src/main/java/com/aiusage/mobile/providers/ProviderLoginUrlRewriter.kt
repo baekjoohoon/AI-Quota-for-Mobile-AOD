@@ -17,10 +17,7 @@ object ProviderLoginUrlRewriter {
         if (!uri.looksLikeGoogleOAuthStart()) return null
         if (uri.promptTokens().any { it.equals("select_account", ignoreCase = true) }) return null
 
-        val promptedUrl = uri.withPromptSelectAccount()
-        return GOOGLE_ACCOUNT_CHOOSER_URL + "?continue=" +
-            promptedUrl.urlEncode() +
-            "&hl=ko"
+        return uri.withPromptSelectAccount()
     }
 
     private fun URI.looksLikeGoogleOAuthStart(): Boolean {
@@ -88,6 +85,4 @@ object ProviderLoginUrlRewriter {
     private fun String.urlDecode(): String {
         return URLDecoder.decode(this, StandardCharsets.UTF_8.name())
     }
-
-    private const val GOOGLE_ACCOUNT_CHOOSER_URL = "https://accounts.google.com/AccountChooser"
 }

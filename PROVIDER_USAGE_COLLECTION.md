@@ -69,7 +69,8 @@ ProviderUsageLine(
 - WebView 세션 쿠키를 사용한다.
 - 로그인 완료 판단 후 `lastActiveOrg` 쿠키에서 organization id를 찾는다.
 - Claude의 "Google 로그인하기"는 기존 Google WebView 쿠키가 있어도 계정 선택 화면이 떠야 한다.
-- `ProviderLoginUrlRewriter`가 Claude에서 `accounts.google.com` OAuth 시작 URL을 `AccountChooser`로 감싸고 `prompt=select_account`를 추가한다.
+- `ProviderLoginUrlRewriter`가 Claude에서 `accounts.google.com` OAuth 시작 URL에 `prompt=select_account`를 직접 추가한다.
+- `AccountChooser`로 다시 감싸면 계정 선택 화면이 잠깐 보인 뒤 기존 세션으로 자동 진행될 수 있으므로 Claude OAuth에서는 사용하지 않는다.
 
 ### plan 수집
 
