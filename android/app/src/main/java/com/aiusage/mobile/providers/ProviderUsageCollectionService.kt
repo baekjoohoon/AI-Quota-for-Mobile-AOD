@@ -202,7 +202,7 @@ class ProviderUsageCollectionService : Service() {
             settings.domStorageEnabled = true
             settings.databaseEnabled = true
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-            settings.userAgentString = MOBILE_CHROME_USER_AGENT
+            settings.userAgentString = ProviderWebViewUserAgent.mobileChrome(this@ProviderUsageCollectionService)
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             addJavascriptInterface(UsageBridge(this@ProviderUsageCollectionService), USAGE_BRIDGE_NAME)
@@ -1107,10 +1107,6 @@ class ProviderUsageCollectionService : Service() {
         private const val PROBE_TIMEOUT_MS = 20_000L
         private const val MAX_EVALUATION_ATTEMPTS = 8
         private val CLAUDE_LAST_ACTIVE_ORG = Regex("""(?:^|;\s*)lastActiveOrg=([0-9a-fA-F-]{16,})""")
-        private const val MOBILE_CHROME_USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) " +
-                "Chrome/119.0.0.0 Mobile Safari/537.36"
-
         fun start(context: Context, providerId: ProviderId, source: String = SOURCE_REFRESH) {
             val intent = Intent(context, ProviderUsageCollectionService::class.java)
                 .putExtra(EXTRA_PROVIDER_ID, providerId.storageId)

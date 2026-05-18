@@ -2,6 +2,7 @@ package com.aiusage.mobile.providers
 
 import com.aiusage.mobile.local.ProviderId
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -34,6 +35,27 @@ class ProviderLoginUrlRewriterTest {
         val rewritten = ProviderLoginUrlRewriter.rewriteMainFrameUrl(ProviderId.CLAUDE, original)
 
         assertTrue(URI(rewritten!!).rawQuery.contains("prompt=select_account%20consent"))
+    }
+
+    @Test
+    fun removesClaudeGoogleAccountPinningParameters() {
+        val original = "https://accounts.google.com/o/oauth2/v2/auth" +
+            "?client_id=anthropic" +
+            "&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fauth%2Fcallback" +
+            "&login_hint=old%40example.com" +
+            "&authuser=0" +
+            "&hd=example.com" +
+            "&prompt=select_account"
+
+        val rewritten = ProviderLoginUrlRewriter.rewriteMainFrameUrl(ProviderId.CLAUDE, original)
+
+        assertNotNull(rewritten)
+        val rawQuery = URI(rewritten!!).rawQuery
+        assertTrue(rawQuery.contains("prompt=select_account"))
+        assertFalse(rawQuery.contains("login_hint="))
+        assertFalse(rawQuery.contains("authuser="))
+        assertFalse(rawQuery.contains("hd="))
+        assertTrue(rawQuery.contains("redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fauth%2Fcallback"))
     }
 
     @Test

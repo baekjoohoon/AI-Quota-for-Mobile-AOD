@@ -68,7 +68,11 @@ class WebLoginActivity : Activity() {
         val loginView = createLoginView(providerId, finishOnBlocked = true)
         webView = loginView
         setContentView(createLoginContainer(loginView))
-        loginView.loadUrl(startUrl)
+        ProviderLoginSessionPreparer.prepare(providerId) {
+            if (!isFinishing) {
+                loginView.loadUrl(startUrl)
+            }
+        }
     }
 
     override fun onPause() {
@@ -99,7 +103,7 @@ class WebLoginActivity : Activity() {
             settings.databaseEnabled = true
             settings.allowFileAccess = true
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-            settings.userAgentString = MOBILE_CHROME_USER_AGENT
+            settings.userAgentString = ProviderWebViewUserAgent.mobileChrome(this@WebLoginActivity)
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             addJavascriptInterface(UsageBridge(this@WebLoginActivity, providerId, this), USAGE_BRIDGE_NAME)
@@ -355,6 +359,10 @@ class WebLoginActivity : Activity() {
             if (!loginCompletionRecorded) return
         } else {
             loginCompletionRecorded = true
+        }
+        if (providerId == ProviderId.CLAUDE) {
+            finishConnectedCaptureWithoutUsage(providerId)
+            return
         }
         if (!finishWhenNoUsage) return
         finishConnectedCaptureWithoutUsage(providerId)
@@ -703,10 +711,6 @@ class WebLoginActivity : Activity() {
         private const val MAX_USAGE_CAPTURE_ATTEMPTS = 4
         private const val POPUP_CLOSE_REFRESH_DELAY_MS = 300L
         private const val WEB_LOGIN_TOP_SAFE_PADDING_DP = 12
-        private const val MOBILE_CHROME_USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) " +
-                "Chrome/119.0.0.0 Mobile Safari/537.36"
-
         fun createIntent(context: Context, providerId: ProviderId, startUrl: String): Intent {
             return Intent(context, WebLoginActivity::class.java)
                 .putExtra(EXTRA_PROVIDER_ID, providerId.storageId)

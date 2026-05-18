@@ -15,7 +15,12 @@ object ProviderLoginUrlRewriter {
         if (!uri.host.orEmpty().isAccountsGoogleHost()) return null
         if (uri.rawPath.orEmpty().contains("AccountChooser", ignoreCase = true)) return null
         if (!uri.looksLikeGoogleOAuthStart()) return null
-        if (uri.promptTokens().any { it.equals("select_account", ignoreCase = true) }) return null
+        if (
+            uri.promptTokens().any { it.equals("select_account", ignoreCase = true) } &&
+            !uri.hasAccountPinningParameter()
+        ) {
+            return null
+        }
 
         return uri.withPromptSelectAccount()
     }
@@ -36,7 +41,8 @@ object ProviderLoginUrlRewriter {
             .split("&")
             .filter { it.isNotBlank() }
             .filterNot { part ->
-                part.substringBefore("=").equals("prompt", ignoreCase = true)
+                val key = part.substringBefore("=")
+                key.equals("prompt", ignoreCase = true) || key.isAccountPinningParameter()
             } + "prompt=${nextPrompt.joinToString(" ").urlEncode()}"
 
         return buildString {
@@ -70,6 +76,20 @@ object ProviderLoginUrlRewriter {
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .toList()
+    }
+
+    private fun URI.hasAccountPinningParameter(): Boolean {
+        return rawQuery.orEmpty()
+            .split("&")
+            .any { part ->
+                part.substringBefore("=").isAccountPinningParameter()
+            }
+    }
+
+    private fun String.isAccountPinningParameter(): Boolean {
+        return equals("login_hint", ignoreCase = true) ||
+            equals("authuser", ignoreCase = true) ||
+            equals("hd", ignoreCase = true)
     }
 
     private fun String.isAccountsGoogleHost(): Boolean {

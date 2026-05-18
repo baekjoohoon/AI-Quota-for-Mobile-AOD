@@ -406,4 +406,80 @@ class ProviderLoginCompletionDetectorTest {
             )
         )
     }
+
+    @Test
+    fun rejectsStructuredClaudeLoginPageWithAuthenticatedAppMarkerButNoUsage() {
+        assertFalse(
+            ProviderLoginCompletionDetector.isLoginComplete(
+                providerId = ProviderId.CLAUDE,
+                url = "https://claude.ai/login",
+                visibleText = """
+                    {
+                      "s": "s",
+                      "provider": "claude",
+                      "c": {
+                        "login": false,
+                        "providerPage": true,
+                        "authenticatedApp": false,
+                        "textLength": 2137
+                      },
+                      "d": {
+                        "x": []
+                      }
+                    }
+                """.trimIndent()
+            )
+        )
+    }
+
+    @Test
+    fun rejectsStructuredClaudeLoginPageEvenWhenExtractorSeesPlanData() {
+        assertFalse(
+            ProviderLoginCompletionDetector.isLoginComplete(
+                providerId = ProviderId.CLAUDE,
+                url = "https://claude.ai/login",
+                visibleText = """
+                    {
+                      "s": "s",
+                      "provider": "claude",
+                      "c": {
+                        "login": false,
+                        "providerPage": true,
+                        "authenticatedApp": false,
+                        "textLength": 1372
+                      },
+                      "d": {
+                        "p": "Pro",
+                        "x": []
+                      }
+                    }
+                """.trimIndent()
+            )
+        )
+    }
+
+    @Test
+    fun detectsStructuredClaudeAppShellEvenWhenSpaUrlRemainsLogin() {
+        assertTrue(
+            ProviderLoginCompletionDetector.isLoginComplete(
+                providerId = ProviderId.CLAUDE,
+                url = "https://claude.ai/login",
+                visibleText = """
+                    {
+                      "s": "s",
+                      "provider": "claude",
+                      "c": {
+                        "login": false,
+                        "providerPage": true,
+                        "authenticatedApp": true,
+                        "textLength": 2137
+                      },
+                      "d": {
+                        "x": []
+                      }
+                    }
+                """.trimIndent()
+            )
+        )
+    }
 }

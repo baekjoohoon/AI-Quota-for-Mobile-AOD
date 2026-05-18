@@ -71,6 +71,10 @@ ProviderUsageLine(
 - Claude의 "Google 로그인하기"는 기존 Google WebView 쿠키가 있어도 계정 선택 화면이 떠야 한다.
 - `ProviderLoginUrlRewriter`가 Claude에서 `accounts.google.com` OAuth 시작 URL에 `prompt=select_account`를 직접 추가한다.
 - `AccountChooser`로 다시 감싸면 계정 선택 화면이 잠깐 보인 뒤 기존 세션으로 자동 진행될 수 있으므로 Claude OAuth에서는 사용하지 않는다.
+- Claude 로그인 시작 전 `ProviderLoginSessionPreparer`가 Claude 세션 쿠키/WebStorage만 정리한다. Google WebView 세션은 계정 선택 후보로 유지해야 한다.
+- Cloudflare 검증 쿠키(`cf_clearance`, `__cf_bm`)는 보존한다. 매번 지우면 Claude 로그인 화면 진입 전 보안 검증이 반복된다.
+- Claude SPA는 로그인 후에도 URL이 `/login`에 머물 수 있다. `/logout`은 항상 완료 처리하지 않고, `/login`은 실제 채팅 앱 셸 신호(`authenticatedApp=true`)가 있을 때만 완료 처리한다.
+- Claude 로그인 완료 신호가 확인되면 WebView를 즉시 닫고 앱으로 복귀한다. 사용량 수집은 저장된 로컬 세션으로 백그라운드 수집에서 이어간다.
 
 ### plan 수집
 

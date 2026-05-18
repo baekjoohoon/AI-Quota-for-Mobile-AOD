@@ -57,7 +57,9 @@ object ProviderLoginCompletionDetector {
         val normalizedValue = normalize(value)
         return when (providerId) {
             ProviderId.CLAUDE -> hostEndsWith(url, "claude.ai") &&
-                (authenticatedApp || hasUsageData || hasClaudeAuthenticatedMarker(normalizedValue))
+                !isClaudeLogoutUrl(url) &&
+                (!isClaudeLoginUrl(url) || authenticatedApp) &&
+                (hasUsageData || hasClaudeAuthenticatedMarker(normalizedValue) || authenticatedApp)
             ProviderId.CODEX -> (hostEndsWith(url, "chatgpt.com") ||
                 hostEndsWith(url, "chat.openai.com"))
             ProviderId.GEMINI -> hostEndsWith(url, "gemini.google.com")
@@ -68,6 +70,18 @@ object ProviderLoginCompletionDetector {
 
     private fun isClaudeComplete(url: String, text: String): Boolean {
         return hostEndsWith(url, "claude.ai") && hasClaudeAuthenticatedMarker(text)
+    }
+
+    private fun isClaudeLoginUrl(url: String): Boolean {
+        val path = runCatching { URI(url).path?.lowercase(Locale.US).orEmpty() }.getOrDefault("")
+        return path == "/login" ||
+            path.startsWith("/login/")
+    }
+
+    private fun isClaudeLogoutUrl(url: String): Boolean {
+        val path = runCatching { URI(url).path?.lowercase(Locale.US).orEmpty() }.getOrDefault("")
+        return path == "/logout" ||
+            path.startsWith("/logout/")
     }
 
     private fun hasClaudeAuthenticatedMarker(text: String): Boolean {
