@@ -152,6 +152,9 @@ object ProviderLoginCompletionDetector {
         "projects",
         "artifacts",
         "claude\uc640 \ud568\uaed8 \ucee4\ud53c \ud55c\uc794",
+        "\ub2ec\ube5b \uc544\ub798 \ub300\ud654\ud560\uae4c\uc694",
+        "\uc624\ub298 \uc5b4\ub5a4 \ub3c4\uc6c0\uc744 \ub4dc\ub9b4\uae4c\uc694",
+        "sonnet",
         "\uc0c8 \ucc44\ud305",
         "\ucd5c\uadfc \ucc44\ud305",
         "claude\uc5d0\uac8c \uba54\uc2dc\uc9c0"

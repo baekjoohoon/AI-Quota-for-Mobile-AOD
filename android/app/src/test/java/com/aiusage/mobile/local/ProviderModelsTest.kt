@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.Instant
 
 class ProviderModelsTest {
     @Test
@@ -61,5 +62,41 @@ class ProviderModelsTest {
         assertEquals(ProviderRefreshState.IDLE, snapshot.refreshState)
         assertEquals("Usage is not visible yet", snapshot.message)
         assertTrue(snapshot.lines.isEmpty())
+    }
+
+    @Test
+    fun staleConnectingSnapshotRecoversToUnavailableIdleState() {
+        val snapshot = ProviderUsageSnapshot.disconnected(ProviderId.CLAUDE).copy(
+            connectionState = ProviderConnectionState.CONNECTING,
+            refreshState = ProviderRefreshState.REFRESHING,
+            updatedAt = "2026-05-18T00:00:00Z",
+            message = "Login opened"
+        )
+
+        val recovered = snapshot.withRecoveredStaleProgress(
+            now = Instant.parse("2026-05-18T00:06:00Z")
+        )
+
+        assertEquals(ProviderConnectionState.UNAVAILABLE, recovered.connectionState)
+        assertEquals(ProviderRefreshState.IDLE, recovered.refreshState)
+        assertNull(recovered.message)
+    }
+
+    @Test
+    fun recentRefreshingSnapshotRemainsInProgress() {
+        val snapshot = ProviderUsageSnapshot.disconnected(ProviderId.CURSOR).copy(
+            connectionState = ProviderConnectionState.CONNECTING,
+            refreshState = ProviderRefreshState.REFRESHING,
+            updatedAt = "2026-05-18T00:00:00Z",
+            message = "Refresh started"
+        )
+
+        val recovered = snapshot.withRecoveredStaleProgress(
+            now = Instant.parse("2026-05-18T00:04:59Z")
+        )
+
+        assertEquals(ProviderConnectionState.CONNECTING, recovered.connectionState)
+        assertEquals(ProviderRefreshState.REFRESHING, recovered.refreshState)
+        assertEquals("Refresh started", recovered.message)
     }
 }

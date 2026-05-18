@@ -165,16 +165,32 @@ class LocalUsageRepository(context: Context) {
     }
 
     private fun ProviderUsageSnapshot.normalized(): ProviderUsageSnapshot {
+        val normalizedLines = lines.map { line ->
+            line.copy(
+                label = line.label.ifBlank { "Usage" },
+                remainingPercent = line.remainingPercent?.coerceIn(0f, 1f),
+                confidence = line.confidence?.coerceIn(0f, 1f)
+            )
+        }
         return copy(
             displayName = providerId.normalizedDisplayName(displayName),
-            lines = lines.map { line ->
-                line.copy(
-                    label = line.label.ifBlank { "Usage" },
-                    remainingPercent = line.remainingPercent?.coerceIn(0f, 1f),
-                    confidence = line.confidence?.coerceIn(0f, 1f)
-                )
-            }
-        )
+            lines = normalizedLines.deduplicated()
+        ).withRecoveredStaleProgress()
+    }
+
+    private fun List<ProviderUsageLine>.deduplicated(): List<ProviderUsageLine> {
+        val deduped = LinkedHashMap<String, ProviderUsageLine>()
+        forEach { line ->
+            val key = listOf(
+                line.label,
+                line.remainingText,
+                line.resetText.orEmpty(),
+                line.resetsAt.orEmpty(),
+                line.sourceLabel.orEmpty()
+            ).joinToString("|").lowercase(Locale.US)
+            deduped.putIfAbsent(key, line)
+        }
+        return deduped.values.toList()
     }
 
     private fun ProviderId.normalizedDisplayName(value: String): String {

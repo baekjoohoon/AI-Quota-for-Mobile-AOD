@@ -25,12 +25,7 @@ fun displayUsageLabel(
         .lowercase(Locale.US)
 
     if (!locale.isKoreanLanguage()) {
-        return when {
-            providerId.equals(ProviderId.CLAUDE.storageId, ignoreCase = true) && normalized == "rate limit" -> {
-                if (lineIndex == 0) "Session" else "Weekly"
-            }
-            else -> label
-        }
+        return englishUsageLabel(providerId, label, normalized, lineIndex)
     }
 
     if (providerId.equals(ProviderId.CLAUDE.storageId, ignoreCase = true) && normalized == "rate limit") {
@@ -41,15 +36,18 @@ fun displayUsageLabel(
         "codex 5 hour limit", "5 hour limit" -> "Codex 5시간 한도"
         "codex weekly limit" -> "Codex 주간 한도"
         "spark weekly" -> "Spark 주간 한도"
+        "five hour", "five hour limit" -> "Claude 5시간 한도"
+        "seven day", "seven day limit" -> "Claude 주간 한도"
+        "seven day omelette", "claude design" -> "Claude Design"
         "session" -> "세션"
         "weekly", "weekly limit" -> "주간 한도"
         "credits" -> "크레딧"
         "chat" -> "채팅"
-        "completions" -> "자동완성"
+        "completions", "code completions" -> "자동완성"
         "total usage" -> "전체 사용량"
         "auto usage" -> "자동 사용량"
         "api usage" -> "API 사용량"
-        "on demand", "on-demand", "on demand usage", "on-demand usage" -> "온디맨드 사용량"
+        "on demand", "on demand usage" -> "온디맨드 사용량"
         "included usage" -> "포함 사용량"
         "premium requests" -> "프리미엄 요청"
         "fast requests" -> "빠른 요청"
@@ -95,7 +93,7 @@ fun displayResetTextForLocale(text: String?, locale: Locale = Locale.getDefault(
     if (!locale.isKoreanLanguage()) return value
 
     if (value.equals("Starts when a message is sent", ignoreCase = true)) {
-        return "메시지를 보내면 시작됨"
+        return "메시지를 보내면 시작"
     }
 
     Regex("""^Resets in\s+(.+)$""", RegexOption.IGNORE_CASE)
@@ -111,6 +109,23 @@ fun displayResetTextForLocale(text: String?, locale: Locale = Locale.getDefault(
 
 fun isKoreanLocale(locale: Locale = Locale.getDefault()): Boolean {
     return locale.isKoreanLanguage()
+}
+
+private fun englishUsageLabel(
+    providerId: String,
+    label: String,
+    normalized: String,
+    lineIndex: Int
+): String {
+    if (providerId.equals(ProviderId.CLAUDE.storageId, ignoreCase = true) && normalized == "rate limit") {
+        return if (lineIndex == 0) "Session" else "Weekly"
+    }
+    return when (normalized) {
+        "five hour", "five hour limit" -> "Claude 5-hour limit"
+        "seven day", "seven day limit" -> "Claude weekly limit"
+        "seven day omelette" -> "Claude Design"
+        else -> label
+    }
 }
 
 private fun Locale.isKoreanLanguage(): Boolean {

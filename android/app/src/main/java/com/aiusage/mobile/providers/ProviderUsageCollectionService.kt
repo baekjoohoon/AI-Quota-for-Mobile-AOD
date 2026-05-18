@@ -55,6 +55,7 @@ class ProviderUsageCollectionService : Service() {
     private var fallbackSessionSnapshot: ProviderUsageSnapshot? = null
     private var fallbackCompletionScheduled = false
     private var loginCompletionSeen = false
+    private var claudeDirectUsageStarted = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -100,6 +101,7 @@ class ProviderUsageCollectionService : Service() {
         fallbackSessionSnapshot = null
         fallbackCompletionScheduled = false
         loginCompletionSeen = false
+        claudeDirectUsageStarted = false
         pendingUrls.clear()
         pendingUrls.addAll(ProviderUsageProbeTargets.urls(nextProviderId))
         Log.d(
@@ -245,6 +247,7 @@ class ProviderUsageCollectionService : Service() {
         val loginComplete = ProviderLoginCompletionDetector.isLoginComplete(provider, url, payload)
         if (loginComplete) {
             loginCompletionSeen = true
+            startClaudeDirectUsageFetch()
         }
         Log.d(
             ProviderCollectionDiagnostics.TAG,
@@ -408,6 +411,21 @@ class ProviderUsageCollectionService : Service() {
         )
     }
 
+    private fun startClaudeDirectUsageFetch() {
+        if (providerId != ProviderId.CLAUDE || completed || claudeDirectUsageStarted) return
+        val cookies = CookieManager.getInstance().getCookie("https://claude.ai/").orEmpty()
+        val organizationId = CLAUDE_LAST_ACTIVE_ORG.find(cookies)?.groupValues?.getOrNull(1)
+        if (organizationId.isNullOrBlank()) return
+        claudeDirectUsageStarted = true
+        val endpoint = "https://claude.ai/api/organizations/$organizationId/usage"
+        Log.d(
+            ProviderCollectionDiagnostics.TAG,
+            "collection claudeDirectUsageWebView url=" +
+                ProviderCollectionDiagnostics.safeUrl(endpoint)
+        )
+        webView?.loadUrl(endpoint, mapOf("Accept" to "application/json"))
+    }
+
     private fun ProviderUsageSnapshot.hasLiveUsageCounters(): Boolean {
         return lines.any { line ->
             line.isTrustedCounterLine() &&
@@ -545,6 +563,19 @@ class ProviderUsageCollectionService : Service() {
         val allText = listOf(label, unit, sourceLabel).joinToString(" ").lowercase()
         if (Regex("""\b(sitemap|completed)\b""").containsMatchIn(labelText)) return false
         if ("sitemap" in allText) return false
+        if (providerId == ProviderId.CLAUDE) {
+            val source = sourceLabel.orEmpty().lowercase()
+            val window = windowText.orEmpty().lowercase()
+            if (
+                remainingPercent == null &&
+                limitAmount == null &&
+                usedAmount == null &&
+                (source == "/new" || source == "/" || source.isBlank()) &&
+                (labelText in setOf("session", "weekly") || window in setOf("session", "weekly"))
+            ) {
+                return false
+            }
+        }
         if (providerId == ProviderId.COPILOT) {
             if ("/features/copilot/plans" in allText) return false
             if (Regex("""\b[a-z0-9-]+\.(com|net|org|io|dev|ai)\b""").containsMatchIn(labelText)) return false
@@ -763,6 +794,7 @@ class ProviderUsageCollectionService : Service() {
         private const val PLAN_ONLY_FALLBACK_DELAY_MS = 6_000L
         private const val PROBE_TIMEOUT_MS = 20_000L
         private const val MAX_EVALUATION_ATTEMPTS = 8
+        private val CLAUDE_LAST_ACTIVE_ORG = Regex("""(?:^|;\s*)lastActiveOrg=([0-9a-fA-F-]{16,})""")
         private const val MOBILE_CHROME_USER_AGENT =
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) " +
                 "Chrome/119.0.0.0 Mobile Safari/537.36"

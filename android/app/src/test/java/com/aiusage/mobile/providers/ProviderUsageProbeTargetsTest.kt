@@ -39,6 +39,7 @@ class ProviderUsageProbeTargetsTest {
         assertTrue(urls.contains("https://github.com/settings/billing"))
         assertTrue(urls.contains("https://github.com/settings/billing/usage"))
         assertTrue(urls.contains("https://github.com/github-copilot/chat"))
+        assertTrue(urls.contains("https://github.com/github-copilot/chat/entitlement"))
         assertFalse(urls.any { url -> url.contains("/features/copilot/plans") })
     }
 

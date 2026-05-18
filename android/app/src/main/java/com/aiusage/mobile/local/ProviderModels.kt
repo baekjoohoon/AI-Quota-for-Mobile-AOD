@@ -1,5 +1,8 @@
 package com.aiusage.mobile.local
 
+import java.time.Duration
+import java.time.Instant
+
 enum class ProviderId(val storageId: String, val displayName: String) {
     CLAUDE("claude", "Claude"),
     CODEX("codex", "Codex"),
@@ -88,3 +91,26 @@ data class ProviderUsageSnapshot(
         }
     }
 }
+
+internal fun ProviderUsageSnapshot.withRecoveredStaleProgress(
+    now: Instant = Instant.now()
+): ProviderUsageSnapshot {
+    if (refreshState != ProviderRefreshState.REFRESHING && connectionState != ProviderConnectionState.CONNECTING) {
+        return this
+    }
+    val updated = runCatching { Instant.parse(updatedAt) }.getOrNull() ?: return this
+    val ageMillis = Duration.between(updated, now).toMillis()
+    if (ageMillis < STALE_PROVIDER_PROGRESS_MS) return this
+
+    return copy(
+        connectionState = if (connectionState == ProviderConnectionState.CONNECTED || lines.isNotEmpty()) {
+            ProviderConnectionState.CONNECTED
+        } else {
+            ProviderConnectionState.UNAVAILABLE
+        },
+        refreshState = ProviderRefreshState.IDLE,
+        message = null
+    )
+}
+
+private const val STALE_PROVIDER_PROGRESS_MS = 5 * 60 * 1000L

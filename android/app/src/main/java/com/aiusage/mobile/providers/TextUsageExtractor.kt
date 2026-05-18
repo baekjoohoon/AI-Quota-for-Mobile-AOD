@@ -11,12 +11,17 @@ import java.math.RoundingMode
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.Locale
 
 object TextUsageExtractor {
     fun extract(providerId: ProviderId, visibleText: String): ProviderUsageSnapshot {
         val structuredSnapshot = extractStructuredUsage(providerId, visibleText)
         if (structuredSnapshot != null) return structuredSnapshot
+
+        val providerApiSnapshot = extractProviderApiResponse(providerId, visibleText)
+        if (providerApiSnapshot != null) return providerApiSnapshot
 
         val normalized = normalize(visibleText)
         val percentSnapshot = extractPercentUsage(providerId, normalized)
@@ -34,6 +39,187 @@ object TextUsageExtractor {
         return ProviderUsageSnapshot.unavailable(
             providerId = providerId,
             message = "No visible usage limit found for ${providerId.displayName}."
+        )
+    }
+
+    private fun extractProviderApiResponse(
+        providerId: ProviderId,
+        visibleText: String
+    ): ProviderUsageSnapshot? {
+        val trimmed = visibleText.trim()
+        if (!trimmed.startsWith("{")) return null
+        val json = runCatching { JSONObject(trimmed) }.getOrNull() ?: return null
+        return when (providerId) {
+            ProviderId.CLAUDE -> extractClaudeUsageApiResponse(json)
+            ProviderId.COPILOT -> extractCopilotEntitlementResponse(json)
+            else -> null
+        }
+    }
+
+    private fun extractClaudeUsageApiResponse(json: JSONObject): ProviderUsageSnapshot? {
+        val lines = listOf("five_hour", "seven_day", "seven_day_omelette")
+            .mapNotNull { key ->
+                val item = json.optJSONObject(key) ?: return@mapNotNull null
+                val utilization = item.optNumber("utilization") ?: return@mapNotNull null
+                val usedPercent = utilization.coerceIn(0.0, 100.0)
+                val remainingRatio = ((100.0 - usedPercent) / 100.0).coerceIn(0.0, 1.0).toFloat()
+                ProviderUsageLine(
+                    label = key.toDisplayLabel(),
+                    remainingPercent = remainingRatio,
+                    remainingText = "${formatPercent(remainingRatio.toDouble() * 100.0)}% left",
+                    resetText = null,
+                    detailText = "${formatPercent(usedPercent)}% used",
+                    severity = severityForStructured(remainingRatio),
+                    category = "usage_window",
+                    windowText = when (key) {
+                        "five_hour" -> "5 hours"
+                        "seven_day", "seven_day_omelette" -> "7 days"
+                        else -> null
+                    },
+                    resetsAt = item.optNullableString("resets_at"),
+                    sourceLabel = "/api/organizations/:id/usage",
+                    confidence = 0.98f
+                )
+            }
+        if (lines.isEmpty()) return null
+        return ProviderUsageSnapshot(
+            providerId = ProviderId.CLAUDE,
+            connectionState = ProviderConnectionState.CONNECTED,
+            refreshState = ProviderRefreshState.IDLE,
+            lines = lines
+        )
+    }
+
+    private fun extractCopilotEntitlementResponse(json: JSONObject): ProviderUsageSnapshot? {
+        val quotas = json.optJSONObject("quotas") ?: return null
+        val remaining = quotas.optJSONObject("remaining") ?: return null
+        val limits = quotas.optJSONObject("limits") ?: JSONObject()
+        val resetDate = quotas.optNullableString("resetDate")?.toResetInstantString()
+        val lines = buildList {
+            remaining.optNumber("chat")?.let { chatRemaining ->
+                val remainingPercent = remaining.optNumber("chatPercentage")
+                    ?.let { (it / 100.0).coerceIn(0.0, 1.0).toFloat() }
+                add(
+                    remainingCounterLine(
+                        label = "Chat",
+                        remaining = chatRemaining,
+                        unit = "messages",
+                        remainingPercent = remainingPercent,
+                        resetsAt = resetDate,
+                        category = "messages"
+                    )
+                )
+            }
+            remaining.optNumber("completions")?.let { completionsRemaining ->
+                val remainingPercent = remaining.optNumber("completionsPercentage")
+                    ?.let { (it / 100.0).coerceIn(0.0, 1.0).toFloat() }
+                add(
+                    remainingCounterLine(
+                        label = "Completions",
+                        remaining = completionsRemaining,
+                        unit = "completions",
+                        remainingPercent = remainingPercent,
+                        resetsAt = resetDate,
+                        category = "completions"
+                    )
+                )
+            }
+            val premiumLimit = limits.optNumber("premiumInteractions")
+            val premiumRemaining = remaining.optNumber("premiumInteractions")
+            if ((premiumLimit ?: 0.0) > 0.0 || (premiumRemaining ?: 0.0) > 0.0) {
+                add(
+                    amountLine(
+                        label = "Premium requests",
+                        limit = premiumLimit,
+                        remaining = premiumRemaining,
+                        remainingPercent = remaining.optNumber("premiumInteractionsPercentage")
+                            ?.let { (it / 100.0).coerceIn(0.0, 1.0).toFloat() },
+                        unit = "premium requests",
+                        resetsAt = resetDate,
+                        category = "premium_requests"
+                    )
+                )
+            }
+        }
+        if (lines.isEmpty()) return null
+        return ProviderUsageSnapshot(
+            providerId = ProviderId.COPILOT,
+            connectionState = ProviderConnectionState.CONNECTED,
+            refreshState = ProviderRefreshState.IDLE,
+            planLabel = json.optNullableString("plan")?.toDisplayLabel(),
+            lines = lines
+        )
+    }
+
+    private fun remainingCounterLine(
+        label: String,
+        remaining: Double,
+        unit: String,
+        remainingPercent: Float?,
+        resetsAt: String?,
+        category: String
+    ): ProviderUsageLine {
+        return ProviderUsageLine(
+            label = label,
+            remainingPercent = remainingPercent,
+            remainingText = remainingOnlyText(remaining, unit),
+            resetText = null,
+            detailText = null,
+            severity = remainingPercent?.let(::severityForStructured) ?: UsageSeverity.UNKNOWN,
+            remainingAmount = remaining,
+            unit = unit,
+            category = category,
+            windowText = "monthly",
+            resetsAt = resetsAt,
+            sourceLabel = "/github-copilot/chat/entitlement",
+            confidence = 0.98f
+        )
+    }
+
+    private fun amountLine(
+        label: String,
+        limit: Double?,
+        remaining: Double?,
+        remainingPercent: Float?,
+        unit: String,
+        resetsAt: String?,
+        category: String
+    ): ProviderUsageLine {
+        val used = if (limit != null && remaining != null) {
+            (limit - remaining).coerceAtLeast(0.0)
+        } else {
+            null
+        }
+        val ratio = when {
+            limit != null && limit > 0.0 && remaining != null -> {
+                (remaining / limit).coerceIn(0.0, 1.0).toFloat()
+            }
+            remainingPercent != null -> remainingPercent
+            else -> null
+        }
+        return ProviderUsageLine(
+            label = label,
+            remainingPercent = ratio,
+            remainingText = if (limit != null && limit > 0.0 && remaining != null) {
+                remainingLimitText(remaining, limit, unit, ratio ?: 0f)
+            } else {
+                remainingOnlyText((remaining ?: 0.0), unit)
+            },
+            detailText = if (limit != null && limit > 0.0 && used != null) {
+                usedLimitText(used, limit, (used / limit) * 100.0)
+            } else {
+                null
+            },
+            severity = ratio?.let(::severityForStructured) ?: UsageSeverity.UNKNOWN,
+            usedAmount = used,
+            limitAmount = limit,
+            remainingAmount = remaining,
+            unit = unit,
+            category = category,
+            windowText = "monthly",
+            resetsAt = resetsAt,
+            sourceLabel = "/github-copilot/chat/entitlement",
+            confidence = 0.98f
         )
     }
 
@@ -434,6 +620,13 @@ object TextUsageExtractor {
         val labelText = listOf(label, unit).joinToString(" ").lowercase(Locale.US)
         val allText = listOf(label, unit, sourceLabel).joinToString(" ").lowercase(Locale.US)
         if (Regex("""\b(sitemap|completed)\b""").containsMatchIn(labelText)) return true
+        if (
+            providerId == ProviderId.CLAUDE &&
+            labelText.matches(Regex("""rate[_\s-]?limit|session|weekly""")) &&
+            remainingPercent == null
+        ) {
+            return true
+        }
         if (providerId == ProviderId.COPILOT) {
             if ("sitemap" in allText) return true
             if ("/features/copilot/plans" in allText) return true
@@ -463,13 +656,42 @@ object TextUsageExtractor {
     }
 
     private fun normalizeClaudeRateLimitLabels(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {
-        val rateLimitLines = lines.filter { line ->
+        val withoutGenericFragments = lines.filterNot { line ->
+            val label = line.label.replace(' ', '_').lowercase(Locale.US)
+            val source = line.sourceLabel.orEmpty().lowercase(Locale.US)
+            val window = line.windowText.orEmpty().lowercase(Locale.US)
+            line.remainingPercent == null &&
+                line.limitAmount == null &&
+                line.usedAmount == null &&
+                (source == "/new" || source == "/" || source.isBlank()) &&
+                (label in setOf("rate_limit", "session", "weekly") || window in setOf("session", "weekly"))
+        }
+        val apiUsageLines = lines.filter { line ->
+            val label = line.label.replace(' ', '_').lowercase(Locale.US)
+            val source = line.sourceLabel.orEmpty().lowercase(Locale.US)
+            source.contains("/api/organizations/:id/usage") ||
+                label in setOf("five_hour", "seven_day", "seven_day_omelette")
+        }
+        if (apiUsageLines.isNotEmpty()) {
+            return apiUsageLines.map { line ->
+                val label = line.label.replace(' ', '_').lowercase(Locale.US)
+                line.copy(
+                    category = line.category ?: "usage_window",
+                    windowText = line.windowText ?: when (label) {
+                        "five_hour" -> "5 hours"
+                        "seven_day", "seven_day_omelette" -> "7 days"
+                        else -> null
+                    }
+                )
+            }
+        }
+        val rateLimitLines = withoutGenericFragments.filter { line ->
             line.label.equals("rate_limit", ignoreCase = true) ||
                 line.label.equals("Rate_limit", ignoreCase = true)
         }
-        if (rateLimitLines.size < 2) return lines
+        if (rateLimitLines.size < 2) return withoutGenericFragments
         var index = 0
-        return lines.map { line ->
+        return withoutGenericFragments.map { line ->
             if (!rateLimitLines.contains(line)) {
                 line
             } else {
@@ -546,13 +768,21 @@ object TextUsageExtractor {
     }
 
     private fun formatAmount(value: Double): String {
-        return DecimalFormat("0.###", DecimalFormatSymbols(Locale.US)).apply {
+        return DecimalFormat("#,##0.###", DecimalFormatSymbols(Locale.US)).apply {
             roundingMode = RoundingMode.HALF_UP
         }.format(value)
     }
 
     private fun formatCount(value: Int): String {
         return DecimalFormat("#,##0", DecimalFormatSymbols(Locale.US)).format(value)
+    }
+
+    private fun String.toResetInstantString(): String {
+        runCatching { Instant.parse(this) }.getOrNull()?.let { return it.toString() }
+        runCatching {
+            return LocalDate.parse(this).atStartOfDay().toInstant(ZoneOffset.UTC).toString()
+        }
+        return this
     }
 
     private fun String.toCountOrNull(): Int? {

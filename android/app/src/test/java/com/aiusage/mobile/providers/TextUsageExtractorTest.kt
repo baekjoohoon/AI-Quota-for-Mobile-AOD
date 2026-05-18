@@ -383,6 +383,121 @@ class TextUsageExtractorTest {
     }
 
     @Test
+    fun extractsClaudeOrganizationUsageApiResponse() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.CLAUDE,
+            visibleText = """
+                {
+                  "five_hour": {
+                    "utilization": 0.0,
+                    "resets_at": null
+                  },
+                  "seven_day": {
+                    "utilization": 4.0,
+                    "resets_at": "2026-05-18T20:00:00.159005+00:00"
+                  },
+                  "seven_day_omelette": {
+                    "utilization": 0.0,
+                    "resets_at": null
+                  },
+                  "extra_usage": {
+                    "is_enabled": false,
+                    "monthly_limit": null
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
+        assertEquals(3, snapshot.lines.size)
+        assertEquals("Five_hour", snapshot.lines[0].label)
+        assertEquals(1f, snapshot.lines[0].remainingPercent)
+        assertEquals("Seven_day", snapshot.lines[1].label)
+        assertEquals(0.96f, snapshot.lines[1].remainingPercent ?: -1f, 0.0001f)
+        assertEquals("2026-05-18T20:00:00.159005+00:00", snapshot.lines[1].resetsAt)
+        assertEquals("Seven_day_omelette", snapshot.lines[2].label)
+    }
+
+    @Test
+    fun prefersClaudeOrganizationUsageApiLinesOverGenericRateLimitFragments() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.CLAUDE,
+            visibleText = """
+                {
+                  "s": "s",
+                  "provider": "claude",
+                  "d": {
+                    "p": "Pro",
+                    "x": [
+                      {
+                        "l": "rate_limit",
+                        "remaining": 1,
+                        "r": "2026-05-19T00:34:45.935812Z",
+                        "source": "/new"
+                      },
+                      {
+                        "l": "Five_hour",
+                        "u": 0,
+                        "r": "2026-05-18T12:00:00Z",
+                        "source": "/api/organizations/:id/usage"
+                      },
+                      {
+                        "l": "Seven_day",
+                        "u": 4,
+                        "r": "2026-05-18T20:00:00Z",
+                        "source": "/api/organizations/:id/usage"
+                      }
+                    ]
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals(listOf("Five_hour", "Seven_day"), snapshot.lines.map { it.label })
+        assertEquals(listOf("100% left", "96% left"), snapshot.lines.map { it.remainingText })
+        assertEquals("5 hours", snapshot.lines[0].windowText)
+        assertEquals("7 days", snapshot.lines[1].windowText)
+    }
+
+    @Test
+    fun extractsCopilotEntitlementUsageApiResponse() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.COPILOT,
+            visibleText = """
+                {
+                  "licenseType": "licensed_limited",
+                  "plan": "free",
+                  "quotas": {
+                    "limits": {
+                      "premiumInteractions": 0
+                    },
+                    "remaining": {
+                      "chat": 500,
+                      "completions": 4000,
+                      "premiumInteractions": 0,
+                      "chatPercentage": 100.0,
+                      "premiumInteractionsPercentage": 0.0
+                    },
+                    "resetDate": "2026-06-15",
+                    "overagesEnabled": false
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
+        assertEquals("Free", snapshot.planLabel)
+        assertEquals(2, snapshot.lines.size)
+        assertEquals("Chat", snapshot.lines[0].label)
+        assertEquals(1f, snapshot.lines[0].remainingPercent)
+        assertEquals("500 messages left", snapshot.lines[0].remainingText)
+        assertEquals("2026-06-15T00:00:00Z", snapshot.lines[0].resetsAt)
+        assertEquals("Completions", snapshot.lines[1].label)
+        assertNull(snapshot.lines[1].remainingPercent)
+        assertEquals("4,000 completions left", snapshot.lines[1].remainingText)
+    }
+
+    @Test
     fun derivesRemainingLimitDetailsWhenOnlyUsedAndLimitArePresent() {
         val snapshot = TextUsageExtractor.extract(
             providerId = ProviderId.CURSOR,

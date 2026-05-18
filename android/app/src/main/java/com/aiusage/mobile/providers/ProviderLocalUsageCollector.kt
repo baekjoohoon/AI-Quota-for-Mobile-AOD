@@ -140,9 +140,13 @@ object ProviderLocalUsageCollector {
                 var parsed = JSON.parse(candidate);
                 summarizeJsonKeys(parsed, summary, 0, "");
                 rememberDerivedPlan(scanStructuredPlan(parsed, "", 0));
-                scanJson(parsed, ["endpoint"], safeEndpointLabel(endpoint), derivedLimits(), 0);
+                var endpointLabel = safeEndpointLabel(endpoint);
+                var providerApiMatched = scanClaudeOrganizationUsage(parsed, endpointLabel, derivedLimits());
+                if (!providerApiMatched) scanJson(parsed, ["endpoint"], endpointLabel, derivedLimits(), 0);
                 if (derivedLimits().length > 8) {
-                  window.__AI_USAGE_DERIVED_LIMITS__ = derivedLimits().slice(-8);
+                  window.__AI_USAGE_DERIVED_LIMITS__ = PROVIDER_ID === "claude"
+                    ? derivedLimits().slice(0, 8)
+                    : derivedLimits().slice(-8);
                 }
               }
               var list = endpointSummaries();
@@ -462,6 +466,7 @@ object ProviderLocalUsageCollector {
               if (/\b[a-z0-9-]+\.(com|net|org|io|dev|ai)\b/.test(labelText)) return true;
               if (!/\b(copilot|premium\s+requests?|chat|messages?|code\s+completions?|completions?|usage|limit|quota|remaining|billing|entitlement)\b/.test(copilotText)) return true;
             }
+            if (PROVIDER_ID === "claude" && /^(rate[_\s-]?limit|session|weekly)$/.test(labelText)) return true;
             if (
               /\b(sitemap|completed)\b/.test(contextText) &&
               !/\b(usage|limit|quota|remaining|request|message|credit|cap|billing|subscription|entitlement)\b/.test(labelText)
@@ -837,6 +842,129 @@ object ProviderLocalUsageCollector {
               }
             });
           }
+          function resetDateToIso(value) {
+            var text = safeText(value);
+            if (!text) return null;
+            if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text + "T00:00:00Z";
+            return text;
+          }
+          function pushRemainingCounter(limits, title, remainingValue, unitValue, remainingPercentValue, context, resetValue) {
+            if (limits.length >= 8) return;
+            var remaining = parseNumber(remainingValue);
+            if (!isNumber(remaining)) return;
+            var percent = parseNumber(remainingPercentValue);
+            if (isNumber(percent)) {
+              var usedPercent = Math.max(0, Math.min(100, 100 - percent));
+              pushLimit(limits, title, usedPercent, context);
+              var last = limits[limits.length - 1];
+              if (last) {
+                last.remaining = Math.round(Math.max(0, remaining) * 1000) / 1000;
+                last.unit = inferUnit(title + " " + unitValue, unitValue);
+                last.category = inferCategory(title, last.unit);
+                last.window = "monthly";
+                last.source = sourceLabel(context);
+                last.confidence = 0.98;
+                var reset = resetDateToIso(resetValue);
+                if (reset) last.r = reset;
+              }
+              return;
+            }
+            pushRemainingOnlyLimit(limits, title, remaining, unitValue, context, 0.98);
+            var remainingLast = limits[limits.length - 1];
+            if (remainingLast) {
+              remainingLast.window = "monthly";
+              var resetOnly = resetDateToIso(resetValue);
+              if (resetOnly) remainingLast.r = resetOnly;
+            }
+          }
+          function scanCopilotEntitlement(value, path, source, limits) {
+            if (PROVIDER_ID !== "copilot" || !isPlainObject(value) || !isPlainObject(value.quotas)) return false;
+            var quotas = value.quotas;
+            var remaining = quotas.remaining;
+            if (!isPlainObject(remaining)) return false;
+            var quotaLimits = isPlainObject(quotas.limits) ? quotas.limits : {};
+            var resetDate = quotas.resetDate || quotas.reset_date || quotas.resetAt || quotas.reset_at;
+            pushRemainingCounter(
+              limits,
+              "Chat",
+              remaining.chat,
+              "messages",
+              remaining.chatPercentage,
+              source + " " + path.concat("quotas", "remaining", "chat").join("."),
+              resetDate
+            );
+            pushRemainingCounter(
+              limits,
+              "Completions",
+              remaining.completions,
+              "completions",
+              remaining.completionsPercentage,
+              source + " " + path.concat("quotas", "remaining", "completions").join("."),
+              resetDate
+            );
+            var premiumLimit = parseNumber(quotaLimits.premiumInteractions);
+            var premiumRemaining = parseNumber(remaining.premiumInteractions);
+            var premiumRemainingPercent = parseNumber(remaining.premiumInteractionsPercentage);
+            if ((isNumber(premiumLimit) && premiumLimit > 0) || (isNumber(premiumRemaining) && premiumRemaining > 0)) {
+              pushAmountLimit(
+                limits,
+                "Premium requests",
+                isNumber(premiumLimit) && isNumber(premiumRemaining) ? premiumLimit - premiumRemaining : null,
+                premiumLimit,
+                premiumRemaining,
+                "premium requests",
+                source + " " + path.concat("quotas", "premiumInteractions").join("."),
+                0.98
+              );
+              var premiumLast = limits[limits.length - 1];
+              if (premiumLast) {
+                premiumLast.window = "monthly";
+                if (isNumber(premiumRemainingPercent)) {
+                  premiumLast.u = Math.max(0, Math.min(100, 100 - premiumRemainingPercent));
+                }
+                var premiumReset = resetDateToIso(resetDate);
+                if (premiumReset) premiumLast.r = premiumReset;
+              }
+            }
+            return true;
+          }
+          function pushClaudeUsageApiLimit(limits, label, utilizationValue, resetsAtValue, source, windowText) {
+            var utilization = parseNumber(utilizationValue);
+            if (!isNumber(utilization)) return;
+            var used = Math.max(0, Math.min(100, utilization));
+            var reset = resetDateToIso(resetsAtValue);
+            var line = {
+              l: label,
+              u: Math.round(used * 10) / 10,
+              category: "usage_window",
+              window: windowText,
+              source: source,
+              confidence: 0.98
+            };
+            if (reset) line.r = reset;
+            for (var index = limits.length - 1; index >= 0; index -= 1) {
+              if (safeText(limits[index] && limits[index].l).toLowerCase() === label.toLowerCase()) {
+                limits.splice(index, 1);
+              }
+            }
+            limits.unshift(line);
+          }
+          function scanClaudeOrganizationUsage(value, source, limits) {
+            if (PROVIDER_ID !== "claude" || !isPlainObject(value)) return false;
+            if (!/\/api\/organizations\/:id\/usage/.test(source)) return false;
+            var matched = false;
+            [
+              { key: "seven_day_omelette", label: "Seven_day_omelette", window: "7 days" },
+              { key: "seven_day", label: "Seven_day", window: "7 days" },
+              { key: "five_hour", label: "Five_hour", window: "5 hours" }
+            ].forEach(function(metric) {
+              var item = value[metric.key];
+              if (!isPlainObject(item)) return;
+              pushClaudeUsageApiLimit(limits, metric.label, item.utilization, item.resets_at || item.resetsAt, source, metric.window);
+              matched = true;
+            });
+            return matched;
+          }
           function attachWindowTimes(limit, object) {
             if (!limit || !object) return limit;
             var start = propertyRaw(object, ["s", "startsAt", "starts_at", "startAt", "start_at", "startTime", "start_time", "periodStart", "period_start", "windowStart", "window_start", "billingCycleStart", "billing_cycle_start", "startOfMonth", "start_of_month"]);
@@ -868,6 +996,7 @@ object ProviderLocalUsageCollector {
               if (scanCursorRequestUsage(value, path, source, limits)) return;
               if (isCursorPlanUsageObject(value) || cursorRequestMetric(value)) return;
             }
+            if (scanCopilotEntitlement(value, path, source, limits)) return;
             var title = propertyText(value, ["l", "label", "name", "title", "type", "category", "model", "display_name", "plan_type", "product", "sku", "feature", "feature_name", "slug", "key"]) || path[path.length - 1] || "Usage";
             var unit = propertyText(value, ["unit", "units", "unitType", "unit_type", "quotaUnit", "quota_unit", "displayUnit", "display_unit", "metric"]);
             var used = propertyNumber(value, ["used", "usedAmount", "used_amount", "usedCount", "used_count", "usage", "usageAmount", "usage_amount", "currentUsage", "current_usage", "current", "consumed", "spent", "quantity", "grossQuantity", "netQuantity", "usage_count", "num_used", "message_count", "messages_used", "used_messages", "request_count", "requests_used", "requestUsage", "request_usage", "currentRequestUsage", "current_request_usage", "usedRequestUsage", "used_request_usage", "numRequests", "num_requests", "requests", "credit_used", "credits_used"]);
@@ -1043,7 +1172,7 @@ object ProviderLocalUsageCollector {
           function authenticatedAppShellMarker(text) {
             if (hasLoginPrompt(text)) return false;
             var value = safeText(text).toLowerCase();
-            if (PROVIDER_ID === "claude" && /(new chat|recent chats|message claude|projects|artifacts|\uc0c8 \ucc44\ud305|\ucd5c\uadfc \ucc44\ud305|claude\uc640 \ud568\uaed8 \ucee4\ud53c \ud55c\uc794|claude\uc5d0\uac8c \uba54\uc2dc\uc9c0)/i.test(value)) return true;
+            if (PROVIDER_ID === "claude" && /(new chat|recent chats|message claude|projects|artifacts|\uc0c8 \ucc44\ud305|\ucd5c\uadfc \ucc44\ud305|claude\uc640 \ud568\uaed8 \ucee4\ud53c \ud55c\uc794|\ub2ec\ube5b \uc544\ub798 \ub300\ud654\ud560\uae4c\uc694|\uc624\ub298 \uc5b4\ub5a4 \ub3c4\uc6c0\uc744 \ub4dc\ub9b4\uae4c\uc694|sonnet|claude\uc5d0\uac8c \uba54\uc2dc\uc9c0)/i.test(value)) return true;
             if (PROVIDER_ID === "gemini" && /(ask gemini|chat with gemini|recent chats|gemini\uc640\uc758 \ub300\ud654|[\uac00-\ud7a3A-Za-z0-9._ -]{1,32}\ub2d8, \uc548\ub155\ud558\uc138\uc694|gemini\uc5d0\uac8c \ubb3c\uc5b4|\uacc4\ud68d, \ud559\uc2b5, \uc544\uc774\ub514\uc5b4|\uc0c8 \ucc44\ud305|\ucd5c\uadfc \ucc44\ud305)/i.test(value)) return true;
             if (PROVIDER_ID === "claude") {
               return /(new chat|recent chats|message claude|projects|artifacts|새 채팅|무엇을 도와)/i.test(value) ||
@@ -1363,6 +1492,8 @@ object ProviderLocalUsageCollector {
                 /"current_organization_uuid"\s*:\s*"([^"]+)"/gi,
                 /"organizationId"\s*:\s*"([^"]+)"/gi,
                 /"organization_id"\s*:\s*"([^"]+)"/gi,
+                /"lastActiveOrg"\s*:\s*"([0-9a-fA-F-]{16,})"/gi,
+                /(?:^|;\s*)lastActiveOrg=([0-9a-fA-F-]{16,})/g,
                 /"organizations"\s*:\s*\[[^\]]{0,2000}?"uuid"\s*:\s*"([0-9a-fA-F-]{16,})"/gi,
                 /"uuid"\s*:\s*"([0-9a-fA-F-]{16,})"/gi,
                 /\/api\/organizations\/([0-9a-fA-F-]{16,})/g
@@ -1529,6 +1660,9 @@ object ProviderLocalUsageCollector {
             if (!isProviderOrigin()) return;
             if (window.__AI_USAGE_ENDPOINT_PROBES_STARTED__) return;
             window.__AI_USAGE_ENDPOINT_PROBES_STARTED__ = true;
+            if (PROVIDER_ID === "claude") {
+              fetchClaudeScopedEndpoints(document.cookie || "");
+            }
             var endpoints = providerEndpointCandidates();
             endpoints.forEach(fetchEndpoint);
           }

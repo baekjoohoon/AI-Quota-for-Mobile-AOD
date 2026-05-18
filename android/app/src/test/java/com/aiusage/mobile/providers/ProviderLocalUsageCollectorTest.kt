@@ -172,6 +172,10 @@ class ProviderLocalUsageCollectorTest {
             script.contains("\u0043laude\uc640 \ud568\uaed8 \ucee4\ud53c \ud55c\uc794", ignoreCase = true) ||
                 script.contains("claude\\uc640 \\ud568\\uaed8 \\ucee4\\ud53c \\ud55c\\uc794", ignoreCase = true)
         )
+        assertTrue(
+            script.contains("\\ub2ec\\ube5b \\uc544\\ub798 \\ub300\\ud654\\ud560\\uae4c\\uc694") ||
+                script.contains("\ub2ec\ube5b \uc544\ub798 \ub300\ud654\ud560\uae4c\uc694")
+        )
     }
 
     @Test
@@ -254,6 +258,10 @@ class ProviderLocalUsageCollectorTest {
 
         assertTrue(claudeScript.contains("/api/usage_limits"))
         assertTrue(claudeScript.contains("/api/billing"))
+        assertTrue(claudeScript.contains("lastActiveOrg"))
+        assertTrue(claudeScript.contains("fetchClaudeScopedEndpoints(document.cookie"))
+        assertTrue(claudeScript.contains("scanClaudeOrganizationUsage"))
+        assertTrue(claudeScript.contains("/api\\/organizations\\/:id\\/usage"))
         assertTrue(codexScript.contains("/backend-anon/accounts/check/v4-2023-04-27"))
         assertTrue(codexScript.contains("/backend-api/codex/usage"))
         assertTrue(codexScript.contains("/backend-api/wham/usage"))
@@ -261,6 +269,10 @@ class ProviderLocalUsageCollectorTest {
         assertTrue(codexScript.contains("fetchCodexAuthenticatedUsage"))
         assertTrue(codexScript.contains("ChatGPT-Account-Id"))
         assertTrue(copilotScript.contains("/github-copilot/chat/entitlement"))
+        assertTrue(copilotScript.contains("scanCopilotEntitlement"))
+        assertTrue(copilotScript.contains("chatPercentage"))
+        assertTrue(copilotScript.contains("premiumInteractionsPercentage"))
+        assertTrue(copilotScript.contains("quotas.resetDate"))
         assertTrue(copilotScript.contains("/settings/copilot/usage"))
         assertTrue(copilotScript.contains("/settings/copilot/plans"))
         assertFalse(copilotScript.contains("/features/copilot/plans"))

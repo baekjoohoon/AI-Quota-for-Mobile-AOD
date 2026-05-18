@@ -29,6 +29,17 @@ class ProviderLoginCompletionDetectorTest {
     }
 
     @Test
+    fun detectsClaudeCurrentKoreanHomePromptAfterLogin() {
+        assertTrue(
+            ProviderLoginCompletionDetector.isLoginComplete(
+                providerId = ProviderId.CLAUDE,
+                url = "https://claude.ai/new",
+                visibleText = "Claude\n\ub2ec\ube5b \uc544\ub798 \ub300\ud654\ud560\uae4c\uc694?\n\uc624\ub298 \uc5b4\ub5a4 \ub3c4\uc6c0\uc744 \ub4dc\ub9b4\uae4c\uc694?\nSonnet 4.6"
+            )
+        )
+    }
+
+    @Test
     fun rejectsClaudeLoggedOutLandingOrLoginPage() {
         assertFalse(
             ProviderLoginCompletionDetector.isLoginComplete(
