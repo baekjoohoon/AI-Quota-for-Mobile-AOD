@@ -55,6 +55,15 @@ class ProviderModelsTest {
     }
 
     @Test
+    fun geminiUsageLineLabelsRejectGenericFallbackUsage() {
+        assertTrue(ProviderId.GEMINI.isSupportedUsageLineLabel("Gemini Pro"))
+        assertTrue(ProviderId.GEMINI.isSupportedUsageLineLabel("Flash"))
+        assertTrue(ProviderId.GEMINI.isSupportedUsageLineLabel("Deep Research"))
+        assertTrue(!ProviderId.GEMINI.isSupportedUsageLineLabel("사용량"))
+        assertTrue(!ProviderId.GEMINI.isSupportedUsageLineLabel("Usage"))
+    }
+
+    @Test
     fun fromStorageIdMatchesCaseInsensitivelyAndRejectsUnknowns() {
         assertEquals(ProviderId.CLAUDE, ProviderId.fromStorageId("CLAUDE"))
         assertEquals(ProviderId.CODEX, ProviderId.fromStorageId("Codex"))

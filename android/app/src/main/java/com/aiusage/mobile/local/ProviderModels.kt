@@ -90,6 +90,16 @@ fun ProviderId.normalizedUsageLineLabelForDisplay(label: String): String {
     }
 }
 
+fun ProviderId.isSupportedUsageLineLabel(label: String): Boolean {
+    if (this != ProviderId.GEMINI) return true
+    return when (normalizedUsageLineLabelForDisplay(label).lowercase(Locale.US)) {
+        "gemini pro",
+        "gemini flash",
+        "gemini deep research" -> true
+        else -> false
+    }
+}
+
 fun ProviderUsageLine.hasStartOnMessageReset(): Boolean {
     val value = resetText?.trim()?.takeIf { it.isNotBlank() } ?: return false
     val normalized = value.lowercase(Locale.US)

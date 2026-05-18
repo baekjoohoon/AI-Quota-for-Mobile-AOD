@@ -166,13 +166,12 @@ class LocalUsageRepository(context: Context) {
 
     private fun ProviderUsageSnapshot.normalized(): ProviderUsageSnapshot {
         val normalizedLines = lines.map { line ->
-            val normalizedLine = line.copy(
+            line.copy(
                 label = providerId.normalizedUsageLineLabelForDisplay(line.label.ifBlank { "Usage" }),
                 remainingPercent = line.remainingPercent?.coerceIn(0f, 1f),
                 confidence = line.confidence?.coerceIn(0f, 1f)
             )
-            normalizedLine
-        }
+        }.filter { line -> providerId.isSupportedUsageLineLabel(line.label) }
         return copy(
             displayName = providerId.normalizedDisplayName(displayName),
             planLabel = providerId.normalizedPlanLabelForDisplay(planLabel),

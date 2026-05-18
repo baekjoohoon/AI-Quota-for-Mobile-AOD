@@ -7,6 +7,7 @@ import com.aiusage.mobile.local.ProviderUsageLine
 import com.aiusage.mobile.local.ProviderUsageSnapshot
 import com.aiusage.mobile.local.UsageSeverity
 import com.aiusage.mobile.local.hasStartOnMessageReset
+import com.aiusage.mobile.local.isSupportedUsageLineLabel
 import com.aiusage.mobile.local.normalizedPlanLabelForDisplay
 import com.aiusage.mobile.local.normalizedUsageLineLabelForDisplay
 import org.json.JSONObject
@@ -836,6 +837,7 @@ object TextUsageExtractor {
         val deduped = LinkedHashMap<String, ProviderUsageLine>()
         lines.forEach { line ->
             val normalizedLine = normalizeGeminiLine(line)
+            if (!ProviderId.GEMINI.isSupportedUsageLineLabel(normalizedLine.label)) return@forEach
             val key = normalizedLine.label.lowercase(Locale.US)
             val existing = deduped[key]
             if (existing == null || normalizedLine.isBetterGeminiLineThan(existing)) {

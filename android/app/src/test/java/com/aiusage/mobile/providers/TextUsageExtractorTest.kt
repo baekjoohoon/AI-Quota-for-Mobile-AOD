@@ -757,6 +757,34 @@ class TextUsageExtractorTest {
     }
 
     @Test
+    fun ignoresGenericGeminiFallbackUsageLine() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.GEMINI,
+            visibleText = """
+                {
+                  "account": {
+                    "p": "GEMINI_PRO"
+                  },
+                  "usage": {
+                    "x": [
+                      {
+                        "l": "사용량",
+                        "u": 1.0,
+                        "t": "리셋 타이머 대기 중",
+                        "source": "gemini_collector.js"
+                      }
+                    ]
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
+        assertEquals("Gemini Pro", snapshot.planLabel)
+        assertTrue(snapshot.lines.isEmpty())
+    }
+
+    @Test
     fun deduplicatesGeminiCollectorRowsByCanonicalLabel() {
         val snapshot = TextUsageExtractor.extract(
             providerId = ProviderId.GEMINI,

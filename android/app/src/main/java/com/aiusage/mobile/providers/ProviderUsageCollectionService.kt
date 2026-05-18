@@ -31,6 +31,7 @@ import com.aiusage.mobile.local.ProviderPreferencesRepository
 import com.aiusage.mobile.local.ProviderRefreshState
 import com.aiusage.mobile.local.ProviderUsageSnapshot
 import com.aiusage.mobile.local.hasStartOnMessageReset
+import com.aiusage.mobile.local.isSupportedUsageLineLabel
 import com.aiusage.mobile.local.normalizedPlanLabelForDisplay
 import com.aiusage.mobile.local.normalizedUsageLineLabelForDisplay
 import com.aiusage.mobile.notification.UsageLimitNotificationController
@@ -593,6 +594,7 @@ class ProviderUsageCollectionService : Service() {
     }
 
     private fun com.aiusage.mobile.local.ProviderUsageLine.isGeminiMeasuredCounterLine(): Boolean {
+        if (!ProviderId.GEMINI.isSupportedUsageLineLabel(label)) return false
         val remaining = remainingPercent
         val source = sourceLabel.orEmpty().lowercase()
         val confidenceValue = confidence ?: 0f
