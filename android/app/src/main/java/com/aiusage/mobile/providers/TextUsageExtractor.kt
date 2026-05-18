@@ -6,6 +6,7 @@ import com.aiusage.mobile.local.ProviderRefreshState
 import com.aiusage.mobile.local.ProviderUsageLine
 import com.aiusage.mobile.local.ProviderUsageSnapshot
 import com.aiusage.mobile.local.UsageSeverity
+import com.aiusage.mobile.local.hasStartOnMessageReset
 import com.aiusage.mobile.local.normalizedPlanLabelForDisplay
 import com.aiusage.mobile.local.normalizedUsageLineLabelForDisplay
 import org.json.JSONObject
@@ -832,7 +833,7 @@ object TextUsageExtractor {
         )
         val deduped = LinkedHashMap<String, ProviderUsageLine>()
         lines.forEach { line ->
-            val normalizedLine = line.copy(label = ProviderId.GEMINI.normalizedUsageLineLabelForDisplay(line.label))
+            val normalizedLine = normalizeGeminiLine(line)
             val key = normalizedLine.label.lowercase(Locale.US)
             val existing = deduped[key]
             if (existing == null || normalizedLine.isBetterGeminiLineThan(existing)) {
@@ -844,6 +845,22 @@ object TextUsageExtractor {
                 order[it.label.lowercase(Locale.US)] ?: 100
             }.thenBy { it.label.lowercase(Locale.US) }
         )
+    }
+
+    private fun normalizeGeminiLine(line: ProviderUsageLine): ProviderUsageLine {
+        val normalized = line.copy(label = ProviderId.GEMINI.normalizedUsageLineLabelForDisplay(line.label))
+        return if (
+            normalized.remainingPercent != null &&
+            normalized.remainingPercent >= 0.995f &&
+            !normalized.hasStartOnMessageReset()
+        ) {
+            normalized.copy(
+                resetText = "Starts when a message is sent",
+                resetsAt = null
+            )
+        } else {
+            normalized
+        }
     }
 
     private fun ProviderUsageLine.isBetterGeminiLineThan(existing: ProviderUsageLine): Boolean {
@@ -858,6 +875,7 @@ object TextUsageExtractor {
 
     private fun ProviderUsageLine.geminiLineScore(): Int {
         var score = 0
+        if (hasStartOnMessageReset()) score += 32
         if (label.startsWith("Gemini ", ignoreCase = true)) score += 8
         if (remainingPercent != null) score += 4
         if (!resetsAt.isNullOrBlank() || !resetText.isNullOrBlank()) score += 2

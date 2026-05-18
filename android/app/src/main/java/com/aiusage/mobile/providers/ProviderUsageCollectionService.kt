@@ -30,6 +30,7 @@ import com.aiusage.mobile.local.ProviderId
 import com.aiusage.mobile.local.ProviderPreferencesRepository
 import com.aiusage.mobile.local.ProviderRefreshState
 import com.aiusage.mobile.local.ProviderUsageSnapshot
+import com.aiusage.mobile.local.hasStartOnMessageReset
 import com.aiusage.mobile.local.normalizedPlanLabelForDisplay
 import com.aiusage.mobile.local.normalizedUsageLineLabelForDisplay
 import com.aiusage.mobile.notification.UsageLimitNotificationController
@@ -644,7 +645,7 @@ class ProviderUsageCollectionService : Service() {
         val deduped = LinkedHashMap<String, com.aiusage.mobile.local.ProviderUsageLine>()
         incoming.forEach { line ->
             val normalizedLine = if (provider == ProviderId.GEMINI) {
-                line.copy(label = provider.normalizedUsageLineLabelForDisplay(line.label))
+                normalizeGeminiStoredLine(provider, line)
             } else {
                 line
             }
@@ -661,9 +662,55 @@ class ProviderUsageCollectionService : Service() {
                     .joinToString("|")
                     .lowercase()
             }
-            deduped.putIfAbsent(key, normalizedLine)
+            val existing = deduped[key]
+            if (existing == null || normalizedLine.isBetterGeminiStoredLineThan(existing, provider)) {
+                deduped[key] = normalizedLine
+            }
         }
         return sortStoredLines(provider, deduped.values.toList())
+    }
+
+    private fun normalizeGeminiStoredLine(
+        provider: ProviderId,
+        line: com.aiusage.mobile.local.ProviderUsageLine
+    ): com.aiusage.mobile.local.ProviderUsageLine {
+        val normalized = line.copy(label = provider.normalizedUsageLineLabelForDisplay(line.label))
+        return if (
+            normalized.remainingPercent != null &&
+            normalized.remainingPercent >= 0.995f &&
+            !normalized.hasStartOnMessageReset()
+        ) {
+            normalized.copy(
+                resetText = "Starts when a message is sent",
+                resetsAt = null
+            )
+        } else {
+            normalized
+        }
+    }
+
+    private fun com.aiusage.mobile.local.ProviderUsageLine.isBetterGeminiStoredLineThan(
+        existing: com.aiusage.mobile.local.ProviderUsageLine,
+        provider: ProviderId
+    ): Boolean {
+        if (provider != ProviderId.GEMINI) return false
+        val score = geminiStoredLineScore()
+        val existingScore = existing.geminiStoredLineScore()
+        return when {
+            score != existingScore -> score > existingScore
+            (confidence ?: 0f) != (existing.confidence ?: 0f) -> (confidence ?: 0f) > (existing.confidence ?: 0f)
+            else -> false
+        }
+    }
+
+    private fun com.aiusage.mobile.local.ProviderUsageLine.geminiStoredLineScore(): Int {
+        var score = 0
+        if (hasStartOnMessageReset()) score += 32
+        if (label.startsWith("Gemini ", ignoreCase = true)) score += 8
+        if (remainingPercent != null) score += 4
+        if (!resetsAt.isNullOrBlank() || !resetText.isNullOrBlank()) score += 2
+        if (!sourceLabel.isNullOrBlank()) score += 1
+        return score
     }
 
     private fun normalizedUsageSource(sourceLabel: String?): String {

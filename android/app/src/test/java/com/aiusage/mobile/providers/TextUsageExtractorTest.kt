@@ -606,7 +606,8 @@ class TextUsageExtractorTest {
         assertEquals(listOf("Gemini Pro", "Gemini Flash"), snapshot.lines.take(2).map { it.label })
         assertEquals(1f, snapshot.lines[0].remainingPercent)
         assertEquals("5 of 5 requests left", snapshot.lines[0].remainingText)
-        assertEquals("2026-05-18T10:56:26.773Z", snapshot.lines[0].resetsAt)
+        assertEquals("Starts when a message is sent", snapshot.lines[0].resetText)
+        assertNull(snapshot.lines[0].resetsAt)
     }
 
     @Test
@@ -678,6 +679,70 @@ class TextUsageExtractorTest {
         )
         assertEquals(0.8f, snapshot.lines[0].remainingPercent ?: -1f, 0.0001f)
         assertEquals(1f, snapshot.lines[1].remainingPercent ?: -1f, 0.0001f)
+    }
+
+    @Test
+    fun prefersGeminiStartOnMessageResetOverFixedResetTimestamp() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.GEMINI,
+            visibleText = """
+                {
+                  "account": {
+                    "p": "GEMINI_PRO"
+                  },
+                  "usage": {
+                    "x": [
+                      {
+                        "l": "Gemini Pro",
+                        "u": 0.0,
+                        "r": "2026-05-18T10:56:26.773Z",
+                        "source": "CheckGeminiQuota"
+                      },
+                      {
+                        "l": "Pro",
+                        "u": 0.0,
+                        "t": "Starts when a message is sent",
+                        "source": "gemini_collector.js"
+                      }
+                    ]
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals(1, snapshot.lines.size)
+        assertEquals("Gemini Pro", snapshot.lines.single().label)
+        assertEquals("Starts when a message is sent", snapshot.lines.single().resetText)
+        assertNull(snapshot.lines.single().resetsAt)
+    }
+
+    @Test
+    fun treatsFullGeminiQuotaWithResetTimestampAsNotStarted() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.GEMINI,
+            visibleText = """
+                {
+                  "account": {
+                    "p": "GEMINI_PRO"
+                  },
+                  "usage": {
+                    "x": [
+                      {
+                        "l": "Gemini Flash",
+                        "u": 0.0,
+                        "r": "2026-05-18T10:56:26.773Z",
+                        "source": "CheckGeminiQuota"
+                      }
+                    ]
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals("Gemini Flash", snapshot.lines.single().label)
+        assertEquals(1f, snapshot.lines.single().remainingPercent ?: -1f, 0.0001f)
+        assertEquals("Starts when a message is sent", snapshot.lines.single().resetText)
+        assertNull(snapshot.lines.single().resetsAt)
     }
 
     @Test

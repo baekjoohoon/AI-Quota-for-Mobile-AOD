@@ -88,6 +88,16 @@ fun ProviderId.normalizedUsageLineLabelForDisplay(label: String): String {
     }
 }
 
+fun ProviderUsageLine.hasStartOnMessageReset(): Boolean {
+    val value = resetText?.trim()?.takeIf { it.isNotBlank() } ?: return false
+    val normalized = value.lowercase(Locale.US)
+    val isStartOnMessage = normalized == "starts when a message is sent" ||
+        ("message" in normalized && "sent" in normalized && "start" in normalized) ||
+        (value.contains("메시지") && value.contains("시작")) ||
+        (value.contains("메세지") && value.contains("시작"))
+    return isStartOnMessage && (remainingPercent == null || remainingPercent >= 0.995f)
+}
+
 data class ProviderUsageLine(
     val label: String,
     val remainingPercent: Float?,

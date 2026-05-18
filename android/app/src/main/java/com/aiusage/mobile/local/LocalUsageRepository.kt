@@ -166,11 +166,24 @@ class LocalUsageRepository(context: Context) {
 
     private fun ProviderUsageSnapshot.normalized(): ProviderUsageSnapshot {
         val normalizedLines = lines.map { line ->
-            line.copy(
+            val normalizedLine = line.copy(
                 label = providerId.normalizedUsageLineLabelForDisplay(line.label.ifBlank { "Usage" }),
                 remainingPercent = line.remainingPercent?.coerceIn(0f, 1f),
                 confidence = line.confidence?.coerceIn(0f, 1f)
             )
+            if (
+                providerId == ProviderId.GEMINI &&
+                normalizedLine.remainingPercent != null &&
+                normalizedLine.remainingPercent >= 0.995f &&
+                !normalizedLine.hasStartOnMessageReset()
+            ) {
+                normalizedLine.copy(
+                    resetText = "Starts when a message is sent",
+                    resetsAt = null
+                )
+            } else {
+                normalizedLine
+            }
         }
         return copy(
             displayName = providerId.normalizedDisplayName(displayName),
@@ -193,9 +206,36 @@ class LocalUsageRepository(context: Context) {
                     line.sourceLabel.orEmpty()
                 ).joinToString("|").lowercase(Locale.US)
             }
-            deduped.putIfAbsent(key, line)
+            val existing = deduped[key]
+            if (existing == null || line.isBetterGeminiStoredLineThan(existing, providerId)) {
+                deduped[key] = line
+            }
         }
         return deduped.values.toList()
+    }
+
+    private fun ProviderUsageLine.isBetterGeminiStoredLineThan(
+        existing: ProviderUsageLine,
+        providerId: ProviderId
+    ): Boolean {
+        if (providerId != ProviderId.GEMINI) return false
+        val score = geminiStoredLineScore()
+        val existingScore = existing.geminiStoredLineScore()
+        return when {
+            score != existingScore -> score > existingScore
+            (confidence ?: 0f) != (existing.confidence ?: 0f) -> (confidence ?: 0f) > (existing.confidence ?: 0f)
+            else -> false
+        }
+    }
+
+    private fun ProviderUsageLine.geminiStoredLineScore(): Int {
+        var score = 0
+        if (hasStartOnMessageReset()) score += 32
+        if (label.startsWith("Gemini ", ignoreCase = true)) score += 8
+        if (remainingPercent != null) score += 4
+        if (!resetsAt.isNullOrBlank() || !resetText.isNullOrBlank()) score += 2
+        if (!sourceLabel.isNullOrBlank()) score += 1
+        return score
     }
 
     private fun ProviderId.normalizedDisplayName(value: String): String {
