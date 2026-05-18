@@ -478,6 +478,17 @@ class WebLoginActivity : Activity() {
         private val onMainFrameError: (WebView, String, Int, CharSequence?) -> Unit
     ) : WebViewClient() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            if (request.isForMainFrame) {
+                ProviderLoginUrlRewriter.rewriteMainFrameUrl(providerId, request.url.toString())?.let { rewrittenUrl ->
+                    Log.d(
+                        ProviderCollectionDiagnostics.TAG,
+                        "login rewrite provider=${providerId.storageId} url=" +
+                            ProviderCollectionDiagnostics.safeUrl(rewrittenUrl)
+                    )
+                    view.loadUrl(rewrittenUrl)
+                    return true
+                }
+            }
             if (isProviderOAuthCallback(providerId, request.url.toString())) {
                 view.onProviderOAuthCallback(request.url.toString())
                 return true
@@ -494,6 +505,15 @@ class WebLoginActivity : Activity() {
 
         @Deprecated("Deprecated in Java")
         override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+            ProviderLoginUrlRewriter.rewriteMainFrameUrl(providerId, url)?.let { rewrittenUrl ->
+                Log.d(
+                    ProviderCollectionDiagnostics.TAG,
+                    "login rewrite provider=${providerId.storageId} url=" +
+                        ProviderCollectionDiagnostics.safeUrl(rewrittenUrl)
+                )
+                view.loadUrl(rewrittenUrl)
+                return true
+            }
             if (isProviderOAuthCallback(providerId, url)) {
                 view.onProviderOAuthCallback(url)
                 return true
