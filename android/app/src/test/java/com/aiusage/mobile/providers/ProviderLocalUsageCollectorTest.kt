@@ -135,6 +135,7 @@ class ProviderLocalUsageCollectorTest {
         assertTrue(script.contains("is_free_plan"))
         assertTrue(script.contains("findVisiblePaidPlan"))
         assertFalse(script.contains("var direct = explicit || PLAN_PATTERN"))
+        assertFalse(script.contains("defaultPaidPlanValue"))
     }
 
     @Test

@@ -372,20 +372,15 @@ object ProviderLocalUsageCollector {
             }
             return safeText(value);
           }
-          function defaultPaidPlanValue() {
-            if (PROVIDER_ID === "claude") return "Claude Pro";
-            if (PROVIDER_ID === "gemini") return "Google AI Pro";
-            return "Pro";
-          }
           function booleanPlanValue(key, value) {
             var keyText = safeText(key).replace(/[_-]+/g, "").toLowerCase();
             if (keyText.indexOf("isfreeplan") < 0 && keyText.indexOf("freeplan") < 0) return null;
             if (value === true) return "Free";
-            if (value === false) return defaultPaidPlanValue();
+            if (value === false) return null;
             if (typeof value === "string") {
               var text = safeText(value).toLowerCase();
               if (/^(true|1|yes)$/.test(text)) return "Free";
-              if (/^(false|0|no)$/.test(text)) return defaultPaidPlanValue();
+              if (/^(false|0|no)$/.test(text)) return null;
             }
             return null;
           }

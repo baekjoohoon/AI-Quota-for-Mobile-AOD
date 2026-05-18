@@ -721,16 +721,7 @@ object TextUsageExtractor {
         lines: List<ProviderUsageLine>
     ): String? {
         rawPlan?.trim()?.takeIf { it.isNotBlank() }?.let { return it.toDisplayLabel() }
-        if (providerId != ProviderId.GEMINI) return null
-        return if (lines.looksLikeGeminiFreeQuota()) "Free" else null
-    }
-
-    private fun List<ProviderUsageLine>.looksLikeGeminiFreeQuota(): Boolean {
-        val byLabel = associateBy { it.label.lowercase(Locale.US) }
-        val proLimit = byLabel["pro"]?.limitAmount
-        val flashLimit = byLabel["flash"]?.limitAmount
-        val deepResearchLimit = byLabel["deep research"]?.limitAmount
-        return proLimit == 5.0 && flashLimit == 25.0 && (deepResearchLimit == null || deepResearchLimit == 3.0)
+        return null
     }
 
     private fun normalizeClaudeRateLimitLabels(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {

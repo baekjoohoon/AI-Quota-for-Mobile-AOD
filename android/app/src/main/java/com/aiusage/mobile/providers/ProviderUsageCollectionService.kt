@@ -339,10 +339,11 @@ class ProviderUsageCollectionService : Service() {
                     ProviderConnectionState.UNAVAILABLE
                 },
                 refreshState = ProviderRefreshState.IDLE,
-                planLabel = normalizedPlanLabel(provider, fallbackSession?.planLabel)
-                    ?: normalizedPlanLabel(provider, currentSnapshot?.planLabel)?.takeIf {
-                    freshConnectionObserved || hasUsageEvidence
-                },
+                planLabel = carriedPlanLabel(
+                    provider = provider,
+                    explicitPlanLabel = fallbackSession?.planLabel,
+                    currentPlanLabel = currentSnapshot?.planLabel
+                )?.takeIf { freshConnectionObserved || hasUsageEvidence },
                 updatedAt = Instant.now().toString(),
                 lines = sortedSnapshotLines,
                 message = if (sortedSnapshotLines.isNotEmpty()) {
@@ -382,7 +383,7 @@ class ProviderUsageCollectionService : Service() {
             currentSnapshot.copy(
                 refreshState = ProviderRefreshState.IDLE,
                 updatedAt = Instant.now().toString(),
-                planLabel = normalizedPlanLabel(provider, fallbackPlan ?: currentSnapshot.planLabel),
+                planLabel = carriedPlanLabel(provider, fallbackPlan, currentSnapshot.planLabel),
                 lines = dedupeUsageLines(provider, currentSnapshot.lines.filter { it.isTrustedStoredLine() }),
                 message = getString(R.string.provider_usage_updated_message)
             )
@@ -475,7 +476,7 @@ class ProviderUsageCollectionService : Service() {
         val currentSnapshot = LocalUsageRepository(applicationContext)
             .readSnapshots()
             .firstOrNull { it.providerId == provider }
-        return currentSnapshot?.planLabel.isNullOrBlank()
+        return carriedPlanLabel(provider, null, currentSnapshot?.planLabel).isNullOrBlank()
     }
 
     private fun canFinishWithExistingUsage(
@@ -488,7 +489,7 @@ class ProviderUsageCollectionService : Service() {
         val currentSnapshot = LocalUsageRepository(applicationContext)
             .readSnapshots()
             .firstOrNull { it.providerId == provider }
-        return !currentSnapshot?.planLabel.isNullOrBlank()
+        return !carriedPlanLabel(provider, null, currentSnapshot?.planLabel).isNullOrBlank()
     }
 
     private fun ProviderUsageSnapshot.hasLiveUsageCounters(): Boolean {
@@ -567,7 +568,7 @@ class ProviderUsageCollectionService : Service() {
                     ProviderConnectionState.CONNECTING
                 },
                 refreshState = ProviderRefreshState.REFRESHING,
-                planLabel = normalizedPlanLabel(providerId, currentSnapshot?.planLabel),
+                planLabel = carriedPlanLabel(providerId, null, currentSnapshot?.planLabel),
                 updatedAt = Instant.now().toString(),
                 lines = currentSnapshot?.lines.orEmpty().filter { it.isTrustedStoredLine() },
                 message = getString(R.string.provider_refresh_started_message)
@@ -584,9 +585,10 @@ class ProviderUsageCollectionService : Service() {
             snapshot.copy(
                 connectionState = ProviderConnectionState.CONNECTED,
                 refreshState = ProviderRefreshState.IDLE,
-                planLabel = normalizedPlanLabel(
-                    snapshot.providerId,
-                    snapshot.planLabel?.takeIf { it.isNotBlank() } ?: currentSnapshot?.planLabel
+                planLabel = carriedPlanLabel(
+                    provider = snapshot.providerId,
+                    explicitPlanLabel = snapshot.planLabel,
+                    currentPlanLabel = currentSnapshot?.planLabel
                 ),
                 updatedAt = Instant.now().toString(),
                 lines = mergedLines,
@@ -624,6 +626,20 @@ class ProviderUsageCollectionService : Service() {
         return sourceLabel.orEmpty()
             .replace(Regex("""[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}"""), ":id")
             .replace(Regex("""[A-Za-z0-9_-]{18,}"""), ":id")
+    }
+
+    private fun carriedPlanLabel(
+        provider: ProviderId,
+        explicitPlanLabel: String?,
+        currentPlanLabel: String?
+    ): String? {
+        normalizedPlanLabel(provider, explicitPlanLabel)?.let { return it }
+        val current = normalizedPlanLabel(provider, currentPlanLabel) ?: return null
+        return if (provider == ProviderId.GEMINI && current.equals("Free", ignoreCase = true)) {
+            null
+        } else {
+            current
+        }
     }
 
     private fun normalizedPlanLabel(provider: ProviderId, planLabel: String?): String? {

@@ -602,7 +602,7 @@ class TextUsageExtractorTest {
         )
 
         assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
-        assertEquals("Free", snapshot.planLabel)
+        assertNull(snapshot.planLabel)
         assertEquals(listOf("Pro", "Flash"), snapshot.lines.take(2).map { it.label })
         assertEquals(1f, snapshot.lines[0].remainingPercent)
         assertEquals("5 of 5 requests left", snapshot.lines[0].remainingText)
