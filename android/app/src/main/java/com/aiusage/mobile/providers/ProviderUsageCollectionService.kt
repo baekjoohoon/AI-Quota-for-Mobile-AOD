@@ -54,6 +54,7 @@ class ProviderUsageCollectionService : Service() {
     private var completed = false
     private var fallbackSessionSnapshot: ProviderUsageSnapshot? = null
     private var fallbackCompletionScheduled = false
+    private var loginCompletionSeen = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -98,6 +99,7 @@ class ProviderUsageCollectionService : Service() {
         currentAttempt = 0
         fallbackSessionSnapshot = null
         fallbackCompletionScheduled = false
+        loginCompletionSeen = false
         pendingUrls.clear()
         pendingUrls.addAll(ProviderUsageProbeTargets.urls(nextProviderId))
         Log.d(
@@ -241,6 +243,9 @@ class ProviderUsageCollectionService : Service() {
         }
 
         val loginComplete = ProviderLoginCompletionDetector.isLoginComplete(provider, url, payload)
+        if (loginComplete) {
+            loginCompletionSeen = true
+        }
         Log.d(
             ProviderCollectionDiagnostics.TAG,
             "collection evaluated provider=${provider.storageId} loginComplete=$loginComplete " +
@@ -274,9 +279,13 @@ class ProviderUsageCollectionService : Service() {
             }
             rememberFallbackSessionSnapshot(snapshot)
         }
+        val loginComplete = ProviderLoginCompletionDetector.isLoginComplete(provider, url, payload)
+        if (loginComplete) {
+            loginCompletionSeen = true
+        }
         if (
             provider != ProviderId.CURSOR &&
-            ProviderLoginCompletionDetector.isLoginComplete(provider, url, payload) &&
+            loginComplete &&
             payloadHasCollectedProviderSignals(payload) &&
             finishWithExistingUsage(provider)
         ) {
@@ -295,7 +304,7 @@ class ProviderUsageCollectionService : Service() {
         val repository = LocalUsageRepository(applicationContext)
         val currentSnapshot = repository.readSnapshots().firstOrNull { it.providerId == provider }
         val fallbackSession = fallbackSessionSnapshot
-        val wasConnected = currentSnapshot?.connectionState == ProviderConnectionState.CONNECTED ||
+        val freshConnectionObserved = loginCompletionSeen ||
             fallbackSession?.connectionState == ProviderConnectionState.CONNECTED
         val existingLines = currentSnapshot?.lines.orEmpty().filter { it.isTrustedStoredLine() }
         val existingCounterLines = existingLines.filter { it.isTrustedCounterLine() }
@@ -303,24 +312,27 @@ class ProviderUsageCollectionService : Service() {
         val snapshotLines = when {
             fallbackLines.isNotEmpty() -> fallbackLines
             existingCounterLines.isNotEmpty() -> existingLines
-            wasConnected -> existingLines
+            freshConnectionObserved -> existingLines
             else -> existingLines
         }
+        val hasUsageEvidence = snapshotLines.isNotEmpty()
         repository.saveSnapshot(
             ProviderUsageSnapshot(
                 providerId = provider,
-                connectionState = if (wasConnected) {
+                connectionState = if (freshConnectionObserved || hasUsageEvidence) {
                     ProviderConnectionState.CONNECTED
                 } else {
                     ProviderConnectionState.UNAVAILABLE
                 },
                 refreshState = ProviderRefreshState.IDLE,
-                planLabel = fallbackSession?.planLabel ?: currentSnapshot?.planLabel,
+                planLabel = fallbackSession?.planLabel ?: currentSnapshot?.planLabel?.takeIf {
+                    freshConnectionObserved || hasUsageEvidence
+                },
                 updatedAt = Instant.now().toString(),
                 lines = snapshotLines,
                 message = if (snapshotLines.isNotEmpty()) {
                     getString(R.string.provider_usage_updated_message)
-                } else if (wasConnected) {
+                } else if (freshConnectionObserved) {
                     getString(R.string.provider_usage_not_found_message, provider.displayName)
                 } else {
                     getString(R.string.provider_login_unavailable_message, provider.displayName)
@@ -533,6 +545,10 @@ class ProviderUsageCollectionService : Service() {
         val allText = listOf(label, unit, sourceLabel).joinToString(" ").lowercase()
         if (Regex("""\b(sitemap|completed)\b""").containsMatchIn(labelText)) return false
         if ("sitemap" in allText) return false
+        if (providerId == ProviderId.COPILOT) {
+            if ("/features/copilot/plans" in allText) return false
+            if (Regex("""\b[a-z0-9-]+\.(com|net|org|io|dev|ai)\b""").containsMatchIn(labelText)) return false
+        }
         return true
     }
 

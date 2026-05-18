@@ -29,8 +29,7 @@ object ProviderUsageProbeTargets {
                 "https://github.com/settings/copilot/usage",
                 "https://github.com/settings/copilot/plans",
                 "https://github.com/settings/billing",
-                "https://github.com/settings/billing/usage",
-                "https://github.com/features/copilot/plans"
+                "https://github.com/settings/billing/usage"
             )
             ProviderId.CURSOR -> listOf(
                 "https://cursor.com/dashboard",

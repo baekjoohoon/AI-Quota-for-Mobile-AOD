@@ -456,6 +456,12 @@ object ProviderLocalUsageCollector {
             var labelText = [title, unit].map(safeText).join(" ").toLowerCase();
             var contextText = safeText(context).toLowerCase();
             if (/\b(sitemap|completed)\b/.test(labelText)) return true;
+            if (PROVIDER_ID === "copilot") {
+              var copilotText = labelText + " " + contextText;
+              if (/\/features\/copilot\/plans/.test(copilotText)) return true;
+              if (/\b[a-z0-9-]+\.(com|net|org|io|dev|ai)\b/.test(labelText)) return true;
+              if (!/\b(copilot|premium\s+requests?|chat|messages?|code\s+completions?|completions?|usage|limit|quota|remaining|billing|entitlement)\b/.test(copilotText)) return true;
+            }
             if (
               /\b(sitemap|completed)\b/.test(contextText) &&
               !/\b(usage|limit|quota|remaining|request|message|credit|cap|billing|subscription|entitlement)\b/.test(labelText)
@@ -1152,8 +1158,7 @@ object ProviderLocalUsageCollector {
                 "/settings/copilot/usage_metrics",
                 "/settings/copilot/plans",
                 "/settings/billing",
-                "/settings/billing/usage",
-                "/features/copilot/plans"
+                "/settings/billing/usage"
               ];
             }
             if (PROVIDER_ID === "cursor") {

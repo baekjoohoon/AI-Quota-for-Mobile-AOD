@@ -263,6 +263,7 @@ class ProviderLocalUsageCollectorTest {
         assertTrue(copilotScript.contains("/github-copilot/chat/entitlement"))
         assertTrue(copilotScript.contains("/settings/copilot/usage"))
         assertTrue(copilotScript.contains("/settings/copilot/plans"))
+        assertFalse(copilotScript.contains("/features/copilot/plans"))
         assertTrue(cursorScript.contains("/api/usage"))
         assertTrue(cursorScript.contains("/api/usage-summary"))
         assertTrue(cursorScript.contains("/api/subscription"))

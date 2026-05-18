@@ -589,6 +589,35 @@ class TextUsageExtractorTest {
     }
 
     @Test
+    fun ignoresCopilotMarketingPlanPageNumbersFromStructuredPayload() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.COPILOT,
+            visibleText = """
+                {
+                  "s": "s",
+                  "provider": "copilot",
+                  "d": {
+                    "p": "Pro",
+                    "x": [
+                      {
+                        "l": "Blogs.microsoft.com",
+                        "used": 7,
+                        "limit": 7,
+                        "remaining": 0,
+                        "unit": "count",
+                        "source": "/features/copilot/plans"
+                      }
+                    ]
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals(ProviderConnectionState.UNAVAILABLE, snapshot.connectionState)
+        assertTrue(snapshot.lines.isEmpty())
+    }
+
+    @Test
     fun ignoresCursorCompletedCountersFromStructuredPayload() {
         val snapshot = TextUsageExtractor.extract(
             providerId = ProviderId.CURSOR,

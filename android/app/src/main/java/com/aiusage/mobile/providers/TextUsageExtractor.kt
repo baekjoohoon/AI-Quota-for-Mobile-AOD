@@ -434,7 +434,18 @@ object TextUsageExtractor {
         val labelText = listOf(label, unit).joinToString(" ").lowercase(Locale.US)
         val allText = listOf(label, unit, sourceLabel).joinToString(" ").lowercase(Locale.US)
         if (Regex("""\b(sitemap|completed)\b""").containsMatchIn(labelText)) return true
-        if (providerId == ProviderId.COPILOT && "sitemap" in allText) return true
+        if (providerId == ProviderId.COPILOT) {
+            if ("sitemap" in allText) return true
+            if ("/features/copilot/plans" in allText) return true
+            if (Regex("""\b[a-z0-9-]+\.(com|net|org|io|dev|ai)\b""").containsMatchIn(labelText)) return true
+            if (
+                !Regex(
+                    """\b(copilot|premium\s+requests?|chat|messages?|code\s+completions?|completions?|usage|limit|quota|remaining|billing|entitlement)\b"""
+                ).containsMatchIn(allText)
+            ) {
+                return true
+            }
+        }
         return false
     }
 
