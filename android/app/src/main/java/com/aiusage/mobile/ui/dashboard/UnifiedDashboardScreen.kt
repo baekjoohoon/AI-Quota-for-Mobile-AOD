@@ -327,7 +327,7 @@ private fun ProviderUsageCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(30.dp)
+                    .height(if (colors.theme == com.aiusage.mobile.local.AppTheme.MACOS) 30.dp else 22.dp)
                     .background(if (isDragging) colors.primary else colors.titleBar)
                     .padding(horizontal = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -481,20 +481,20 @@ private fun DashboardDragHandle(modifier: Modifier, isDragging: Boolean) {
                 contentDescription = handleDescription
                 role = Role.Button
             }
-            .size(width = 38.dp, height = 28.dp),
+            .size(width = 32.dp, height = 22.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         repeat(3) { index ->
             Box(
                 modifier = Modifier
-                    .width(24.dp)
-                    .height(3.dp)
+                    .width(20.dp)
+                    .height(2.5.dp)
                     .clip(RoundedCornerShape(999.dp))
                     .background(lineColor)
             )
             if (index < 2) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(3.dp))
             }
         }
     }
