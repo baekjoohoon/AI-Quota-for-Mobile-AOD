@@ -131,6 +131,8 @@ provider 응답이 used percent만 주면 앱은 `remainingPercent = 1 - usedPer
 - `/logout`은 항상 완료 처리하지 않는다.
 - `/new` 같은 Claude 앱 경로로 이동했고 `lastActiveOrg` 쿠키가 있으면 앱 shell 진입으로 보고 WebView를 닫는다.
 - main frame error가 발생했더라도 `lastActiveOrg` 쿠키가 있으면 로그인 성공 후 transient WebView error로 보고 연결 완료 처리한다.
+- Claude host 페이지에서는 WebView 내부에서 `/api/organizations`, `/api/organizations/me`를 `credentials: include`로 호출해 세션을 검증한다.
+- API 검증 payload에서 organization id를 찾으면 `lastActiveOrg` 쿠키를 보강 저장하고 앱으로 복귀한다.
 - 로그인 완료 신호가 확인되면 WebView를 즉시 닫고 앱으로 복귀한다.
 - 사용량 수집은 저장된 로컬 세션으로 백그라운드 수집에서 이어간다.
 
@@ -152,12 +154,18 @@ provider 응답이 used percent만 주면 앱은 `remainingPercent = 1 - usedPer
   - `seven_day` -> `Claude 주간 한도`, window `7 days`
   - `seven_day_omelette` -> `Claude Design`, window `7 days`
 - 각 항목은 `utilization`을 used percent로 보고 `resets_at`을 reset 기준으로 사용한다.
+- Claude 사용량 line은 저장 전 canonical key로 dedupe한다.
+  - `Five_hour`, `five_hour`, `Claude 5시간 한도`, `5 hours` -> `claude:five_hour`
+  - `Seven_day`, `seven_day`, `Claude 주간 한도`, `7 days` -> `claude:seven_day`
+  - `Seven_day_omelette`, `Claude Design` -> `claude:seven_day_omelette`
+- 같은 canonical key가 여러 개이면 `/api/organizations/{id}/usage` source, `resetsAt`, `remainingPercent`, confidence가 더 강한 line을 우선한다.
 
 ### 금지 fallback
 
 - `/new`, `/`, 빈 source에서 나온 `Session`, `Weekly` plan-only/placeholder line은 저장하면 안 된다.
 - plan이 없는 상태에서 usage만 잡히면 `shouldWaitForPlanLabel()` 기준으로 추가 probe를 기다린다.
 - 정상 `/usage` line이 있는데 뒤이은 빈 fallback으로 덮어쓰면 안 된다.
+- 같은 Claude quota가 raw label이나 source 형식만 다르다는 이유로 중복 표시되면 안 된다.
 
 ## Codex
 

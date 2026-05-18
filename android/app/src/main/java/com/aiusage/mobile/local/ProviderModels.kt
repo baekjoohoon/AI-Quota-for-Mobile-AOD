@@ -110,6 +110,94 @@ fun ProviderUsageLine.hasStartOnMessageReset(): Boolean {
     return isStartOnMessage && (remainingPercent == null || remainingPercent >= 0.995f)
 }
 
+fun ProviderId.deduplicateUsageLinesForStorage(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {
+    val deduped = LinkedHashMap<String, ProviderUsageLine>()
+    lines.forEach { line ->
+        val normalizedLine = if (this == ProviderId.GEMINI) {
+            line.copy(label = normalizedUsageLineLabelForDisplay(line.label))
+        } else {
+            line
+        }
+        val key = usageLineDeduplicationKey(normalizedLine)
+        val existing = deduped[key]
+        if (existing == null || normalizedLine.isBetterStoredUsageLineThan(existing, this)) {
+            deduped[key] = normalizedLine
+        }
+    }
+    return deduped.values.toList()
+}
+
+private fun ProviderId.usageLineDeduplicationKey(line: ProviderUsageLine): String {
+    if (this == ProviderId.GEMINI) {
+        return normalizedUsageLineLabelForDisplay(line.label).lowercase(Locale.US)
+    }
+    if (this == ProviderId.CLAUDE) {
+        claudeUsageWindowKey(line)?.let { return it }
+    }
+    return listOf(
+        line.label,
+        line.windowText.orEmpty(),
+        line.category.orEmpty(),
+        line.unit.orEmpty(),
+        normalizedUsageSource(line.sourceLabel)
+    ).joinToString("|").lowercase(Locale.US)
+}
+
+private fun claudeUsageWindowKey(line: ProviderUsageLine): String? {
+    val label = line.label
+        .replace('_', ' ')
+        .replace('-', ' ')
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+        .lowercase(Locale.US)
+    val compact = label.replace(Regex("""[^a-z0-9가-힣]+"""), "")
+    val window = line.windowText.orEmpty().lowercase(Locale.US)
+    return when {
+        "omelette" in compact || "claudedesign" in compact || "design" in label -> "claude:seven_day_omelette"
+        "fivehour" in compact || "5hour" in compact || "5시간" in compact || "5 hour" in window -> {
+            "claude:five_hour"
+        }
+        "sevenday" in compact || "weekly" in compact || "주간" in compact || "7 day" in window -> {
+            "claude:seven_day"
+        }
+        else -> null
+    }
+}
+
+private fun normalizedUsageSource(sourceLabel: String?): String {
+    return sourceLabel.orEmpty()
+        .replace(Regex("""[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}"""), ":id")
+        .replace(Regex("""[A-Za-z0-9_-]{18,}"""), ":id")
+}
+
+private fun ProviderUsageLine.isBetterStoredUsageLineThan(
+    existing: ProviderUsageLine,
+    providerId: ProviderId
+): Boolean {
+    val score = storedUsageLineScore(providerId)
+    val existingScore = existing.storedUsageLineScore(providerId)
+    return when {
+        score != existingScore -> score > existingScore
+        (confidence ?: 0f) != (existing.confidence ?: 0f) -> (confidence ?: 0f) > (existing.confidence ?: 0f)
+        else -> false
+    }
+}
+
+private fun ProviderUsageLine.storedUsageLineScore(providerId: ProviderId): Int {
+    var score = 0
+    val source = sourceLabel.orEmpty().lowercase(Locale.US)
+    if (providerId == ProviderId.CLAUDE && source.contains(Regex("""/api/organizations/[^/?#]+/usage(?:[?#]|$)"""))) {
+        score += 64
+    }
+    if ((remainingPercent ?: 1f) < 0.995f) score += 32
+    if (remainingPercent != null) score += 16
+    if (!resetsAt.isNullOrBlank()) score += 8
+    if (!resetText.isNullOrBlank()) score += 4
+    if (!sourceLabel.isNullOrBlank()) score += 2
+    if (hasStartOnMessageReset()) score -= 16
+    return score
+}
+
 data class ProviderUsageLine(
     val label: String,
     val remainingPercent: Float?,

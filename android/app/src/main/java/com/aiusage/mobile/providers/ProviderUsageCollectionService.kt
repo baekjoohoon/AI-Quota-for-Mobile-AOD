@@ -30,10 +30,9 @@ import com.aiusage.mobile.local.ProviderId
 import com.aiusage.mobile.local.ProviderPreferencesRepository
 import com.aiusage.mobile.local.ProviderRefreshState
 import com.aiusage.mobile.local.ProviderUsageSnapshot
-import com.aiusage.mobile.local.hasStartOnMessageReset
+import com.aiusage.mobile.local.deduplicateUsageLinesForStorage
 import com.aiusage.mobile.local.isSupportedUsageLineLabel
 import com.aiusage.mobile.local.normalizedPlanLabelForDisplay
-import com.aiusage.mobile.local.normalizedUsageLineLabelForDisplay
 import com.aiusage.mobile.notification.UsageLimitNotificationController
 import com.aiusage.mobile.widget.AIUsageUnifiedGlanceWidget
 import com.aiusage.mobile.widget.ProviderUsageGlanceWidget
@@ -772,64 +771,7 @@ class ProviderUsageCollectionService : Service() {
         provider: ProviderId,
         incoming: List<com.aiusage.mobile.local.ProviderUsageLine>
     ): List<com.aiusage.mobile.local.ProviderUsageLine> {
-        val deduped = LinkedHashMap<String, com.aiusage.mobile.local.ProviderUsageLine>()
-        incoming.forEach { line ->
-            val normalizedLine = if (provider == ProviderId.GEMINI) {
-                normalizeGeminiStoredLine(provider, line)
-            } else {
-                line
-            }
-            val key = if (provider == ProviderId.GEMINI) {
-                normalizedLine.label.lowercase()
-            } else {
-                listOf(
-                    normalizedLine.label,
-                    normalizedLine.windowText,
-                    normalizedLine.category,
-                    normalizedLine.unit,
-                    normalizedUsageSource(normalizedLine.sourceLabel)
-                )
-                    .joinToString("|")
-                    .lowercase()
-            }
-            val existing = deduped[key]
-            if (existing == null || normalizedLine.isBetterGeminiStoredLineThan(existing, provider)) {
-                deduped[key] = normalizedLine
-            }
-        }
-        return sortStoredLines(provider, deduped.values.toList())
-    }
-
-    private fun normalizeGeminiStoredLine(
-        provider: ProviderId,
-        line: com.aiusage.mobile.local.ProviderUsageLine
-    ): com.aiusage.mobile.local.ProviderUsageLine {
-        return line.copy(label = provider.normalizedUsageLineLabelForDisplay(line.label))
-    }
-
-    private fun com.aiusage.mobile.local.ProviderUsageLine.isBetterGeminiStoredLineThan(
-        existing: com.aiusage.mobile.local.ProviderUsageLine,
-        provider: ProviderId
-    ): Boolean {
-        if (provider != ProviderId.GEMINI) return false
-        val score = geminiStoredLineScore()
-        val existingScore = existing.geminiStoredLineScore()
-        return when {
-            score != existingScore -> score > existingScore
-            (confidence ?: 0f) != (existing.confidence ?: 0f) -> (confidence ?: 0f) > (existing.confidence ?: 0f)
-            else -> false
-        }
-    }
-
-    private fun com.aiusage.mobile.local.ProviderUsageLine.geminiStoredLineScore(): Int {
-        var score = 0
-        if ((remainingPercent ?: 1f) < 0.995f) score += 64
-        if (label.startsWith("Gemini ", ignoreCase = true)) score += 8
-        if (remainingPercent != null) score += 4
-        if (!resetsAt.isNullOrBlank() || !resetText.isNullOrBlank()) score += 2
-        if (!sourceLabel.isNullOrBlank()) score += 1
-        if (hasStartOnMessageReset()) score -= 16
-        return score
+        return sortStoredLines(provider, provider.deduplicateUsageLinesForStorage(incoming))
     }
 
     private fun List<com.aiusage.mobile.local.ProviderUsageLine>.filterActionableGeminiStoredLines(
@@ -837,12 +779,6 @@ class ProviderUsageCollectionService : Service() {
     ): List<com.aiusage.mobile.local.ProviderUsageLine> {
         if (provider != ProviderId.GEMINI) return this
         return filter { line -> line.isGeminiMeasuredCounterLine() }
-    }
-
-    private fun normalizedUsageSource(sourceLabel: String?): String {
-        return sourceLabel.orEmpty()
-            .replace(Regex("""[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}"""), ":id")
-            .replace(Regex("""[A-Za-z0-9_-]{18,}"""), ":id")
     }
 
     private fun carriedPlanLabel(

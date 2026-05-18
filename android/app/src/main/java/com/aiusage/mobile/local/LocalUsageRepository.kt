@@ -175,55 +175,8 @@ class LocalUsageRepository(context: Context) {
         return copy(
             displayName = providerId.normalizedDisplayName(displayName),
             planLabel = providerId.normalizedPlanLabelForDisplay(planLabel),
-            lines = normalizedLines.deduplicated(providerId)
+            lines = providerId.deduplicateUsageLinesForStorage(normalizedLines)
         ).withRecoveredStaleProgress()
-    }
-
-    private fun List<ProviderUsageLine>.deduplicated(providerId: ProviderId): List<ProviderUsageLine> {
-        val deduped = LinkedHashMap<String, ProviderUsageLine>()
-        forEach { line ->
-            val key = if (providerId == ProviderId.GEMINI) {
-                providerId.normalizedUsageLineLabelForDisplay(line.label).lowercase(Locale.US)
-            } else {
-                listOf(
-                    line.label,
-                    line.remainingText,
-                    line.resetText.orEmpty(),
-                    line.resetsAt.orEmpty(),
-                    line.sourceLabel.orEmpty()
-                ).joinToString("|").lowercase(Locale.US)
-            }
-            val existing = deduped[key]
-            if (existing == null || line.isBetterGeminiStoredLineThan(existing, providerId)) {
-                deduped[key] = line
-            }
-        }
-        return deduped.values.toList()
-    }
-
-    private fun ProviderUsageLine.isBetterGeminiStoredLineThan(
-        existing: ProviderUsageLine,
-        providerId: ProviderId
-    ): Boolean {
-        if (providerId != ProviderId.GEMINI) return false
-        val score = geminiStoredLineScore()
-        val existingScore = existing.geminiStoredLineScore()
-        return when {
-            score != existingScore -> score > existingScore
-            (confidence ?: 0f) != (existing.confidence ?: 0f) -> (confidence ?: 0f) > (existing.confidence ?: 0f)
-            else -> false
-        }
-    }
-
-    private fun ProviderUsageLine.geminiStoredLineScore(): Int {
-        var score = 0
-        if ((remainingPercent ?: 1f) < 0.995f) score += 64
-        if (label.startsWith("Gemini ", ignoreCase = true)) score += 8
-        if (remainingPercent != null) score += 4
-        if (!resetsAt.isNullOrBlank() || !resetText.isNullOrBlank()) score += 2
-        if (!sourceLabel.isNullOrBlank()) score += 1
-        if (hasStartOnMessageReset()) score -= 16
-        return score
     }
 
     private fun ProviderId.normalizedDisplayName(value: String): String {

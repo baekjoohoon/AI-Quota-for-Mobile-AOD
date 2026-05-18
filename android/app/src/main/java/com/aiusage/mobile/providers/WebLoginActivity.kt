@@ -27,10 +27,12 @@ import com.aiusage.mobile.local.ProviderConnectionState
 import com.aiusage.mobile.local.ProviderId
 import com.aiusage.mobile.local.ProviderRefreshState
 import com.aiusage.mobile.local.ProviderUsageSnapshot
-import java.net.URI
 import java.io.ByteArrayInputStream
+import java.net.URI
 import java.time.Instant
 import kotlin.math.roundToInt
+import org.json.JSONArray
+import org.json.JSONObject
 
 class WebLoginActivity : Activity() {
     private var webView: WebView? = null
@@ -41,6 +43,7 @@ class WebLoginActivity : Activity() {
     private var cancellationRecorded = false
     private var codexOAuthCompletionStarted = false
     private var geminiOAuthCompletionStarted = false
+    private var claudeSessionVerificationInFlight = false
     private val popupViews = mutableListOf<WebView>()
     private val popupContainers = mutableMapOf<WebView, FrameLayout>()
 
@@ -134,6 +137,7 @@ class WebLoginActivity : Activity() {
                         "login pageStarted provider=${providerId.storageId} url=" +
                             ProviderCollectionDiagnostics.safeUrl(startedUrl)
                     )
+                    maybeVerifyClaudeSessionWithApi(providerId, view, startedUrl)
                     if (!maybeFinishClaudeAuthenticatedFromNavigation(providerId, startedUrl)) {
                         installProviderUsageHooks(providerId, view)
                     }
@@ -144,6 +148,7 @@ class WebLoginActivity : Activity() {
                         "login pageFinished provider=${providerId.storageId} url=" +
                             ProviderCollectionDiagnostics.safeUrl(finishedUrl)
                     )
+                    maybeVerifyClaudeSessionWithApi(providerId, view, finishedUrl)
                     if (!maybeFinishClaudeAuthenticatedFromNavigation(providerId, finishedUrl)) {
                         collectProviderUsage(providerId, finishedUrl, view)
                     }
@@ -410,6 +415,31 @@ class WebLoginActivity : Activity() {
         )
         finishConnectedCaptureWithoutUsage(providerId)
         return true
+    }
+
+    private fun maybeVerifyClaudeSessionWithApi(providerId: ProviderId, target: WebView, url: String?) {
+        if (providerId != ProviderId.CLAUDE || connectionRecorded || usageRecorded) return
+        if (claudeSessionVerificationInFlight) return
+        if (!isClaudeHostNavigation(url)) return
+        claudeSessionVerificationInFlight = true
+        target.evaluateJavascript(claudeSessionVerificationScript()) { rawValue ->
+            claudeSessionVerificationInFlight = false
+            if (connectionRecorded || usageRecorded) return@evaluateJavascript
+            val organizationId = claudeOrganizationIdFromVerificationPayload(rawValue) ?: return@evaluateJavascript
+            rememberClaudeOrganizationCookie(organizationId)
+            Log.d(
+                ProviderCollectionDiagnostics.TAG,
+                "login claudeApiSessionVerified provider=${providerId.storageId} org=$organizationId"
+            )
+            finishConnectedCaptureWithoutUsage(providerId)
+        }
+    }
+
+    private fun rememberClaudeOrganizationCookie(organizationId: String) {
+        val cookie = "lastActiveOrg=$organizationId; Path=/; Secure; SameSite=Lax"
+        CookieManager.getInstance().setCookie("https://claude.ai/", cookie)
+        CookieManager.getInstance().flush()
+        Log.d(ProviderCollectionDiagnostics.TAG, "login claudeOrgStored provider=${ProviderId.CLAUDE.storageId}")
     }
 
     private fun retryProviderUsageCollection(
@@ -778,7 +808,84 @@ internal fun isClaudeAuthenticatedAppNavigation(url: String?): Boolean {
     return true
 }
 
+internal fun isClaudeHostNavigation(url: String?): Boolean {
+    val uri = runCatching { URI(url.orEmpty().trim()) }.getOrNull() ?: return false
+    if (!uri.scheme.equals("https", ignoreCase = true)) return false
+    val host = uri.host.orEmpty().lowercase()
+    return host == "claude.ai" || host.endsWith(".claude.ai")
+}
+
+internal fun claudeSessionVerificationScript(): String {
+    return """
+        (async () => {
+          const endpoints = ["/api/organizations", "/api/organizations/me"];
+          for (const endpoint of endpoints) {
+            try {
+              const response = await fetch(endpoint, {
+                credentials: "include",
+                headers: { "Accept": "application/json" }
+              });
+              const text = await response.text();
+              let body = text;
+              try { body = JSON.parse(text); } catch (_) {}
+              if (response.ok) {
+                return JSON.stringify({ ok: true, endpoint, status: response.status, body });
+              }
+            } catch (error) {}
+          }
+          return JSON.stringify({ ok: false });
+        })();
+    """.trimIndent()
+}
+
+internal fun claudeVerificationPayloadHasOrganization(payload: String): Boolean {
+    return claudeOrganizationIdFromVerificationPayload(payload) != null
+}
+
+internal fun claudeOrganizationIdFromVerificationPayload(payload: String): String? {
+    val decoded = ProviderLocalUsageCollector.decodeJavascriptString(payload).trim()
+    val root = runCatching { JSONObject(decoded) }.getOrNull() ?: return null
+    if (!root.optBoolean("ok", false)) return null
+    return findClaudeOrganizationId(root.opt("body"))
+}
+
+private fun findClaudeOrganizationId(value: Any?): String? {
+    return when (value) {
+        null, JSONObject.NULL -> null
+        is String -> CLAUDE_ORGANIZATION_ID.find(value)?.value
+        is JSONArray -> {
+            for (index in 0 until value.length()) {
+                findClaudeOrganizationId(value.opt(index))?.let { return it }
+            }
+            null
+        }
+        is JSONObject -> {
+            CLAUDE_ORGANIZATION_ID_KEYS.forEach { key ->
+                findClaudeOrganizationId(value.opt(key))?.let { return it }
+            }
+            val keys = value.keys()
+            while (keys.hasNext()) {
+                findClaudeOrganizationId(value.opt(keys.next()))?.let { return it }
+            }
+            null
+        }
+        else -> null
+    }
+}
+
 private val CLAUDE_AUTHENTICATED_ORG_COOKIE = Regex(
     pattern = """(?:^|;\s*)lastActiveOrg=([0-9a-fA-F-]{16,})""",
     option = RegexOption.IGNORE_CASE
+)
+
+private val CLAUDE_ORGANIZATION_ID = Regex(
+    pattern = """[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"""
+)
+
+private val CLAUDE_ORGANIZATION_ID_KEYS = listOf(
+    "uuid",
+    "id",
+    "organization_uuid",
+    "organizationId",
+    "organization_id"
 )

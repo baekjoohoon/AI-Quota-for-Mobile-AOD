@@ -1,5 +1,6 @@
 package com.aiusage.mobile.providers
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -34,6 +35,35 @@ class WebLoginActivityTest {
     fun rejectsClaudeLoginNavigationForAuthenticatedShortcut() {
         assertFalse(
             isClaudeAuthenticatedAppNavigation("https://claude.ai/login")
+        )
+    }
+
+    @Test
+    fun extractsClaudeOrganizationIdFromVerifiedApiPayload() {
+        assertEquals(
+            "6d7e7f53-6216-45b3-93bb-764f73f98c92",
+            claudeOrganizationIdFromVerificationPayload(
+                """
+                {
+                  "ok": true,
+                  "status": 200,
+                  "body": {
+                    "organizations": [
+                      {"uuid": "6d7e7f53-6216-45b3-93bb-764f73f98c92"}
+                    ]
+                  }
+                }
+                """.trimIndent()
+            )
+        )
+    }
+
+    @Test
+    fun rejectsFailedClaudeApiVerificationPayload() {
+        assertFalse(
+            claudeVerificationPayloadHasOrganization(
+                """{"ok":false,"status":401,"body":{"error":"unauthorized"}}"""
+            )
         )
     }
 }

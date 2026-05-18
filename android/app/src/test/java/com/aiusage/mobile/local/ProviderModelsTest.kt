@@ -64,6 +64,68 @@ class ProviderModelsTest {
     }
 
     @Test
+    fun claudeUsageLinesDeduplicateByQuotaWindow() {
+        val lines = ProviderId.CLAUDE.deduplicateUsageLinesForStorage(
+            listOf(
+                ProviderUsageLine(
+                    label = "Claude 5시간 한도",
+                    remainingPercent = 0.98f,
+                    remainingText = "98% left",
+                    windowText = "5 hours",
+                    resetsAt = "2026-05-19T01:00:00Z",
+                    sourceLabel = "/api/organizations/6d7e7f53-6216-45b3-93bb-764f73f98c92/usage",
+                    confidence = 0.70f
+                ),
+                ProviderUsageLine(
+                    label = "Five_hour",
+                    remainingPercent = 0.98f,
+                    remainingText = "98% left",
+                    windowText = "5 hours",
+                    resetsAt = "2026-05-19T01:00:00Z",
+                    sourceLabel = "/api/organizations/:id/usage",
+                    confidence = 0.98f
+                ),
+                ProviderUsageLine(
+                    label = "Claude 주간 한도",
+                    remainingPercent = 1f,
+                    remainingText = "100% left",
+                    windowText = "7 days",
+                    resetsAt = "2026-05-25T20:00:00Z",
+                    sourceLabel = "/api/organizations/6d7e7f53-6216-45b3-93bb-764f73f98c92/usage",
+                    confidence = 0.70f
+                ),
+                ProviderUsageLine(
+                    label = "Seven_day",
+                    remainingPercent = 1f,
+                    remainingText = "100% left",
+                    windowText = "7 days",
+                    resetsAt = "2026-05-25T20:00:00Z",
+                    sourceLabel = "/api/organizations/:id/usage",
+                    confidence = 0.98f
+                ),
+                ProviderUsageLine(
+                    label = "Claude Design",
+                    remainingPercent = 1f,
+                    remainingText = "100% left",
+                    windowText = "7 days",
+                    sourceLabel = "/api/organizations/6d7e7f53-6216-45b3-93bb-764f73f98c92/usage",
+                    confidence = 0.70f
+                ),
+                ProviderUsageLine(
+                    label = "Seven_day_omelette",
+                    remainingPercent = 1f,
+                    remainingText = "100% left",
+                    windowText = "7 days",
+                    sourceLabel = "/api/organizations/:id/usage",
+                    confidence = 0.98f
+                )
+            )
+        )
+
+        assertEquals(listOf("Five_hour", "Seven_day", "Seven_day_omelette"), lines.map { it.label })
+    }
+
+    @Test
     fun fromStorageIdMatchesCaseInsensitivelyAndRejectsUnknowns() {
         assertEquals(ProviderId.CLAUDE, ProviderId.fromStorageId("CLAUDE"))
         assertEquals(ProviderId.CODEX, ProviderId.fromStorageId("Codex"))
