@@ -71,6 +71,8 @@ import com.aiusage.mobile.providers.ProviderConnectorRegistry
 import com.aiusage.mobile.providers.ProviderHostAllowlist
 import com.aiusage.mobile.providers.ProviderUsageCollectionService
 import com.aiusage.mobile.providers.WebLoginActivity
+import com.aiusage.mobile.sync.ForegroundRefreshController
+import com.aiusage.mobile.sync.ForegroundRefreshPolicy
 import com.aiusage.mobile.ui.dashboard.ProviderCardOrder
 import com.aiusage.mobile.ui.dashboard.UnifiedDashboardScreen
 import com.aiusage.mobile.ui.provider.ProviderDetailScreen
@@ -104,6 +106,7 @@ fun AIUsageAppShell(
     }
     val connectorRegistry = remember { ProviderConnectorRegistry.default() }
     val widgetSnapshotCache = remember(appContext) { WidgetSnapshotCache(appContext) }
+    val foregroundRefreshController = remember(appContext) { ForegroundRefreshController(appContext) }
     val coroutineScope = rememberCoroutineScope()
     val layoutMetrics = rememberAppLayoutMetrics()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -354,6 +357,14 @@ fun AIUsageAppShell(
         UsageLimitNotificationController.updateFromCache(appContext)
         AIUsageUnifiedGlanceWidget().updateAll(appContext)
         ProviderUsageGlanceWidget().updateAll(appContext)
+    }
+
+    LaunchedEffect(snapshots) {
+        if (ForegroundRefreshPolicy.connectedProviders(snapshots).isNotEmpty()) {
+            runCatching { foregroundRefreshController.startPreciseRefresh() }
+        } else {
+            foregroundRefreshController.stopPreciseRefresh()
+        }
     }
 
     LaunchedEffect(route) {

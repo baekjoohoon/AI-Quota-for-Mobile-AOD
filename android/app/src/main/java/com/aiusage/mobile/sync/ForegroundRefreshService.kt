@@ -5,7 +5,11 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import com.aiusage.mobile.local.LocalUsageRepository
+import com.aiusage.mobile.local.ProviderId
+import com.aiusage.mobile.local.ProviderRefreshState
 import com.aiusage.mobile.notification.UsageLimitNotificationController
+import com.aiusage.mobile.providers.ProviderUsageCollectionService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -41,18 +45,53 @@ class ForegroundRefreshService : Service() {
     private fun startRefreshLoop() {
         if (refreshJob?.isActive == true) return
         refreshJob = scope.launch {
-            val repository = SnapshotRepository(applicationContext)
+            val repository = LocalUsageRepository(applicationContext)
             while (isActive) {
-                val uid = repository.storedUid()
-                if (uid.isNullOrBlank()) {
+                val cycleStartedAt = System.currentTimeMillis()
+                val providers = ForegroundRefreshPolicy.connectedProviders(repository.readSnapshots())
+                if (providers.isEmpty()) {
                     stopSelf()
                     return@launch
                 }
-                runCatching {
-                    repository.refreshLatestSnapshot(uid)
+                providers.forEach { providerId ->
+                    if (!isActive) return@forEach
+                    val previousUpdatedAt = repository.readSnapshots()
+                        .firstOrNull { it.providerId == providerId }
+                        ?.updatedAt
+                        .orEmpty()
+                    runCatching {
+                        ProviderUsageCollectionService.start(
+                            context = applicationContext,
+                            providerId = providerId,
+                            source = ProviderUsageCollectionService.SOURCE_REFRESH
+                        )
+                    }
+                    waitForProviderRefresh(repository, providerId, previousUpdatedAt)
                 }
-                delay(60_000)
+                val elapsed = System.currentTimeMillis() - cycleStartedAt
+                delay((ForegroundRefreshPolicy.REFRESH_INTERVAL_MS - elapsed).coerceAtLeast(0L))
             }
+        }
+    }
+
+    private suspend fun waitForProviderRefresh(
+        repository: LocalUsageRepository,
+        providerId: ProviderId,
+        previousUpdatedAt: String
+    ) {
+        delay(ForegroundRefreshPolicy.PROVIDER_REFRESH_START_GRACE_MS)
+        val startedAt = System.currentTimeMillis()
+        var seenRefreshing = false
+        while (
+            refreshJob?.isActive == true &&
+            System.currentTimeMillis() - startedAt < ForegroundRefreshPolicy.PROVIDER_REFRESH_TIMEOUT_MS
+        ) {
+            val snapshot = repository.readSnapshots().firstOrNull { it.providerId == providerId }
+            val refreshing = snapshot?.refreshState == ProviderRefreshState.REFRESHING
+            seenRefreshing = seenRefreshing || refreshing
+            if (snapshot != null && snapshot.updatedAt != previousUpdatedAt && !refreshing) return
+            if (seenRefreshing && !refreshing) return
+            delay(ForegroundRefreshPolicy.PROVIDER_REFRESH_POLL_MS)
         }
     }
 
