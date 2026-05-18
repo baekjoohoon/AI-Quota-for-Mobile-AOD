@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiusage.mobile.R
@@ -429,14 +430,8 @@ private fun ProviderUsageLineRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = if (colors.theme == AppTheme.MACOS) colors.textMuted else colors.textSecondary,
                     maxLines = 1,
+                    textAlign = TextAlign.End,
                     overflow = TextOverflow.Ellipsis
-                )
-            }
-            line.metadataText()?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (colors.theme == AppTheme.MACOS) colors.textMuted else colors.textSecondary
                 )
             }
         }
