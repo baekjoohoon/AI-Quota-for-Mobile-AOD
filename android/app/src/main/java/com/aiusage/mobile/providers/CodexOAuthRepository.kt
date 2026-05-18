@@ -6,6 +6,7 @@ import com.aiusage.mobile.local.ProviderConnectionState
 import com.aiusage.mobile.local.ProviderId
 import com.aiusage.mobile.local.ProviderRefreshState
 import com.aiusage.mobile.local.ProviderUsageSnapshot
+import com.aiusage.mobile.local.normalizedPlanLabelForDisplay
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
@@ -480,15 +481,7 @@ class CodexOAuthRepository(context: Context) {
         }
 
         private fun String.toCodexPlanLabel(): String {
-            val value = trim().takeIf { it.isNotBlank() } ?: return this
-            val compact = value.lowercase(Locale.US)
-                .replace(Regex("""[^a-z0-9]+"""), "")
-            return when (compact) {
-                "prolite" -> "Pro 5x"
-                else -> value.replaceFirstChar { char ->
-                    if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
-                }
-            }
+            return ProviderId.CODEX.normalizedPlanLabelForDisplay(this) ?: this
         }
     }
 }

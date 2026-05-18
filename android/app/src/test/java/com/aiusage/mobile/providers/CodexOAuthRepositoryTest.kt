@@ -104,7 +104,7 @@ class CodexOAuthRepositoryTest {
         val snapshot = TextUsageExtractor.extract(ProviderId.CODEX, payload)
 
         assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
-        assertEquals("Pro", snapshot.planLabel)
+        assertEquals("Pro 20x", snapshot.planLabel)
         assertEquals(2, snapshot.lines.size)
         assertTrue(snapshot.lines.any { it.label == "Spark" && it.remainingPercent == 1f })
         assertTrue(snapshot.lines.any { it.label == "Spark weekly" })
@@ -131,5 +131,28 @@ class CodexOAuthRepositoryTest {
         val snapshot = TextUsageExtractor.extract(ProviderId.CODEX, payload)
 
         assertEquals("Pro 5x", snapshot.planLabel)
+    }
+
+    @Test
+    fun whamUsagePayloadDisplaysProAsPro20x() {
+        val payload = CodexOAuthRepository.structuredPayloadFromWhamBodyForTest(
+            planLabel = null,
+            body = """
+                {
+                  "plan_type": "pro",
+                  "rate_limit": {
+                    "primary_window": {
+                      "used_percent": 10,
+                      "reset_after_seconds": 18000,
+                      "limit_window_seconds": 18000
+                    }
+                  }
+                }
+            """.trimIndent()
+        )
+
+        val snapshot = TextUsageExtractor.extract(ProviderId.CODEX, payload)
+
+        assertEquals("Pro 20x", snapshot.planLabel)
     }
 }

@@ -30,6 +30,7 @@ import com.aiusage.mobile.local.ProviderId
 import com.aiusage.mobile.local.ProviderPreferencesRepository
 import com.aiusage.mobile.local.ProviderRefreshState
 import com.aiusage.mobile.local.ProviderUsageSnapshot
+import com.aiusage.mobile.local.normalizedPlanLabelForDisplay
 import com.aiusage.mobile.notification.UsageLimitNotificationController
 import com.aiusage.mobile.widget.AIUsageUnifiedGlanceWidget
 import com.aiusage.mobile.widget.ProviderUsageGlanceWidget
@@ -643,24 +644,7 @@ class ProviderUsageCollectionService : Service() {
     }
 
     private fun normalizedPlanLabel(provider: ProviderId, planLabel: String?): String? {
-        val value = planLabel?.trim()?.takeIf { it.isNotBlank() } ?: return null
-        val compact = value.lowercase()
-            .replace(Regex("""[^a-z0-9]+"""), "")
-        return when (provider) {
-            ProviderId.CODEX -> when (compact) {
-                "prolite" -> "Pro 5x"
-                else -> value
-            }
-            ProviderId.GEMINI -> when (compact) {
-                "pro", "aipro", "googleaipro" -> "Google AI Pro"
-                "ultra", "aiultra", "googleaiultra" -> "Google AI Ultra"
-                "advanced", "geminiadvanced" -> "Gemini Advanced"
-                "aipremium", "googleoneaipremium" -> "Google One AI Premium"
-                "free", "geminifree" -> "Free"
-                else -> value
-            }
-            else -> value
-        }
+        return provider.normalizedPlanLabelForDisplay(planLabel)
     }
 
     private fun sortStoredLines(

@@ -49,15 +49,19 @@ object ProviderLocalUsageCollector {
                 planHints = listOf(
                     "Google AI Ultra",
                     "Google AI Pro",
+                    "Google AI Plus",
                     "Google One AI Premium",
                     "Gemini Advanced",
                     "AI Ultra",
                     "AI Pro",
+                    "AI Plus",
                     "AI Premium",
+                    "Basic",
                     "Free",
                     "Advanced",
                     "Ultra",
-                    "Pro"
+                    "Pro",
+                    "Plus"
                 ),
                 labelHints = listOf("Gemini", "Flash", "Pro", "Advanced", "Usage", "Remaining")
             )

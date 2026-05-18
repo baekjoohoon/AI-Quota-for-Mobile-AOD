@@ -6,6 +6,7 @@ import com.aiusage.mobile.local.ProviderRefreshState
 import com.aiusage.mobile.local.ProviderUsageLine
 import com.aiusage.mobile.local.ProviderUsageSnapshot
 import com.aiusage.mobile.local.UsageSeverity
+import com.aiusage.mobile.local.normalizedPlanLabelForDisplay
 import org.json.JSONObject
 import java.math.RoundingMode
 import java.text.DecimalFormat
@@ -155,7 +156,7 @@ object TextUsageExtractor {
             providerId = ProviderId.COPILOT,
             connectionState = ProviderConnectionState.CONNECTED,
             refreshState = ProviderRefreshState.IDLE,
-            planLabel = json.optNullableString("plan")?.toDisplayLabel(),
+            planLabel = ProviderId.COPILOT.normalizedPlanLabelForDisplay(json.optNullableString("plan")),
             lines = lines
         )
     }
@@ -553,7 +554,7 @@ object TextUsageExtractor {
             providerId = providerId,
             connectionState = ProviderConnectionState.CONNECTED,
             refreshState = ProviderRefreshState.IDLE,
-            planLabel = rawPlan.toDisplayLabel(),
+            planLabel = providerId.normalizedPlanLabelForDisplay(rawPlan),
             lines = emptyList(),
             message = "No usage limits found in local provider session."
         )
@@ -720,7 +721,7 @@ object TextUsageExtractor {
         rawPlan: String?,
         lines: List<ProviderUsageLine>
     ): String? {
-        rawPlan?.trim()?.takeIf { it.isNotBlank() }?.let { return it.toDisplayLabel() }
+        providerId.normalizedPlanLabelForDisplay(rawPlan)?.let { return it }
         return null
     }
 

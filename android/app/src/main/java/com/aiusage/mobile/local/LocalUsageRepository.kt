@@ -174,6 +174,7 @@ class LocalUsageRepository(context: Context) {
         }
         return copy(
             displayName = providerId.normalizedDisplayName(displayName),
+            planLabel = providerId.normalizedPlanLabelForDisplay(planLabel),
             lines = normalizedLines.deduplicated()
         ).withRecoveredStaleProgress()
     }

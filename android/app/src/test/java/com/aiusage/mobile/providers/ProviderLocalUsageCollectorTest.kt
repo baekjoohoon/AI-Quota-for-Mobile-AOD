@@ -147,6 +147,7 @@ class ProviderLocalUsageCollectorTest {
         assertTrue(claudeScript.contains("Claude Max"))
         assertTrue(geminiScript.contains("Google AI Pro"))
         assertTrue(geminiScript.contains("Google AI Ultra"))
+        assertTrue(geminiScript.contains("Google AI Plus"))
         assertTrue(geminiScript.contains("Google One AI Premium"))
     }
 

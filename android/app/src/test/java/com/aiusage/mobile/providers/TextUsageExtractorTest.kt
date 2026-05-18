@@ -187,7 +187,7 @@ class TextUsageExtractorTest {
         )
 
         assertEquals("Claude Max", claude.planLabel)
-        assertEquals("Pro", codex.planLabel)
+        assertEquals("Pro 20x", codex.planLabel)
         assertEquals("Google AI Pro", gemini.planLabel)
         assertTrue(claude.lines.isEmpty())
         assertTrue(codex.lines.isEmpty())

@@ -32,6 +32,18 @@ class ProviderModelsTest {
     }
 
     @Test
+    fun providerPlanLabelsNormalizeOnlyWhereNeeded() {
+        assertEquals("Claude Pro", ProviderId.CLAUDE.normalizedPlanLabelForDisplay("Claude Pro"))
+        assertEquals("Pro", ProviderId.CLAUDE.normalizedPlanLabelForDisplay("Pro"))
+        assertEquals("Pro 5x", ProviderId.CODEX.normalizedPlanLabelForDisplay("prolite"))
+        assertEquals("Pro 20x", ProviderId.CODEX.normalizedPlanLabelForDisplay("pro"))
+        assertEquals("Plus", ProviderId.CODEX.normalizedPlanLabelForDisplay("plus"))
+        assertEquals("Google AI Plus", ProviderId.GEMINI.normalizedPlanLabelForDisplay("AI Plus"))
+        assertEquals("Google AI Pro", ProviderId.GEMINI.normalizedPlanLabelForDisplay("Pro"))
+        assertEquals("Google AI Ultra", ProviderId.GEMINI.normalizedPlanLabelForDisplay("google_ai_ultra"))
+    }
+
+    @Test
     fun fromStorageIdMatchesCaseInsensitivelyAndRejectsUnknowns() {
         assertEquals(ProviderId.CLAUDE, ProviderId.fromStorageId("CLAUDE"))
         assertEquals(ProviderId.CODEX, ProviderId.fromStorageId("Codex"))

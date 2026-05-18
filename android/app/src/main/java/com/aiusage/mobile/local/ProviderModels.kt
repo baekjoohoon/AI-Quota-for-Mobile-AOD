@@ -2,6 +2,7 @@ package com.aiusage.mobile.local
 
 import java.time.Duration
 import java.time.Instant
+import java.util.Locale
 
 enum class ProviderId(val storageId: String, val displayName: String) {
     CLAUDE("claude", "Claude"),
@@ -41,6 +42,36 @@ enum class UsageSeverity {
     WARNING,
     DANGER,
     UNKNOWN
+}
+
+fun ProviderId.normalizedPlanLabelForDisplay(planLabel: String?): String? {
+    val value = planLabel?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    val compact = value.lowercase(Locale.US)
+        .replace(Regex("""[^a-z0-9]+"""), "")
+    return when (this) {
+        ProviderId.CODEX -> when (compact) {
+            "prolite" -> "Pro 5x"
+            "pro" -> "Pro 20x"
+            else -> value.replaceFirstChar { char ->
+                if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
+            }
+        }
+        ProviderId.GEMINI -> when (compact) {
+            "basic", "geminibasic" -> "Basic"
+            "plus", "aiplus", "googleaiplus" -> "Google AI Plus"
+            "pro", "aipro", "googleaipro" -> "Google AI Pro"
+            "ultra", "aiultra", "googleaiultra" -> "Google AI Ultra"
+            "advanced", "geminiadvanced" -> "Gemini Advanced"
+            "aipremium", "googleoneaipremium" -> "Google One AI Premium"
+            "free", "geminifree" -> "Free"
+            else -> value
+        }
+        ProviderId.CLAUDE -> value
+        ProviderId.COPILOT,
+        ProviderId.CURSOR -> value.replaceFirstChar { char ->
+            if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
+        }
+    }
 }
 
 data class ProviderUsageLine(
