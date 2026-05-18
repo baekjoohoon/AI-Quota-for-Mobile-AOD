@@ -471,11 +471,9 @@ private fun UsageAnalysisSection(snapshot: ProviderUsageSnapshot) {
                 )
             )
         } ?: ClassicInfoLine(text = stringResource(R.string.provider_analysis_no_percent))
-        lowestLine?.let { (line, _) ->
-            val resetText = lowestResetText
-                ?: line.remainingPercent?.let { stringResource(R.string.dashboard_reset_timer_pending) }
-            if (!resetText.isNullOrBlank()) {
-                ClassicInfoLine(text = stringResource(R.string.provider_analysis_reset, resetText))
+        lowestLine?.let {
+            if (!lowestResetText.isNullOrBlank()) {
+                ClassicInfoLine(text = stringResource(R.string.provider_analysis_reset, lowestResetText))
             }
         }
     }

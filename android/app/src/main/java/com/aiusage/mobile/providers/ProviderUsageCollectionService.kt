@@ -349,9 +349,11 @@ class ProviderUsageCollectionService : Service() {
         val loginComplete = ProviderLoginCompletionDetector.isLoginComplete(provider, url, payload)
         if (loginComplete) {
             loginCompletionSeen = true
+            startClaudeDirectUsageFetch()
         }
         if (
             provider != ProviderId.CURSOR &&
+            !shouldWaitForClaudeDirectUsageResult(provider) &&
             loginComplete &&
             payloadHasCollectedProviderSignals(payload) &&
             canFinishWithExistingUsage(provider, snapshot) &&
@@ -505,8 +507,17 @@ class ProviderUsageCollectionService : Service() {
                     )
                     return@postDelayed
                 }
+                if (shouldWaitForClaudeDirectUsageResult(fallback.providerId)) {
+                    fallbackCompletionScheduled = false
+                    Log.d(
+                        ProviderCollectionDiagnostics.TAG,
+                        "collection waitClaudeDirectUsage provider=${fallback.providerId.storageId}"
+                    )
+                    return@postDelayed
+                }
                 if (
                     fallback.lines.none { it.isTrustedCounterLine() } &&
+                    !shouldWaitForClaudeDirectUsageResult(fallback.providerId) &&
                     canFinishWithExistingUsage(fallback.providerId, fallback) &&
                     finishWithExistingUsage(fallback.providerId)
                 ) {
@@ -544,12 +555,31 @@ class ProviderUsageCollectionService : Service() {
         if (organizationId.isNullOrBlank()) return
         claudeDirectUsageStarted = true
         val endpoint = "https://claude.ai/api/organizations/$organizationId/usage"
+        currentUrl = endpoint
+        currentAttempt = 0
         Log.d(
             ProviderCollectionDiagnostics.TAG,
             "collection claudeDirectUsageWebView url=" +
                 ProviderCollectionDiagnostics.safeUrl(endpoint)
         )
         webView?.loadUrl(endpoint, mapOf("Accept" to "application/json"))
+        mainHandler.postDelayed(
+            {
+                if (!completed && currentUrl == endpoint) {
+                    loadNextProbeUrl()
+                }
+            },
+            PROBE_TIMEOUT_MS
+        )
+    }
+
+    private fun shouldWaitForClaudeDirectUsageResult(provider: ProviderId): Boolean {
+        return shouldWaitForClaudeDirectUsageResult(
+            provider = provider,
+            directUsageStarted = claudeDirectUsageStarted,
+            completed = completed,
+            url = webView?.url ?: currentUrl
+        )
     }
 
     private fun shouldWaitForPlanLabel(
@@ -698,13 +728,15 @@ class ProviderUsageCollectionService : Service() {
         val existingCounterLines = currentSnapshot?.lines.orEmpty()
             .filter { it.isTrustedCounterLine() }
             .filterActionableGeminiStoredLines(snapshot.providerId)
-        val linesForMerge = if (snapshot.providerId == ProviderId.GEMINI && incomingLines.isNotEmpty()) {
-            mergeWithExistingGeminiLines(
-                incoming = incomingLines,
-                existing = existingCounterLines
-            )
-        } else {
-            incomingLines
+        val linesForMerge = when {
+            incomingLines.isEmpty() && existingCounterLines.isNotEmpty() -> existingCounterLines
+            snapshot.providerId == ProviderId.GEMINI && incomingLines.isNotEmpty() -> {
+                mergeWithExistingGeminiLines(
+                    incoming = incomingLines,
+                    existing = existingCounterLines
+                )
+            }
+            else -> incomingLines
         }
         val mergedLines = dedupeUsageLines(snapshot.providerId, linesForMerge)
         repository.saveSnapshot(
@@ -1119,3 +1151,19 @@ class ProviderUsageCollectionService : Service() {
         }
     }
 }
+
+internal fun shouldWaitForClaudeDirectUsageResult(
+    provider: ProviderId,
+    directUsageStarted: Boolean,
+    completed: Boolean,
+    url: String?
+): Boolean {
+    if (provider != ProviderId.CLAUDE || !directUsageStarted || completed) return false
+    val candidateUrl = url ?: return true
+    return CLAUDE_DIRECT_USAGE_API_PATH.containsMatchIn(candidateUrl)
+}
+
+private val CLAUDE_DIRECT_USAGE_API_PATH = Regex(
+    pattern = """/api/organizations/[^/?#]+/usage(?:[?#]|$)""",
+    option = RegexOption.IGNORE_CASE
+)

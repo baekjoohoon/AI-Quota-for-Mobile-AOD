@@ -27,6 +27,7 @@ import com.aiusage.mobile.local.ProviderConnectionState
 import com.aiusage.mobile.local.ProviderId
 import com.aiusage.mobile.local.ProviderRefreshState
 import com.aiusage.mobile.local.ProviderUsageSnapshot
+import java.net.URI
 import java.io.ByteArrayInputStream
 import java.time.Instant
 import kotlin.math.roundToInt
@@ -133,7 +134,9 @@ class WebLoginActivity : Activity() {
                         "login pageStarted provider=${providerId.storageId} url=" +
                             ProviderCollectionDiagnostics.safeUrl(startedUrl)
                     )
-                    installProviderUsageHooks(providerId, view)
+                    if (!maybeFinishClaudeAuthenticatedFromNavigation(providerId, startedUrl)) {
+                        installProviderUsageHooks(providerId, view)
+                    }
                 },
                 onAllowedPageFinished = { view, finishedUrl ->
                     Log.d(
@@ -141,17 +144,28 @@ class WebLoginActivity : Activity() {
                         "login pageFinished provider=${providerId.storageId} url=" +
                             ProviderCollectionDiagnostics.safeUrl(finishedUrl)
                     )
-                    collectProviderUsage(providerId, finishedUrl, view)
+                    if (!maybeFinishClaudeAuthenticatedFromNavigation(providerId, finishedUrl)) {
+                        collectProviderUsage(providerId, finishedUrl, view)
+                    }
                 },
                 onMainFrameError = { _, errorUrl, errorCode, description ->
-                    Log.w(
-                        ProviderCollectionDiagnostics.TAG,
-                        "login mainFrameError provider=${providerId.storageId} url=" +
-                            "${ProviderCollectionDiagnostics.safeUrl(errorUrl)} " +
-                            ProviderCollectionDiagnostics.webError(errorCode, description)
-                    )
-                    saveErrorSnapshot(providerId, getString(R.string.provider_login_open_failed_message))
-                    finish()
+                    if (hasClaudeAuthenticatedSessionCookie(providerId)) {
+                        Log.d(
+                            ProviderCollectionDiagnostics.TAG,
+                            "login claudeCookieCompleteAfterError provider=${providerId.storageId} url=" +
+                                ProviderCollectionDiagnostics.safeUrl(errorUrl)
+                        )
+                        finishConnectedCaptureWithoutUsage(providerId)
+                    } else {
+                        Log.w(
+                            ProviderCollectionDiagnostics.TAG,
+                            "login mainFrameError provider=${providerId.storageId} url=" +
+                                "${ProviderCollectionDiagnostics.safeUrl(errorUrl)} " +
+                                ProviderCollectionDiagnostics.webError(errorCode, description)
+                        )
+                        saveErrorSnapshot(providerId, getString(R.string.provider_login_open_failed_message))
+                        finish()
+                    }
                 }
             )
         }
@@ -354,7 +368,8 @@ class WebLoginActivity : Activity() {
             finishAfterProviderCapture()
             return
         }
-        val loginComplete = ProviderLoginCompletionDetector.isLoginComplete(providerId, url, localUsagePayload)
+        val loginComplete = ProviderLoginCompletionDetector.isLoginComplete(providerId, url, localUsagePayload) ||
+            hasClaudeAuthenticatedSessionCookie(providerId)
         if (!loginComplete) {
             if (!loginCompletionRecorded) return
         } else {
@@ -376,6 +391,25 @@ class WebLoginActivity : Activity() {
         }
         startBackgroundUsageCollection(providerId)
         finishAfterProviderCapture()
+    }
+
+    private fun hasClaudeAuthenticatedSessionCookie(providerId: ProviderId): Boolean {
+        if (providerId != ProviderId.CLAUDE) return false
+        val cookies = CookieManager.getInstance().getCookie("https://claude.ai/").orEmpty()
+        return claudeCookieIndicatesAuthenticatedSession(cookies)
+    }
+
+    private fun maybeFinishClaudeAuthenticatedFromNavigation(providerId: ProviderId, url: String?): Boolean {
+        if (providerId != ProviderId.CLAUDE || connectionRecorded || usageRecorded) return false
+        if (!isClaudeAuthenticatedAppNavigation(url)) return false
+        if (!hasClaudeAuthenticatedSessionCookie(providerId)) return false
+        Log.d(
+            ProviderCollectionDiagnostics.TAG,
+            "login claudeCookieCompleteAfterNavigation provider=${providerId.storageId} url=" +
+                ProviderCollectionDiagnostics.safeUrl(url)
+        )
+        finishConnectedCaptureWithoutUsage(providerId)
+        return true
     }
 
     private fun retryProviderUsageCollection(
@@ -728,3 +762,23 @@ class WebLoginActivity : Activity() {
         }
     }
 }
+
+internal fun claudeCookieIndicatesAuthenticatedSession(cookieHeader: String): Boolean {
+    return CLAUDE_AUTHENTICATED_ORG_COOKIE.containsMatchIn(cookieHeader)
+}
+
+internal fun isClaudeAuthenticatedAppNavigation(url: String?): Boolean {
+    val uri = runCatching { URI(url.orEmpty().trim()) }.getOrNull() ?: return false
+    if (!uri.scheme.equals("https", ignoreCase = true)) return false
+    val host = uri.host.orEmpty().lowercase()
+    if (host != "claude.ai" && !host.endsWith(".claude.ai")) return false
+    val path = uri.path.orEmpty().lowercase()
+    if (path == "/login" || path.startsWith("/login/")) return false
+    if (path == "/logout" || path.startsWith("/logout/")) return false
+    return true
+}
+
+private val CLAUDE_AUTHENTICATED_ORG_COOKIE = Regex(
+    pattern = """(?:^|;\s*)lastActiveOrg=([0-9a-fA-F-]{16,})""",
+    option = RegexOption.IGNORE_CASE
+)
