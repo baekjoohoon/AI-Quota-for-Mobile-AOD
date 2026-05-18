@@ -167,7 +167,7 @@ class LocalUsageRepository(context: Context) {
     private fun ProviderUsageSnapshot.normalized(): ProviderUsageSnapshot {
         val normalizedLines = lines.map { line ->
             line.copy(
-                label = line.label.ifBlank { "Usage" },
+                label = providerId.normalizedUsageLineLabelForDisplay(line.label.ifBlank { "Usage" }),
                 remainingPercent = line.remainingPercent?.coerceIn(0f, 1f),
                 confidence = line.confidence?.coerceIn(0f, 1f)
             )
@@ -175,20 +175,24 @@ class LocalUsageRepository(context: Context) {
         return copy(
             displayName = providerId.normalizedDisplayName(displayName),
             planLabel = providerId.normalizedPlanLabelForDisplay(planLabel),
-            lines = normalizedLines.deduplicated()
+            lines = normalizedLines.deduplicated(providerId)
         ).withRecoveredStaleProgress()
     }
 
-    private fun List<ProviderUsageLine>.deduplicated(): List<ProviderUsageLine> {
+    private fun List<ProviderUsageLine>.deduplicated(providerId: ProviderId): List<ProviderUsageLine> {
         val deduped = LinkedHashMap<String, ProviderUsageLine>()
         forEach { line ->
-            val key = listOf(
-                line.label,
-                line.remainingText,
-                line.resetText.orEmpty(),
-                line.resetsAt.orEmpty(),
-                line.sourceLabel.orEmpty()
-            ).joinToString("|").lowercase(Locale.US)
+            val key = if (providerId == ProviderId.GEMINI) {
+                providerId.normalizedUsageLineLabelForDisplay(line.label).lowercase(Locale.US)
+            } else {
+                listOf(
+                    line.label,
+                    line.remainingText,
+                    line.resetText.orEmpty(),
+                    line.resetsAt.orEmpty(),
+                    line.sourceLabel.orEmpty()
+                ).joinToString("|").lowercase(Locale.US)
+            }
             deduped.putIfAbsent(key, line)
         }
         return deduped.values.toList()

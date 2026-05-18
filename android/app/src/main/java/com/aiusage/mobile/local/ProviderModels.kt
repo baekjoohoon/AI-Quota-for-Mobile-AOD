@@ -75,6 +75,19 @@ fun ProviderId.normalizedPlanLabelForDisplay(planLabel: String?): String? {
     }
 }
 
+fun ProviderId.normalizedUsageLineLabelForDisplay(label: String): String {
+    val value = label.trim().takeIf { it.isNotBlank() } ?: return "Usage"
+    if (this != ProviderId.GEMINI) return value
+    val compact = value.lowercase(Locale.US)
+        .replace(Regex("""[^a-z0-9]+"""), "")
+    return when {
+        compact == "pro" || compact == "geminipro" -> "Gemini Pro"
+        compact == "flash" || compact == "geminiflash" -> "Gemini Flash"
+        compact == "deepresearch" || compact == "geminideepresearch" -> "Gemini Deep Research"
+        else -> value
+    }
+}
+
 data class ProviderUsageLine(
     val label: String,
     val remainingPercent: Float?,

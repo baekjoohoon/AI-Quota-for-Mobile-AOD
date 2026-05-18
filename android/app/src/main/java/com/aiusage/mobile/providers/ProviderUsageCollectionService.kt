@@ -31,6 +31,7 @@ import com.aiusage.mobile.local.ProviderPreferencesRepository
 import com.aiusage.mobile.local.ProviderRefreshState
 import com.aiusage.mobile.local.ProviderUsageSnapshot
 import com.aiusage.mobile.local.normalizedPlanLabelForDisplay
+import com.aiusage.mobile.local.normalizedUsageLineLabelForDisplay
 import com.aiusage.mobile.notification.UsageLimitNotificationController
 import com.aiusage.mobile.widget.AIUsageUnifiedGlanceWidget
 import com.aiusage.mobile.widget.ProviderUsageGlanceWidget
@@ -642,16 +643,25 @@ class ProviderUsageCollectionService : Service() {
     ): List<com.aiusage.mobile.local.ProviderUsageLine> {
         val deduped = LinkedHashMap<String, com.aiusage.mobile.local.ProviderUsageLine>()
         incoming.forEach { line ->
-            val key = listOf(
-                line.label,
-                line.windowText,
-                line.category,
-                line.unit,
-                normalizedUsageSource(line.sourceLabel)
-            )
-                .joinToString("|")
-                .lowercase()
-            deduped.putIfAbsent(key, line)
+            val normalizedLine = if (provider == ProviderId.GEMINI) {
+                line.copy(label = provider.normalizedUsageLineLabelForDisplay(line.label))
+            } else {
+                line
+            }
+            val key = if (provider == ProviderId.GEMINI) {
+                normalizedLine.label.lowercase()
+            } else {
+                listOf(
+                    normalizedLine.label,
+                    normalizedLine.windowText,
+                    normalizedLine.category,
+                    normalizedLine.unit,
+                    normalizedUsageSource(normalizedLine.sourceLabel)
+                )
+                    .joinToString("|")
+                    .lowercase()
+            }
+            deduped.putIfAbsent(key, normalizedLine)
         }
         return sortStoredLines(provider, deduped.values.toList())
     }

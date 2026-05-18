@@ -7,6 +7,7 @@ import com.aiusage.mobile.local.ProviderUsageLine
 import com.aiusage.mobile.local.ProviderUsageSnapshot
 import com.aiusage.mobile.local.UsageSeverity
 import com.aiusage.mobile.local.normalizedPlanLabelForDisplay
+import com.aiusage.mobile.local.normalizedUsageLineLabelForDisplay
 import org.json.JSONObject
 import java.math.RoundingMode
 import java.text.DecimalFormat
@@ -829,11 +830,39 @@ object TextUsageExtractor {
             "deep research" to 2,
             "gemini deep research" to 2
         )
-        return lines.sortedWith(
+        val deduped = LinkedHashMap<String, ProviderUsageLine>()
+        lines.forEach { line ->
+            val normalizedLine = line.copy(label = ProviderId.GEMINI.normalizedUsageLineLabelForDisplay(line.label))
+            val key = normalizedLine.label.lowercase(Locale.US)
+            val existing = deduped[key]
+            if (existing == null || normalizedLine.isBetterGeminiLineThan(existing)) {
+                deduped[key] = normalizedLine
+            }
+        }
+        return deduped.values.sortedWith(
             compareBy<ProviderUsageLine> {
                 order[it.label.lowercase(Locale.US)] ?: 100
             }.thenBy { it.label.lowercase(Locale.US) }
         )
+    }
+
+    private fun ProviderUsageLine.isBetterGeminiLineThan(existing: ProviderUsageLine): Boolean {
+        val score = geminiLineScore()
+        val existingScore = existing.geminiLineScore()
+        return when {
+            score != existingScore -> score > existingScore
+            (confidence ?: 0f) != (existing.confidence ?: 0f) -> (confidence ?: 0f) > (existing.confidence ?: 0f)
+            else -> false
+        }
+    }
+
+    private fun ProviderUsageLine.geminiLineScore(): Int {
+        var score = 0
+        if (label.startsWith("Gemini ", ignoreCase = true)) score += 8
+        if (remainingPercent != null) score += 4
+        if (!resetsAt.isNullOrBlank() || !resetText.isNullOrBlank()) score += 2
+        if (!sourceLabel.isNullOrBlank()) score += 1
+        return score
     }
 
     private fun structuredPlanLabel(

@@ -603,7 +603,7 @@ class TextUsageExtractorTest {
 
         assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
         assertNull(snapshot.planLabel)
-        assertEquals(listOf("Pro", "Flash"), snapshot.lines.take(2).map { it.label })
+        assertEquals(listOf("Gemini Pro", "Gemini Flash"), snapshot.lines.take(2).map { it.label })
         assertEquals(1f, snapshot.lines[0].remainingPercent)
         assertEquals("5 of 5 requests left", snapshot.lines[0].remainingText)
         assertEquals("2026-05-18T10:56:26.773Z", snapshot.lines[0].resetsAt)
@@ -647,6 +647,37 @@ class TextUsageExtractorTest {
         assertEquals("25% used", snapshot.lines[0].detailText)
         assertEquals("Resets in 23h 59m", snapshot.lines[0].resetText)
         assertEquals("2024-03-09T16:00:00Z", snapshot.lines[0].resetsAt)
+    }
+
+    @Test
+    fun deduplicatesGeminiCollectorRowsByCanonicalLabel() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.GEMINI,
+            visibleText = """
+                {
+                  "account": {
+                    "p": "GEMINI_PRO"
+                  },
+                  "usage": {
+                    "x": [
+                      { "l": "Pro", "u": 0.20, "source": "/app" },
+                      { "l": "Gemini Pro", "u": 0.25, "source": "gemini_collector.js" },
+                      { "l": "Flash", "u": 0.0, "source": "/app" },
+                      { "l": "Gemini Flash", "u": 0.10, "source": "gemini_collector.js" },
+                      { "l": "Deep Research", "u": 0.0, "source": "/app" },
+                      { "l": "Gemini Deep Research", "u": 0.0, "source": "gemini_collector.js" }
+                    ]
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals(
+            listOf("Gemini Pro", "Gemini Flash", "Gemini Deep Research"),
+            snapshot.lines.map { it.label }
+        )
+        assertEquals(0.8f, snapshot.lines[0].remainingPercent ?: -1f, 0.0001f)
+        assertEquals(1f, snapshot.lines[1].remainingPercent ?: -1f, 0.0001f)
     }
 
     @Test
