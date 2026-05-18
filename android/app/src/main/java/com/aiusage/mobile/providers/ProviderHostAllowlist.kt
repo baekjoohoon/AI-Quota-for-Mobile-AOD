@@ -31,6 +31,7 @@ object ProviderHostAllowlist {
             "claude.ai",
             "www.claude.ai",
             "accounts.google.com",
+            "accounts.youtube.com",
             "myaccount.google.com",
             "appleid.apple.com"
         ),

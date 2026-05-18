@@ -445,11 +445,7 @@ private fun UsageAnalysisSection(snapshot: ProviderUsageSnapshot) {
         line.remainingPercent?.let { remainingPercent -> line to remainingPercent }
     }
     val lowestLine = measuredLines.minByOrNull { it.second }
-    val resetSummary = snapshot.lines
-        .mapNotNull { displayResetTextForLocale(it.effectiveResetText()) }
-        .distinct()
-        .take(3)
-        .joinToString(" / ")
+    val lowestResetText = lowestLine?.first?.effectiveResetText()?.let { displayResetTextForLocale(it) }
 
     ClassicSectionTitle(text = stringResource(R.string.provider_analysis_title))
     if (snapshot.lines.isEmpty()) {
@@ -475,8 +471,12 @@ private fun UsageAnalysisSection(snapshot: ProviderUsageSnapshot) {
                 )
             )
         } ?: ClassicInfoLine(text = stringResource(R.string.provider_analysis_no_percent))
-        if (resetSummary.isNotBlank()) {
-            ClassicInfoLine(text = stringResource(R.string.provider_analysis_reset, resetSummary))
+        lowestLine?.let { (line, _) ->
+            val resetText = lowestResetText
+                ?: line.remainingPercent?.let { stringResource(R.string.dashboard_reset_timer_pending) }
+            if (!resetText.isNullOrBlank()) {
+                ClassicInfoLine(text = stringResource(R.string.provider_analysis_reset, resetText))
+            }
         }
     }
 }

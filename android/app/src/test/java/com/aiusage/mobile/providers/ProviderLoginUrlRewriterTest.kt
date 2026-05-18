@@ -85,4 +85,17 @@ class ProviderLoginUrlRewriterTest {
         assertNull(ProviderLoginUrlRewriter.rewriteMainFrameUrl(ProviderId.CLAUDE, "https://claude.ai/login"))
         assertNull(ProviderLoginUrlRewriter.rewriteMainFrameUrl(ProviderId.CLAUDE, "https://myaccount.google.com/"))
     }
+
+    @Test
+    fun doesNotRewriteGoogleAuthIntermediatePages() {
+        val checkCookie = "https://accounts.google.com/CheckCookie" +
+            "?client_id=anthropic" +
+            "&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fauth%2Fcallback"
+        val consent = "https://accounts.google.com/signin/oauth/consent" +
+            "?client_id=anthropic" +
+            "&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fauth%2Fcallback"
+
+        assertNull(ProviderLoginUrlRewriter.rewriteMainFrameUrl(ProviderId.CLAUDE, checkCookie))
+        assertNull(ProviderLoginUrlRewriter.rewriteMainFrameUrl(ProviderId.CLAUDE, consent))
+    }
 }

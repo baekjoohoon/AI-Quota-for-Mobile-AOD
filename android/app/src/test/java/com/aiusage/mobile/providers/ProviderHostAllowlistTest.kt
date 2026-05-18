@@ -11,6 +11,7 @@ class ProviderHostAllowlistTest {
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.CLAUDE, "https://claude.ai/"))
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.CLAUDE, "https://www.claude.ai/"))
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.CLAUDE, "https://accounts.google.com/"))
+        assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.CLAUDE, "https://accounts.youtube.com/accounts/SetSID"))
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.CLAUDE, "https://myaccount.google.com/"))
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.CODEX, "https://chatgpt.com/"))
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.CODEX, "https://auth.openai.com/"))

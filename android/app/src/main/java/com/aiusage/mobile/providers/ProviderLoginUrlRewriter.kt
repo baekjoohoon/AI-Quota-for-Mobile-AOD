@@ -28,8 +28,12 @@ object ProviderLoginUrlRewriter {
     private fun URI.looksLikeGoogleOAuthStart(): Boolean {
         val path = rawPath.orEmpty().lowercase(Locale.US)
         val query = rawQuery.orEmpty().lowercase(Locale.US)
-        return "oauth" in path ||
-            ("client_id=" in query && "redirect_uri=" in query)
+        return (
+            path == "/o/oauth2/v2/auth" ||
+                path == "/o/oauth2/auth"
+            ) &&
+            "client_id=" in query &&
+            "redirect_uri=" in query
     }
 
     private fun URI.withPromptSelectAccount(): String {
