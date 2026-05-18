@@ -4,7 +4,15 @@ import java.time.Duration
 import java.time.Instant
 
 fun ProviderUsageLine.effectiveResetText(now: Instant = Instant.now()): String? {
-    return displayResetText(resetText, resetsAt, now)
+    val text = displayResetText(resetText, resetsAt, now)
+    if (
+        text == RESET_STARTS_WHEN_MESSAGE_SENT &&
+        remainingPercent != null &&
+        remainingPercent < 0.995f
+    ) {
+        return null
+    }
+    return text
 }
 
 fun displayResetText(resetText: String?, resetsAt: String?, now: Instant = Instant.now()): String? {
@@ -26,7 +34,7 @@ fun displayResetText(resetText: String?, resetsAt: String?, now: Instant = Insta
 
 fun resetTextForInstant(resetAt: Instant, now: Instant = Instant.now()): String {
     val seconds = Duration.between(now, resetAt).seconds
-    if (seconds <= 0L) return "Starts when a message is sent"
+    if (seconds <= 0L) return RESET_STARTS_WHEN_MESSAGE_SENT
     val minutesTotal = (seconds / 60L).coerceAtLeast(1L)
     val days = minutesTotal / (24L * 60L)
     val hours = (minutesTotal % (24L * 60L)) / 60L
@@ -37,6 +45,8 @@ fun resetTextForInstant(resetAt: Instant, now: Instant = Instant.now()): String 
         else -> "Resets in ${minutes}m"
     }
 }
+
+private const val RESET_STARTS_WHEN_MESSAGE_SENT = "Starts when a message is sent"
 
 private fun parseInstantLike(value: String): Instant? {
     runCatching { Instant.parse(value) }.getOrNull()?.let { return it }
