@@ -9,6 +9,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.json.JSONObject
 
 class TextUsageExtractorTest {
     @Test
@@ -606,8 +607,8 @@ class TextUsageExtractorTest {
         assertEquals(listOf("Gemini Pro", "Gemini Flash"), snapshot.lines.take(2).map { it.label })
         assertEquals(1f, snapshot.lines[0].remainingPercent)
         assertEquals("5 of 5 requests left", snapshot.lines[0].remainingText)
-        assertEquals("Starts when a message is sent", snapshot.lines[0].resetText)
-        assertNull(snapshot.lines[0].resetsAt)
+        assertNull(snapshot.lines[0].resetText)
+        assertEquals("2026-05-18T10:56:26.773Z", snapshot.lines[0].resetsAt)
     }
 
     @Test
@@ -651,6 +652,111 @@ class TextUsageExtractorTest {
     }
 
     @Test
+    fun extractsGeminiCurrentApkStylePercentRows() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.GEMINI,
+            visibleText = """
+                {
+                  "account": {
+                    "p": "GEMINI_PRO",
+                    "e": "skkoilash3@gmail.com"
+                  },
+                  "usage": {
+                    "x": [
+                      {
+                        "l": "Gemini Pro",
+                        "u": 0.02,
+                        "t": "Resets in 23h 54m",
+                        "source": "gemini_collector.js"
+                      },
+                      {
+                        "l": "Gemini Flash",
+                        "u": 0.01,
+                        "t": "Resets in 23h 47m",
+                        "source": "gemini_collector.js"
+                      }
+                    ]
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
+        assertEquals("Gemini Pro", snapshot.planLabel)
+        assertEquals(listOf("Gemini Pro", "Gemini Flash"), snapshot.lines.map { it.label })
+        assertEquals(0.98f, snapshot.lines[0].remainingPercent ?: -1f, 0.0001f)
+        assertEquals("98% left", snapshot.lines[0].remainingText)
+        assertEquals("2% used", snapshot.lines[0].detailText)
+        assertEquals("Resets in 23h 54m", snapshot.lines[0].resetText)
+        assertEquals(0.99f, snapshot.lines[1].remainingPercent ?: -1f, 0.0001f)
+        assertEquals("99% left", snapshot.lines[1].remainingText)
+        assertEquals("1% used", snapshot.lines[1].detailText)
+        assertEquals("Resets in 23h 47m", snapshot.lines[1].resetText)
+    }
+
+    @Test
+    fun extractsGeminiCodeAssistQuotaFractionsFromCliPayload() {
+        val payload = GeminiCliOAuthRepository.structuredPayloadFromCodeAssist(
+            loadJson = JSONObject(
+                """
+                    {
+                      "currentTier": {
+                        "id": "standard-tier",
+                        "name": "Gemini Pro"
+                      },
+                      "paidTier": {
+                        "id": "google_ai_pro",
+                        "name": "Gemini Pro"
+                      },
+                      "cloudaicompanionProject": "test-gemini-project"
+                    }
+                """.trimIndent()
+            ),
+            quotaJson = JSONObject(
+                """
+                    {
+                      "buckets": [
+                        {
+                          "modelId": "gemini-2.5-flash",
+                          "remainingFraction": 0.986,
+                          "resetTime": "2026-05-19T08:47:00Z"
+                        },
+                        {
+                          "modelId": "gemini-2.5-flash-lite",
+                          "remainingFraction": 0.9975,
+                          "resetTime": "2026-05-19T08:47:00Z"
+                        },
+                        {
+                          "modelId": "gemini-2.5-pro",
+                          "remainingFraction": 0.98,
+                          "resetTime": "2026-05-19T08:54:00Z"
+                        },
+                        {
+                          "modelId": "gemini-3-pro-preview",
+                          "remainingFraction": 0.98,
+                          "resetTime": "2026-05-19T08:54:00Z"
+                        }
+                      ]
+                    }
+                """.trimIndent()
+            ),
+            email = "skkoilash3@gmail.com"
+        )
+        val snapshot = TextUsageExtractor.extract(ProviderId.GEMINI, payload)
+
+        assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
+        assertEquals("Gemini Pro", snapshot.planLabel)
+        assertEquals(listOf("Gemini Pro", "Gemini Flash"), snapshot.lines.map { it.label })
+        assertEquals(0.98f, snapshot.lines[0].remainingPercent ?: -1f, 0.0001f)
+        assertEquals("98% left", snapshot.lines[0].remainingText)
+        assertEquals("2026-05-19T08:54:00Z", snapshot.lines[0].resetsAt)
+        assertEquals(0.986f, snapshot.lines[1].remainingPercent ?: -1f, 0.0001f)
+        assertEquals("99% left", snapshot.lines[1].remainingText)
+        assertEquals("2026-05-19T08:47:00Z", snapshot.lines[1].resetsAt)
+        assertTrue(snapshot.lines.all { it.sourceLabel == "Gemini Code Assist retrieveUserQuota" })
+    }
+
+    @Test
     fun deduplicatesGeminiCollectorRowsByCanonicalLabel() {
         val snapshot = TextUsageExtractor.extract(
             providerId = ProviderId.GEMINI,
@@ -678,11 +784,11 @@ class TextUsageExtractorTest {
             snapshot.lines.map { it.label }
         )
         assertEquals(0.8f, snapshot.lines[0].remainingPercent ?: -1f, 0.0001f)
-        assertEquals(1f, snapshot.lines[1].remainingPercent ?: -1f, 0.0001f)
+        assertEquals(0.9f, snapshot.lines[1].remainingPercent ?: -1f, 0.0001f)
     }
 
     @Test
-    fun prefersGeminiStartOnMessageResetOverFixedResetTimestamp() {
+    fun prefersGeminiMeasuredPercentOverStartOnMessageReset() {
         val snapshot = TextUsageExtractor.extract(
             providerId = ProviderId.GEMINI,
             visibleText = """
@@ -694,9 +800,9 @@ class TextUsageExtractorTest {
                     "x": [
                       {
                         "l": "Gemini Pro",
-                        "u": 0.0,
-                        "r": "2026-05-18T10:56:26.773Z",
-                        "source": "CheckGeminiQuota"
+                        "u": 0.02,
+                        "t": "Resets in 23h 54m",
+                        "source": "gemini_collector.js"
                       },
                       {
                         "l": "Pro",
@@ -712,12 +818,12 @@ class TextUsageExtractorTest {
 
         assertEquals(1, snapshot.lines.size)
         assertEquals("Gemini Pro", snapshot.lines.single().label)
-        assertEquals("Starts when a message is sent", snapshot.lines.single().resetText)
-        assertNull(snapshot.lines.single().resetsAt)
+        assertEquals(0.98f, snapshot.lines.single().remainingPercent ?: -1f, 0.0001f)
+        assertEquals("Resets in 23h 54m", snapshot.lines.single().resetText)
     }
 
     @Test
-    fun treatsFullGeminiQuotaWithResetTimestampAsNotStarted() {
+    fun preservesFullGeminiQuotaResetTimestamp() {
         val snapshot = TextUsageExtractor.extract(
             providerId = ProviderId.GEMINI,
             visibleText = """
@@ -741,8 +847,8 @@ class TextUsageExtractorTest {
 
         assertEquals("Gemini Flash", snapshot.lines.single().label)
         assertEquals(1f, snapshot.lines.single().remainingPercent ?: -1f, 0.0001f)
-        assertEquals("Starts when a message is sent", snapshot.lines.single().resetText)
-        assertNull(snapshot.lines.single().resetsAt)
+        assertNull(snapshot.lines.single().resetText)
+        assertEquals("2026-05-18T10:56:26.773Z", snapshot.lines.single().resetsAt)
     }
 
     @Test

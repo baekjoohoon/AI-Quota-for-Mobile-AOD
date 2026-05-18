@@ -62,6 +62,7 @@ class ProviderUsageProbeTargetsTest {
         val urls = ProviderUsageProbeTargets.urls(ProviderId.GEMINI)
 
         assertTrue(urls.contains("https://gemini.google.com/app"))
+        assertTrue(urls.contains("https://gemini.google.com/app/usage"))
         assertTrue(urls.contains("https://gemini.google.com/app/settings"))
         assertTrue(urls.contains("https://gemini.google/subscriptions?hl=ko"))
         assertTrue(urls.contains("https://one.google.com/settings?hl=ko"))

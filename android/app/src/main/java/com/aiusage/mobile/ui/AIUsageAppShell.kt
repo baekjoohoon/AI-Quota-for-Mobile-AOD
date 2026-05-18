@@ -67,6 +67,7 @@ import com.aiusage.mobile.local.ProviderUsageSnapshot
 import com.aiusage.mobile.local.ThemePreferencesRepository
 import com.aiusage.mobile.notification.UsageLimitNotificationController
 import com.aiusage.mobile.providers.CodexOAuthRepository
+import com.aiusage.mobile.providers.GeminiCliOAuthRepository
 import com.aiusage.mobile.providers.ProviderConnectorRegistry
 import com.aiusage.mobile.providers.ProviderHostAllowlist
 import com.aiusage.mobile.providers.ProviderUsageCollectionService
@@ -165,10 +166,10 @@ fun AIUsageAppShell(
 
     fun connectProvider(providerId: ProviderId) {
         val connector = connectorRegistry.connectorFor(providerId)
-        val loginStartUrl = if (providerId == ProviderId.CODEX) {
-            CodexOAuthRepository(appContext).beginAuthorizationUrl()
-        } else {
-            connector.startUrl
+        val loginStartUrl = when (providerId) {
+            ProviderId.CODEX -> CodexOAuthRepository(appContext).beginAuthorizationUrl()
+            ProviderId.GEMINI -> GeminiCliOAuthRepository(appContext).beginAuthorizationUrl()
+            else -> connector.startUrl
         }
         val now = Instant.now().toString()
         route = AppRoute.ProviderDetail(providerId)

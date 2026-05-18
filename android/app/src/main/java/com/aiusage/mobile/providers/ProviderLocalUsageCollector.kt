@@ -1067,6 +1067,7 @@ object ProviderLocalUsageCollector {
                 var cap = parseNumber(row[5]);
                 if (!isNumber(action) || !isNumber(remaining) || !isNumber(cap) || cap <= 0) return;
                 var label = geminiQuotaLabel(action);
+                var confidence = remaining < cap ? 0.97 : 0.55;
                 pushAmountLimit(
                   limits,
                   label,
@@ -1075,7 +1076,7 @@ object ProviderLocalUsageCollector {
                   remaining,
                   "requests",
                   source + " CheckGeminiQuota action " + action,
-                  0.97
+                  confidence
                 );
                 var last = limits[limits.length - 1];
                 if (last) {

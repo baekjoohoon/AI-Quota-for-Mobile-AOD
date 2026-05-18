@@ -237,12 +237,14 @@ object TextUsageExtractor {
                         ProviderUsageLine(
                             label = label,
                             remainingPercent = remainingRatio,
-                            remainingText = remainingLimitText(
-                                remaining = null,
-                                limit = null,
-                                unit = limit.optNullableString("unit"),
-                                remainingRatio = remainingRatio
-                            ),
+                            remainingText = limit.optNullableString("remainingText")
+                                ?: limit.optNullableString("rt")
+                                ?: remainingLimitText(
+                                    remaining = null,
+                                    limit = null,
+                                    unit = limit.optNullableString("unit"),
+                                    remainingRatio = remainingRatio
+                                ),
                             resetText = limit.optNullableString("t") ?: limit.optNullableString("resetText"),
                             detailText = "${formatPercent(usedPercent)}% used",
                             severity = severityForStructured(remainingRatio),
@@ -848,19 +850,7 @@ object TextUsageExtractor {
     }
 
     private fun normalizeGeminiLine(line: ProviderUsageLine): ProviderUsageLine {
-        val normalized = line.copy(label = ProviderId.GEMINI.normalizedUsageLineLabelForDisplay(line.label))
-        return if (
-            normalized.remainingPercent != null &&
-            normalized.remainingPercent >= 0.995f &&
-            !normalized.hasStartOnMessageReset()
-        ) {
-            normalized.copy(
-                resetText = "Starts when a message is sent",
-                resetsAt = null
-            )
-        } else {
-            normalized
-        }
+        return line.copy(label = ProviderId.GEMINI.normalizedUsageLineLabelForDisplay(line.label))
     }
 
     private fun ProviderUsageLine.isBetterGeminiLineThan(existing: ProviderUsageLine): Boolean {
@@ -875,11 +865,12 @@ object TextUsageExtractor {
 
     private fun ProviderUsageLine.geminiLineScore(): Int {
         var score = 0
-        if (hasStartOnMessageReset()) score += 32
+        if ((remainingPercent ?: 1f) < 0.995f) score += 64
         if (label.startsWith("Gemini ", ignoreCase = true)) score += 8
         if (remainingPercent != null) score += 4
         if (!resetsAt.isNullOrBlank() || !resetText.isNullOrBlank()) score += 2
         if (!sourceLabel.isNullOrBlank()) score += 1
+        if (hasStartOnMessageReset()) score -= 16
         return score
     }
 

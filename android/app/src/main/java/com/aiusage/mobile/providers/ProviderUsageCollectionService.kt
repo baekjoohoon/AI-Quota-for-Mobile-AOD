@@ -70,6 +70,15 @@ class ProviderUsageCollectionService : Service() {
             return START_NOT_STICKY
         }
 
+        val activeProviderId = providerId
+        if (!completed && activeProviderId == ProviderId.GEMINI && activeProviderId != nextProviderId) {
+            Log.d(
+                ProviderCollectionDiagnostics.TAG,
+                "collection busy active=${activeProviderId.storageId} ignored=${nextProviderId.storageId}"
+            )
+            return START_NOT_STICKY
+        }
+
         Log.d(
             ProviderCollectionDiagnostics.TAG,
             "collection start provider=${nextProviderId.storageId} source=" +
@@ -116,6 +125,10 @@ class ProviderUsageCollectionService : Service() {
             beginCodexOAuthCollection(nextProviderId)
             return
         }
+        if (nextProviderId == ProviderId.GEMINI && GeminiCliOAuthRepository(applicationContext).hasStoredTokens()) {
+            beginGeminiCliOAuthCollection(nextProviderId)
+            return
+        }
         beginWebViewCollection(nextProviderId)
     }
 
@@ -132,7 +145,7 @@ class ProviderUsageCollectionService : Service() {
             mainHandler.post {
                 if (completed) return@post
                 if (snapshot?.connectionState == ProviderConnectionState.CONNECTED) {
-                    if (snapshot.lines.isNotEmpty() && snapshot.hasLiveUsageCounters()) {
+                    if (snapshot.lines.isNotEmpty() && snapshot.hasActionableLiveUsageCounters()) {
                         completed = true
                         Log.d(
                             ProviderCollectionDiagnostics.TAG,
@@ -149,6 +162,33 @@ class ProviderUsageCollectionService : Service() {
             }
         }
     }
+
+    private fun beginGeminiCliOAuthCollection(nextProviderId: ProviderId) {
+        scope.launch(Dispatchers.IO) {
+            val snapshot = runCatching {
+                GeminiCliOAuthRepository(applicationContext).fetchUsageSnapshot()
+            }.getOrNull()
+            mainHandler.post {
+                if (completed) return@post
+                if (snapshot?.connectionState == ProviderConnectionState.CONNECTED) {
+                    if (snapshot.lines.isNotEmpty() && snapshot.hasActionableLiveUsageCounters()) {
+                        completed = true
+                        Log.d(
+                            ProviderCollectionDiagnostics.TAG,
+                            "collection geminiCliOAuthUsage provider=${nextProviderId.storageId}"
+                        )
+                        saveUsageSnapshot(snapshot)
+                        CookieManager.getInstance().flush()
+                        stopSelf()
+                        return@post
+                    }
+                    rememberFallbackSessionSnapshot(snapshot)
+                }
+                beginWebViewCollection(nextProviderId)
+            }
+        }
+    }
+
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun createWebView(providerId: ProviderId) {
@@ -249,7 +289,7 @@ class ProviderUsageCollectionService : Service() {
         val provider = providerId ?: return
         val snapshot = TextUsageExtractor.extract(provider, payload)
         if (snapshot.connectionState == ProviderConnectionState.CONNECTED) {
-            if (snapshot.lines.isNotEmpty() && snapshot.hasLiveUsageCounters()) {
+            if (snapshot.lines.isNotEmpty() && snapshot.hasActionableLiveUsageCounters()) {
                 rememberFallbackSessionSnapshot(snapshot)
                 if (!shouldWaitForPlanLabel(provider, snapshot)) {
                     completed = true
@@ -292,7 +332,7 @@ class ProviderUsageCollectionService : Service() {
         )
         val snapshot = TextUsageExtractor.extract(provider, payload)
         if (snapshot.connectionState == ProviderConnectionState.CONNECTED) {
-            if (snapshot.lines.isNotEmpty() && snapshot.hasLiveUsageCounters()) {
+            if (snapshot.lines.isNotEmpty() && snapshot.hasActionableLiveUsageCounters()) {
                 rememberFallbackSessionSnapshot(snapshot)
                 if (!shouldWaitForPlanLabel(provider, snapshot)) {
                     completed = true
@@ -333,9 +373,13 @@ class ProviderUsageCollectionService : Service() {
         val fallbackSession = fallbackSessionSnapshot
         val freshConnectionObserved = loginCompletionSeen ||
             fallbackSession?.connectionState == ProviderConnectionState.CONNECTED
-        val existingLines = currentSnapshot?.lines.orEmpty().filter { it.isTrustedStoredLine() }
+        val existingLines = currentSnapshot?.lines.orEmpty()
+            .filter { it.isTrustedStoredLine() }
+            .filterActionableGeminiStoredLines(provider)
         val existingCounterLines = existingLines.filter { it.isTrustedCounterLine() }
-        val fallbackLines = fallbackSession?.lines.orEmpty().filter { it.isTrustedStoredLine() }
+        val fallbackLines = fallbackSession?.lines.orEmpty()
+            .filter { it.isTrustedStoredLine() }
+            .filterActionableGeminiStoredLines(provider)
         val snapshotLines = when {
             fallbackLines.isNotEmpty() && provider == ProviderId.GEMINI -> mergeWithExistingGeminiLines(
                 incoming = fallbackLines,
@@ -346,7 +390,7 @@ class ProviderUsageCollectionService : Service() {
             freshConnectionObserved -> existingLines
             else -> existingLines
         }
-        val sortedSnapshotLines = sortStoredLines(provider, snapshotLines)
+        val sortedSnapshotLines = dedupeUsageLines(provider, snapshotLines)
         val hasUsageEvidence = sortedSnapshotLines.isNotEmpty()
         repository.saveSnapshot(
             ProviderUsageSnapshot(
@@ -388,6 +432,13 @@ class ProviderUsageCollectionService : Service() {
         ) {
             return false
         }
+        if (
+            provider == ProviderId.GEMINI &&
+            !currentSnapshot.hasActionableLiveUsageCounters() &&
+            (pendingUrls.isNotEmpty() || currentUrl != null)
+        ) {
+            return false
+        }
         val fallbackPlan = fallbackSessionSnapshot
             ?.takeIf { it.providerId == provider }
             ?.planLabel
@@ -418,6 +469,10 @@ class ProviderUsageCollectionService : Service() {
         val current = fallbackSessionSnapshot
         fallbackSessionSnapshot = when {
             current == null -> snapshot
+            provider == ProviderId.GEMINI -> snapshot.copy(
+                planLabel = snapshot.planLabel?.takeIf { it.isNotBlank() } ?: current.planLabel,
+                lines = dedupeUsageLines(provider, snapshot.lines + current.lines)
+            )
             snapshot.lines.size > current.lines.size -> snapshot.copy(
                 planLabel = snapshot.planLabel?.takeIf { it.isNotBlank() } ?: current.planLabel
             )
@@ -454,6 +509,18 @@ class ProviderUsageCollectionService : Service() {
                     canFinishWithExistingUsage(fallback.providerId, fallback) &&
                     finishWithExistingUsage(fallback.providerId)
                 ) {
+                    return@postDelayed
+                }
+                if (
+                    fallback.providerId == ProviderId.GEMINI &&
+                    !fallback.hasActionableLiveUsageCounters() &&
+                    (pendingUrls.isNotEmpty() || currentUrl != null)
+                ) {
+                    fallbackCompletionScheduled = false
+                    Log.d(
+                        ProviderCollectionDiagnostics.TAG,
+                        "collection waitGeminiMeasuredUsage provider=${fallback.providerId.storageId}"
+                    )
                     return@postDelayed
                 }
                 completed = true
@@ -515,6 +582,31 @@ class ProviderUsageCollectionService : Service() {
             line.isTrustedCounterLine() &&
                 (providerId != ProviderId.CURSOR || line.isCursorLiveCounterLine())
         }
+    }
+
+    private fun ProviderUsageSnapshot.hasActionableLiveUsageCounters(): Boolean {
+        if (!hasLiveUsageCounters()) return false
+        if (providerId != ProviderId.GEMINI) return true
+        return lines.any { line ->
+            line.isTrustedCounterLine() && line.isGeminiMeasuredCounterLine()
+        }
+    }
+
+    private fun com.aiusage.mobile.local.ProviderUsageLine.isGeminiMeasuredCounterLine(): Boolean {
+        val remaining = remainingPercent
+        val source = sourceLabel.orEmpty().lowercase()
+        val confidenceValue = confidence ?: 0f
+        val lowConfidenceFullQuota = confidenceValue <= 0.6f &&
+            (remaining == null || remaining >= 0.995f) &&
+            (
+                "checkgeminiquota" in source ||
+                    source == "/app" ||
+                    source.endsWith("/app")
+                )
+        if (lowConfidenceFullQuota) return false
+        if (remaining != null && remaining < 0.995f) return true
+        if (confidenceValue >= 0.9f) return true
+        return false
     }
 
     private fun payloadHasCollectedProviderSignals(payload: String): Boolean {
@@ -598,8 +690,12 @@ class ProviderUsageCollectionService : Service() {
     private fun saveUsageSnapshot(snapshot: ProviderUsageSnapshot) {
         val repository = LocalUsageRepository(applicationContext)
         val currentSnapshot = repository.readSnapshots().firstOrNull { it.providerId == snapshot.providerId }
-        val incomingLines = snapshot.lines.filter { it.isTrustedStoredLine() }
-        val existingCounterLines = currentSnapshot?.lines.orEmpty().filter { it.isTrustedCounterLine() }
+        val incomingLines = snapshot.lines
+            .filter { it.isTrustedStoredLine() }
+            .filterActionableGeminiStoredLines(snapshot.providerId)
+        val existingCounterLines = currentSnapshot?.lines.orEmpty()
+            .filter { it.isTrustedCounterLine() }
+            .filterActionableGeminiStoredLines(snapshot.providerId)
         val linesForMerge = if (snapshot.providerId == ProviderId.GEMINI && incomingLines.isNotEmpty()) {
             mergeWithExistingGeminiLines(
                 incoming = incomingLines,
@@ -674,19 +770,7 @@ class ProviderUsageCollectionService : Service() {
         provider: ProviderId,
         line: com.aiusage.mobile.local.ProviderUsageLine
     ): com.aiusage.mobile.local.ProviderUsageLine {
-        val normalized = line.copy(label = provider.normalizedUsageLineLabelForDisplay(line.label))
-        return if (
-            normalized.remainingPercent != null &&
-            normalized.remainingPercent >= 0.995f &&
-            !normalized.hasStartOnMessageReset()
-        ) {
-            normalized.copy(
-                resetText = "Starts when a message is sent",
-                resetsAt = null
-            )
-        } else {
-            normalized
-        }
+        return line.copy(label = provider.normalizedUsageLineLabelForDisplay(line.label))
     }
 
     private fun com.aiusage.mobile.local.ProviderUsageLine.isBetterGeminiStoredLineThan(
@@ -705,12 +789,20 @@ class ProviderUsageCollectionService : Service() {
 
     private fun com.aiusage.mobile.local.ProviderUsageLine.geminiStoredLineScore(): Int {
         var score = 0
-        if (hasStartOnMessageReset()) score += 32
+        if ((remainingPercent ?: 1f) < 0.995f) score += 64
         if (label.startsWith("Gemini ", ignoreCase = true)) score += 8
         if (remainingPercent != null) score += 4
         if (!resetsAt.isNullOrBlank() || !resetText.isNullOrBlank()) score += 2
         if (!sourceLabel.isNullOrBlank()) score += 1
+        if (hasStartOnMessageReset()) score -= 16
         return score
+    }
+
+    private fun List<com.aiusage.mobile.local.ProviderUsageLine>.filterActionableGeminiStoredLines(
+        provider: ProviderId
+    ): List<com.aiusage.mobile.local.ProviderUsageLine> {
+        if (provider != ProviderId.GEMINI) return this
+        return filter { line -> line.isGeminiMeasuredCounterLine() }
     }
 
     private fun normalizedUsageSource(sourceLabel: String?): String {
@@ -734,7 +826,11 @@ class ProviderUsageCollectionService : Service() {
     }
 
     private fun normalizedPlanLabel(provider: ProviderId, planLabel: String?): String? {
-        return provider.normalizedPlanLabelForDisplay(planLabel)
+        val normalized = provider.normalizedPlanLabelForDisplay(planLabel)
+        if (provider == ProviderId.GEMINI && normalized.equals("Gemini Unknown", ignoreCase = true)) {
+            return null
+        }
+        return normalized
     }
 
     private fun sortStoredLines(

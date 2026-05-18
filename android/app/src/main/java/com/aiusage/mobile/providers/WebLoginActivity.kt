@@ -39,6 +39,7 @@ class WebLoginActivity : Activity() {
     private var loginCompletionRecorded = false
     private var cancellationRecorded = false
     private var codexOAuthCompletionStarted = false
+    private var geminiOAuthCompletionStarted = false
     private val popupViews = mutableListOf<WebView>()
     private val popupContainers = mutableMapOf<WebView, FrameLayout>()
 
@@ -105,8 +106,8 @@ class WebLoginActivity : Activity() {
             webChromeClient = UsageWebChromeClient(providerId, this@WebLoginActivity)
             webViewClient = AllowlistedWebViewClient(
                 providerId = providerId,
-                onCodexOAuthCallback = { callbackUrl ->
-                    handleCodexOAuthCallback(callbackUrl)
+                onProviderOAuthCallback = { callbackUrl ->
+                    handleProviderOAuthCallback(callbackUrl)
                 },
                 onBlockedMainFrame = { blockedUrl ->
                     Log.w(
@@ -183,6 +184,47 @@ class WebLoginActivity : Activity() {
                 }
             }
         }.start()
+    }
+
+    private fun handleGeminiOAuthCallback(callbackUrl: String) {
+        val providerId = activeProviderId ?: return
+        if (providerId != ProviderId.GEMINI || geminiOAuthCompletionStarted) return
+        geminiOAuthCompletionStarted = true
+        Log.d(
+            ProviderCollectionDiagnostics.TAG,
+            "login geminiOAuthCallback provider=${providerId.storageId}"
+        )
+        Thread {
+            val result = GeminiCliOAuthRepository(applicationContext).completeAuthorization(callbackUrl)
+            runOnUiThread {
+                if (result.isSuccess) {
+                    connectionRecorded = true
+                    saveConnectedSnapshot(
+                        providerId = providerId,
+                        message = getString(R.string.provider_refresh_started_message),
+                        keepExistingLines = true
+                    )
+                    startBackgroundUsageCollection(providerId)
+                    finishAfterProviderCapture()
+                } else {
+                    Log.w(
+                        ProviderCollectionDiagnostics.TAG,
+                        "login geminiOAuthFailed provider=${providerId.storageId} " +
+                            result.exceptionOrNull()?.javaClass?.simpleName.orEmpty()
+                    )
+                    saveErrorSnapshot(providerId, getString(R.string.provider_login_open_failed_message))
+                    finish()
+                }
+            }
+        }.start()
+    }
+
+    private fun handleProviderOAuthCallback(callbackUrl: String) {
+        when (activeProviderId) {
+            ProviderId.CODEX -> handleCodexOAuthCallback(callbackUrl)
+            ProviderId.GEMINI -> handleGeminiOAuthCallback(callbackUrl)
+            else -> Unit
+        }
     }
 
     private fun installProviderUsageHooks(providerId: ProviderId, target: WebView) {
@@ -429,15 +471,15 @@ class WebLoginActivity : Activity() {
 
     private class AllowlistedWebViewClient(
         private val providerId: ProviderId,
-        private val onCodexOAuthCallback: WebView.(String) -> Unit,
+        private val onProviderOAuthCallback: WebView.(String) -> Unit,
         private val onBlockedMainFrame: WebView.(String) -> Unit,
         private val onAllowedPageStarted: (WebView, String) -> Unit,
         private val onAllowedPageFinished: (WebView, String) -> Unit,
         private val onMainFrameError: (WebView, String, Int, CharSequence?) -> Unit
     ) : WebViewClient() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-            if (CodexOAuthRepository.isCallbackUrl(request.url.toString())) {
-                view.onCodexOAuthCallback(request.url.toString())
+            if (isProviderOAuthCallback(providerId, request.url.toString())) {
+                view.onProviderOAuthCallback(request.url.toString())
                 return true
             }
             if (shouldIgnoreNonWebNavigation(request.url.toString())) {
@@ -452,8 +494,8 @@ class WebLoginActivity : Activity() {
 
         @Deprecated("Deprecated in Java")
         override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-            if (CodexOAuthRepository.isCallbackUrl(url)) {
-                view.onCodexOAuthCallback(url)
+            if (isProviderOAuthCallback(providerId, url)) {
+                view.onProviderOAuthCallback(url)
                 return true
             }
             if (shouldIgnoreNonWebNavigation(url)) {
@@ -467,8 +509,8 @@ class WebLoginActivity : Activity() {
         }
 
         override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
-            if (CodexOAuthRepository.isCallbackUrl(url)) {
-                view.onCodexOAuthCallback(url.orEmpty())
+            if (isProviderOAuthCallback(providerId, url)) {
+                view.onProviderOAuthCallback(url.orEmpty())
                 return
             }
             if (shouldIgnoreNonWebNavigation(url)) {
@@ -491,7 +533,7 @@ class WebLoginActivity : Activity() {
         }
 
         override fun onPageFinished(view: WebView, url: String?) {
-            if (CodexOAuthRepository.isCallbackUrl(url)) {
+            if (isProviderOAuthCallback(providerId, url)) {
                 return
             }
             if (url == null || shouldBlock(url)) {
@@ -505,7 +547,7 @@ class WebLoginActivity : Activity() {
             view: WebView,
             request: WebResourceRequest
         ): WebResourceResponse? {
-            if (CodexOAuthRepository.isCallbackUrl(request.url.toString())) {
+            if (isProviderOAuthCallback(providerId, request.url.toString())) {
                 return emptyResponse()
             }
             if (shouldIgnoreNonWebNavigation(request.url.toString())) {
@@ -551,6 +593,14 @@ class WebLoginActivity : Activity() {
         private fun shouldIgnoreNonWebNavigation(url: String?): Boolean {
             val scheme = Uri.parse(url.orEmpty()).scheme?.lowercase().orEmpty()
             return scheme.isNotBlank() && scheme != "http" && scheme != "https"
+        }
+
+        private fun isProviderOAuthCallback(providerId: ProviderId, url: String?): Boolean {
+            return when (providerId) {
+                ProviderId.CODEX -> CodexOAuthRepository.isCallbackUrl(url)
+                ProviderId.GEMINI -> GeminiCliOAuthRepository.isCallbackUrl(url)
+                else -> false
+            }
         }
 
         private fun emptyResponse(): WebResourceResponse {

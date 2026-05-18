@@ -42,8 +42,14 @@ class ProviderModelsTest {
         assertEquals("Gemini Pro", ProviderId.GEMINI.normalizedPlanLabelForDisplay("Pro"))
         assertEquals("Gemini Ultra", ProviderId.GEMINI.normalizedPlanLabelForDisplay("google_ai_ultra"))
         assertEquals("Gemini Pro", ProviderId.GEMINI.normalizedPlanLabelForDisplay("GEMINI_PRO"))
+        assertEquals("Gemini Pro", ProviderId.GEMINI.normalizedPlanLabelForDisplay("g1-pro-tier"))
+        assertEquals(
+            "Gemini Pro",
+            ProviderId.GEMINI.normalizedPlanLabelForDisplay("Gemini Code Assist in Google One AI Pro")
+        )
         assertEquals("Gemini Plus", ProviderId.GEMINI.normalizedPlanLabelForDisplay("GOOGLE_AI_PLUS"))
         assertEquals("Gemini Ultra", ProviderId.GEMINI.normalizedPlanLabelForDisplay("GEMINI_ULTRA"))
+        assertEquals("Gemini Ultra", ProviderId.GEMINI.normalizedPlanLabelForDisplay("g1-ultra-tier"))
         assertEquals("Gemini Free", ProviderId.GEMINI.normalizedPlanLabelForDisplay("GOOGLE_AI_FREE"))
         assertEquals("Gemini Unknown", ProviderId.GEMINI.normalizedPlanLabelForDisplay("GEMINI_UNKNOWN"))
     }

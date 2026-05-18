@@ -171,19 +171,7 @@ class LocalUsageRepository(context: Context) {
                 remainingPercent = line.remainingPercent?.coerceIn(0f, 1f),
                 confidence = line.confidence?.coerceIn(0f, 1f)
             )
-            if (
-                providerId == ProviderId.GEMINI &&
-                normalizedLine.remainingPercent != null &&
-                normalizedLine.remainingPercent >= 0.995f &&
-                !normalizedLine.hasStartOnMessageReset()
-            ) {
-                normalizedLine.copy(
-                    resetText = "Starts when a message is sent",
-                    resetsAt = null
-                )
-            } else {
-                normalizedLine
-            }
+            normalizedLine
         }
         return copy(
             displayName = providerId.normalizedDisplayName(displayName),
@@ -230,11 +218,12 @@ class LocalUsageRepository(context: Context) {
 
     private fun ProviderUsageLine.geminiStoredLineScore(): Int {
         var score = 0
-        if (hasStartOnMessageReset()) score += 32
+        if ((remainingPercent ?: 1f) < 0.995f) score += 64
         if (label.startsWith("Gemini ", ignoreCase = true)) score += 8
         if (remainingPercent != null) score += 4
         if (!resetsAt.isNullOrBlank() || !resetText.isNullOrBlank()) score += 2
         if (!sourceLabel.isNullOrBlank()) score += 1
+        if (hasStartOnMessageReset()) score -= 16
         return score
     }
 

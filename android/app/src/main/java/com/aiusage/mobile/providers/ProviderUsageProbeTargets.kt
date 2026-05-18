@@ -18,6 +18,7 @@ object ProviderUsageProbeTargets {
             )
             ProviderId.GEMINI -> listOf(
                 "https://gemini.google.com/app",
+                "https://gemini.google.com/app/usage",
                 "https://gemini.google.com/app/settings",
                 "https://gemini.google.com/app/u/0",
                 "https://gemini.google/subscriptions?hl=ko",

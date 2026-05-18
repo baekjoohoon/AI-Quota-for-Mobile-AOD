@@ -124,10 +124,27 @@
       "Gemini Deep Research": 2
     };
     var byLabel = {};
+    function lineScore(line) {
+      var score = 0;
+      var usedRate = parseNumber(line && line.u);
+      if (isNumber(usedRate) && usedRate > 0.0001) score += 64;
+      if (isNumber(usedRate)) score += 8;
+      if (line && (line.r || line.t)) score += 4;
+      if (line && line.source) score += 1;
+      if (line && /checkgeminiquota/i.test(line.source || "") && isNumber(usedRate) && usedRate <= 0.0001) score -= 8;
+      if (line && /starts when a message is sent/i.test(line.t || "")) score -= 16;
+      return score;
+    }
     lines.forEach(function(line) {
       if (!line || !line.l) return;
       var existing = byLabel[line.l];
-      if (!existing || (line.confidence || 0) >= (existing.confidence || 0)) {
+      if (!existing) {
+        byLabel[line.l] = line;
+        return;
+      }
+      var score = lineScore(line);
+      var existingScore = lineScore(existing);
+      if (score > existingScore || (score === existingScore && (line.confidence || 0) >= (existing.confidence || 0))) {
         byLabel[line.l] = line;
       }
     });
