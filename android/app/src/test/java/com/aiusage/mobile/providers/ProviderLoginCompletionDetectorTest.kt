@@ -459,6 +459,32 @@ class ProviderLoginCompletionDetectorTest {
     }
 
     @Test
+    fun rejectsStructuredClaudeLoginPageWhenOnlyLooseAuthenticatedMarkerExists() {
+        assertFalse(
+            ProviderLoginCompletionDetector.isLoginComplete(
+                providerId = ProviderId.CLAUDE,
+                url = "https://claude.ai/login",
+                visibleText = """
+                    {
+                      "s": "s",
+                      "provider": "claude",
+                      "c": {
+                        "login": false,
+                        "providerPage": true,
+                        "authenticatedApp": true,
+                        "textLength": 3946
+                      },
+                      "d": {
+                        "p": "Pro",
+                        "x": []
+                      }
+                    }
+                """.trimIndent()
+            )
+        )
+    }
+
+    @Test
     fun detectsStructuredClaudeAppShellEvenWhenSpaUrlRemainsLogin() {
         assertTrue(
             ProviderLoginCompletionDetector.isLoginComplete(
@@ -472,6 +498,7 @@ class ProviderLoginCompletionDetectorTest {
                         "login": false,
                         "providerPage": true,
                         "authenticatedApp": true,
+                        "appShellConfirmed": true,
                         "textLength": 2137
                       },
                       "d": {

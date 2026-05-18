@@ -1333,11 +1333,11 @@ object ProviderLocalUsageCollector {
           function authenticatedAppShellMarker(text) {
             if (hasLoginPrompt(text)) return false;
             var value = safeText(text).toLowerCase();
-            if (PROVIDER_ID === "claude" && /(new chat|recent chats|message claude|projects|artifacts|\uc0c8 \ucc44\ud305|\ucd5c\uadfc \ucc44\ud305|claude\uc640 \ud568\uaed8 \ucee4\ud53c \ud55c\uc794|\ub2ec\ube5b \uc544\ub798 \ub300\ud654\ud560\uae4c\uc694|\uc624\ub298 \uc5b4\ub5a4 \ub3c4\uc6c0\uc744 \ub4dc\ub9b4\uae4c\uc694|sonnet|claude\uc5d0\uac8c \uba54\uc2dc\uc9c0)/i.test(value)) return true;
+            if (PROVIDER_ID === "claude" && /(new chat|recent chats|message claude|\uc0c8 \ucc44\ud305|\ucd5c\uadfc \ucc44\ud305|claude\uc640 \ud568\uaed8 \ucee4\ud53c \ud55c\uc794|\ub2ec\ube5b \uc544\ub798 \ub300\ud654\ud560\uae4c\uc694|\uc624\ub298 \uc5b4\ub5a4 \ub3c4\uc6c0\uc744 \ub4dc\ub9b4\uae4c\uc694|claude\uc5d0\uac8c \uba54\uc2dc\uc9c0|claude\uc5d0\uac8c \ud504\ub86c\ud504\ud2b8)/i.test(value)) return true;
             if (PROVIDER_ID === "gemini" && /(ask gemini|chat with gemini|recent chats|gemini\uc640\uc758 \ub300\ud654|[\uac00-\ud7a3A-Za-z0-9._ -]{1,32}\ub2d8, \uc548\ub155\ud558\uc138\uc694|gemini\uc5d0\uac8c \ubb3c\uc5b4|\uacc4\ud68d, \ud559\uc2b5, \uc544\uc774\ub514\uc5b4|\uc0c8 \ucc44\ud305|\ucd5c\uadfc \ucc44\ud305)/i.test(value)) return true;
             if (PROVIDER_ID === "claude") {
-              return /(new chat|recent chats|message claude|projects|artifacts|새 채팅|오늘 어떤 도움|claude에게 프롬프트|sonnet)/i.test(value) ||
-                domMatches('[data-testid*="composer"],textarea,[contenteditable="true"]');
+              return /(new chat|recent chats|message claude|새 채팅|최근 채팅|오늘 어떤 도움|claude에게 메시지|claude에게 프롬프트)/i.test(value) ||
+                domMatches('[data-testid*="composer"],textarea[placeholder*="Claude"],textarea[aria-label*="Claude"],[contenteditable="true"][aria-label*="Claude"]');
             }
             if (PROVIDER_ID === "codex") {
               return /(message chatgpt|new chat|library|projects|temporary chat|chatgpt\s*(?:\uc5d0|\uc5d0\uac8c)\s*\uba54\uc2dc\uc9c0|\uba54\uc2dc\uc9c0 chatgpt|\uc0c8 \ucc44\ud305|\ub77c\uc774\ube0c\ub7ec\ub9ac|\ud504\ub85c\uc81d\ud2b8|\uc784\uc2dc \ucc44\ud305)/i.test(value) ||
@@ -1552,6 +1552,7 @@ object ProviderLocalUsageCollector {
                 login: hasLoginPrompt(visibleText),
                 providerPage: providerPage || authenticatedApp,
                 authenticatedApp: authenticatedApp,
+                appShellConfirmed: authenticatedApp,
                 textLength: visibleText.length
               },
               d: {

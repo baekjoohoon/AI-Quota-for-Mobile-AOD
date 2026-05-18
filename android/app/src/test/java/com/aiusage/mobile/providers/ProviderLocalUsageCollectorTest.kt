@@ -179,6 +179,7 @@ class ProviderLocalUsageCollectorTest {
             assertTrue(script.contains("function authenticatedAppShellMarker"))
             assertTrue(script.contains("var authenticatedApp = authenticatedAppShellMarker(visibleText) || authenticatedEndpointMarker();"))
             assertTrue(script.contains("authenticatedApp: authenticatedApp"))
+            assertTrue(script.contains("appShellConfirmed: authenticatedApp"))
             assertTrue(script.contains("limits.length > 0 || plan || (authenticatedApp && !hasLoginPrompt(visibleText))"))
         }
     }
@@ -195,6 +196,8 @@ class ProviderLocalUsageCollectorTest {
             script.contains("\\ub2ec\\ube5b \\uc544\\ub798 \\ub300\\ud654\\ud560\\uae4c\\uc694") ||
                 script.contains("\ub2ec\ube5b \uc544\ub798 \ub300\ud654\ud560\uae4c\uc694")
         )
+        assertFalse(script.contains("projects|artifacts|새 채팅|오늘 어떤 도움|claude에게 프롬프트|sonnet"))
+        assertFalse(script.contains("[data-testid*=\\\"composer\\\"],textarea,[contenteditable=\\\"true\\\"]"))
     }
 
     @Test

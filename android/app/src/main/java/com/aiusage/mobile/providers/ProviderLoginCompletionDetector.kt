@@ -43,11 +43,14 @@ object ProviderLoginCompletionDetector {
         if (completion.optBoolean("login", false)) return false
         val data = response.optJSONObject("d") ?: response.optJSONObject("data")
         val limits = data?.optJSONArray("x") ?: data?.optJSONArray("limits")
+        val hasLimitData = limits != null && limits.length() > 0
         val hasUsageData = data?.optNullableString("p") != null ||
             data?.optNullableString("plan") != null ||
             data?.optNullableString("planLabel") != null ||
-            (limits != null && limits.length() > 0)
+            hasLimitData
         val authenticatedApp = completion.optBoolean("authenticatedApp", false)
+        val appShellConfirmed = completion.optBoolean("appShellConfirmed", false) ||
+            completion.optBoolean("confirmedAppShell", false)
         if (completion.optInt("textLength", 0) < MIN_VISIBLE_TEXT_LENGTH && !authenticatedApp && !hasUsageData) {
             return false
         }
@@ -56,10 +59,15 @@ object ProviderLoginCompletionDetector {
 
         val normalizedValue = normalize(value)
         return when (providerId) {
-            ProviderId.CLAUDE -> hostEndsWith(url, "claude.ai") &&
-                !isClaudeLogoutUrl(url) &&
-                (!isClaudeLoginUrl(url) || authenticatedApp) &&
-                (hasUsageData || hasClaudeAuthenticatedMarker(normalizedValue) || authenticatedApp)
+            ProviderId.CLAUDE -> {
+                if (!hostEndsWith(url, "claude.ai") || isClaudeLogoutUrl(url)) return false
+                if (isClaudeLoginUrl(url)) {
+                    appShellConfirmed || hasLimitData
+                } else {
+                    hasUsageData || hasClaudeAuthenticatedMarker(normalizedValue) ||
+                        authenticatedApp || appShellConfirmed
+                }
+            }
             ProviderId.CODEX -> (hostEndsWith(url, "chatgpt.com") ||
                 hostEndsWith(url, "chat.openai.com"))
             ProviderId.GEMINI -> hostEndsWith(url, "gemini.google.com")
