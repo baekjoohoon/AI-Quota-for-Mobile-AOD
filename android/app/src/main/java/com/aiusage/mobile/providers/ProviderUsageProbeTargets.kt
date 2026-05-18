@@ -19,7 +19,10 @@ object ProviderUsageProbeTargets {
             ProviderId.GEMINI -> listOf(
                 "https://gemini.google.com/app",
                 "https://gemini.google.com/app/settings",
-                "https://gemini.google.com/app/u/0"
+                "https://gemini.google.com/app/u/0",
+                "https://gemini.google/subscriptions?hl=ko",
+                "https://one.google.com/settings?hl=ko",
+                "https://one.google.com/explore-plan/gemini-advanced?hl=ko"
             )
             ProviderId.COPILOT -> listOf(
                 "https://github.com/github-copilot/chat/entitlement",

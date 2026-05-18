@@ -28,7 +28,17 @@ object ProviderLocalUsageCollector {
     private fun profileFor(providerId: ProviderId): ProviderScriptProfile {
         return when (providerId) {
             ProviderId.CLAUDE -> ProviderScriptProfile(
-                planHints = listOf("Free", "Pro", "Max", "Team", "Enterprise"),
+                planHints = listOf(
+                    "Claude Enterprise",
+                    "Claude Team",
+                    "Claude Max",
+                    "Claude Pro",
+                    "Free",
+                    "Pro",
+                    "Max",
+                    "Team",
+                    "Enterprise"
+                ),
                 labelHints = listOf("Claude", "Weekly limits", "Message limit", "Usage", "Remaining")
             )
             ProviderId.CODEX -> ProviderScriptProfile(
@@ -36,7 +46,19 @@ object ProviderLocalUsageCollector {
                 labelHints = listOf("ChatGPT", "GPT-5", "GPT-4o", "Thinking", "Messages", "Usage")
             )
             ProviderId.GEMINI -> ProviderScriptProfile(
-                planHints = listOf("Free", "Pro", "Advanced", "Ultra", "AI Pro", "AI Ultra"),
+                planHints = listOf(
+                    "Google AI Ultra",
+                    "Google AI Pro",
+                    "Google One AI Premium",
+                    "Gemini Advanced",
+                    "AI Ultra",
+                    "AI Pro",
+                    "AI Premium",
+                    "Free",
+                    "Advanced",
+                    "Ultra",
+                    "Pro"
+                ),
                 labelHints = listOf("Gemini", "Flash", "Pro", "Advanced", "Usage", "Remaining")
             )
             ProviderId.COPILOT -> ProviderScriptProfile(
@@ -300,9 +322,9 @@ object ProviderLocalUsageCollector {
             } catch (error) {}
             return rows;
           }
-          var trustedPlanSourcePattern = /\b(account|subscription|billing|plan|tier|entitlement|account_plan|accountPlan|planType|plan_type|workspace_plan)\b/i;
+          var trustedPlanSourcePattern = /\b(account|subscription|billing|plan|tier|entitlement|product|sku|package|license|membership|google_one|googleOne|account_plan|accountPlan|planType|plan_type|workspace_plan|subscription_details|current_user_access|is_free_plan|isFreePlan)\b/i;
           function findPlan(text) {
-            var explicit = new RegExp("\\b(?:plan|subscription|tier|account_plan|planType|plan_type)\\b[^\\n]{0,120}\\b(" + PLAN_HINTS + ")\\b", "i").exec(text);
+            var explicit = new RegExp("\\b(?:plan|subscription|tier|entitlement|product|sku|package|license|membership|account_plan|planType|plan_type|is_free_plan|isFreePlan)\\b[^\\n]{0,160}\\b(" + PLAN_HINTS + ")\\b", "i").exec(text);
             return explicit ? safeText(explicit[1]) : null;
           }
           function findTrustedPlan(rows) {
@@ -318,10 +340,10 @@ object ProviderLocalUsageCollector {
             var text = safeText(value);
             if (!text || text.length > 80) return null;
             var direct = new RegExp("^\\s*(" + PLAN_HINTS + ")\\s*$", "i").exec(text);
-            if (direct) return safeText(direct[1]);
+            if (direct) return canonicalPlanHint(direct[1]);
             var compact = text.replace(/[_-]+/g, " ");
             var embedded = new RegExp("(?:^|\\s)(" + PLAN_HINTS + ")(?:\\s|$)", "i").exec(compact);
-            if (embedded) return safeText(embedded[1]);
+            if (embedded) return canonicalPlanHint(embedded[1]);
             var hints = PLAN_HINTS.split("|");
             var lower = text.toLowerCase();
             var compactLower = lower.replace(/[^a-z0-9]+/g, "");
@@ -340,11 +362,44 @@ object ProviderLocalUsageCollector {
             }
             return null;
           }
+          function canonicalPlanHint(value) {
+            var text = safeText(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
+            var hints = PLAN_HINTS.split("|");
+            for (var index = 0; index < hints.length; index += 1) {
+              var hint = safeText(hints[index]);
+              if (!hint) continue;
+              if (hint.toLowerCase().replace(/[^a-z0-9]+/g, "") === text) return hint;
+            }
+            return safeText(value);
+          }
+          function defaultPaidPlanValue() {
+            if (PROVIDER_ID === "claude") return "Claude Pro";
+            if (PROVIDER_ID === "gemini") return "Google AI Pro";
+            return "Pro";
+          }
+          function booleanPlanValue(key, value) {
+            var keyText = safeText(key).replace(/[_-]+/g, "").toLowerCase();
+            if (keyText.indexOf("isfreeplan") < 0 && keyText.indexOf("freeplan") < 0) return null;
+            if (value === true) return "Free";
+            if (value === false) return defaultPaidPlanValue();
+            if (typeof value === "string") {
+              var text = safeText(value).toLowerCase();
+              if (/^(true|1|yes)$/.test(text)) return "Free";
+              if (/^(false|0|no)$/.test(text)) return defaultPaidPlanValue();
+            }
+            return null;
+          }
+          function isPlanKey(key) {
+            return /plan|subscription|tier|entitlement|product|sku|package|license|membership|google_one|googleOne|account_plan|planType|plan_type|workspace_plan|is_free_plan|isFreePlan/i.test(key);
+          }
           function scanStructuredPlan(value, path, depth) {
             if (depth > 8 || value == null) return null;
             if (typeof value === "string") {
+              var stringBooleanPlan = booleanPlanValue(path, value);
+              if (stringBooleanPlan) return stringBooleanPlan;
               return trustedPlanSourcePattern.test(path) ? normalizedPlanValue(value) : null;
             }
+            if (typeof value === "boolean") return booleanPlanValue(path, value);
             if (Array.isArray(value)) {
               for (var arrayIndex = 0; arrayIndex < value.length && arrayIndex < 12; arrayIndex += 1) {
                 var arrayPlan = scanStructuredPlan(value[arrayIndex], path + "[]", depth + 1);
@@ -358,7 +413,9 @@ object ProviderLocalUsageCollector {
               var key = keys[index];
               if (shouldSkipKey(key)) continue;
               var keyPath = path ? path + "." + key : key;
-              if (/plan|subscription|tier|entitlement|account_plan|planType|plan_type/i.test(key)) {
+              var keyBooleanPlan = booleanPlanValue(keyPath, value[key]);
+              if (keyBooleanPlan) return keyBooleanPlan;
+              if (isPlanKey(key)) {
                 var keyPlan = normalizedPlanValue(key);
                 if (keyPlan) return keyPlan;
                 var directPlan = normalizedPlanValue(value[key]);
@@ -1331,7 +1388,7 @@ object ProviderLocalUsageCollector {
           function isProviderOrigin() {
             if (PROVIDER_ID === "claude") return hostEndsWith("claude.ai");
             if (PROVIDER_ID === "codex") return hostEndsWith("chatgpt.com") || hostEndsWith("chat.openai.com");
-            if (PROVIDER_ID === "gemini") return hostEndsWith("gemini.google.com");
+            if (PROVIDER_ID === "gemini") return hostEndsWith("gemini.google.com") || hostEndsWith("gemini.google") || hostEndsWith("one.google.com");
             if (PROVIDER_ID === "copilot") return hostEndsWith("github.com") || hostEndsWith("githubcopilot.com");
             if (PROVIDER_ID === "cursor") return hostEndsWith("cursor.com") || hostEndsWith("cursor.sh");
             return false;
@@ -1342,6 +1399,7 @@ object ProviderLocalUsageCollector {
                 "/api/bootstrap",
                 "/api/organizations",
                 "/api/organizations/me",
+                "/api/account_profile",
                 "/api/account",
                 "/api/profile",
                 "/api/settings",
@@ -1376,6 +1434,20 @@ object ProviderLocalUsageCollector {
               ];
             }
             if (PROVIDER_ID === "gemini") {
+              if (hostEndsWith("one.google.com")) {
+                return [
+                  "/settings",
+                  "/settings?hl=ko",
+                  "/explore-plan/gemini-advanced",
+                  "/explore-plan/gemini-advanced?hl=ko"
+                ];
+              }
+              if (hostEndsWith("gemini.google")) {
+                return [
+                  "/subscriptions",
+                  "/subscriptions?hl=ko"
+                ];
+              }
               return ["/app", "/app/settings", "/app/u/0", "/app?hl=ko"];
             }
             if (PROVIDER_ID === "copilot") {
@@ -1721,11 +1793,15 @@ object ProviderLocalUsageCollector {
             var ids = extractClaudeOrganizationIds(text);
             ids.forEach(function(organizationId) {
               [
+                "/api/bootstrap/" + organizationId + "/current_user_access",
                 "/api/organizations/" + organizationId + "/usage",
                 "/api/organizations/" + organizationId + "/usage_limits",
                 "/api/organizations/" + organizationId + "/limits",
+                "/api/organizations/" + organizationId + "/subscription_details",
                 "/api/organizations/" + organizationId + "/subscription",
                 "/api/organizations/" + organizationId + "/billing",
+                "/api/organizations/" + organizationId + "/trial_status",
+                "/api/organizations/" + organizationId + "/overage_spend_limit",
                 "/api/organizations/" + organizationId + "/profile",
                 "/api/organizations/" + organizationId + "/settings"
               ].forEach(fetchEndpoint);
@@ -1797,7 +1873,7 @@ object ProviderLocalUsageCollector {
             } catch (error) {}
           }
           function fetchGeminiQuotaEndpoints() {
-            if (PROVIDER_ID !== "gemini" || !isProviderOrigin()) return;
+            if (PROVIDER_ID !== "gemini" || !hostEndsWith("gemini.google.com")) return;
             fetchGeminiBatchExecute("VxUbXb", [], "CheckModeFeatureQuota");
             [1, 3, 6].forEach(function(mode) {
               fetchGeminiBatchExecute("aPya6c", [mode], "CheckQuota:" + mode);

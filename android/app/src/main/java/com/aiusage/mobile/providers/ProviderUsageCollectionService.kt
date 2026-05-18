@@ -176,6 +176,7 @@ class ProviderUsageCollectionService : Service() {
         if (completed) return
         val nextUrl = pendingUrls.removeFirstOrNull()
         if (nextUrl == null) {
+            currentUrl = null
             Log.d(
                 ProviderCollectionDiagnostics.TAG,
                 "collection exhausted provider=${providerId?.storageId.orEmpty()}"
@@ -235,13 +236,17 @@ class ProviderUsageCollectionService : Service() {
         val snapshot = TextUsageExtractor.extract(provider, payload)
         if (snapshot.connectionState == ProviderConnectionState.CONNECTED) {
             if (snapshot.lines.isNotEmpty() && snapshot.hasLiveUsageCounters()) {
-                completed = true
-                saveUsageSnapshot(snapshot)
-                CookieManager.getInstance().flush()
-                stopSelf()
-                return
+                rememberFallbackSessionSnapshot(snapshot)
+                if (!shouldWaitForPlanLabel(provider, snapshot)) {
+                    completed = true
+                    saveUsageSnapshot(snapshot)
+                    CookieManager.getInstance().flush()
+                    stopSelf()
+                    return
+                }
+            } else {
+                rememberFallbackSessionSnapshot(snapshot)
             }
-            rememberFallbackSessionSnapshot(snapshot)
         }
 
         val loginComplete = ProviderLoginCompletionDetector.isLoginComplete(provider, url, payload)
@@ -274,13 +279,17 @@ class ProviderUsageCollectionService : Service() {
         val snapshot = TextUsageExtractor.extract(provider, payload)
         if (snapshot.connectionState == ProviderConnectionState.CONNECTED) {
             if (snapshot.lines.isNotEmpty() && snapshot.hasLiveUsageCounters()) {
-                completed = true
-                saveUsageSnapshot(snapshot)
-                CookieManager.getInstance().flush()
-                stopSelf()
-                return
+                rememberFallbackSessionSnapshot(snapshot)
+                if (!shouldWaitForPlanLabel(provider, snapshot)) {
+                    completed = true
+                    saveUsageSnapshot(snapshot)
+                    CookieManager.getInstance().flush()
+                    stopSelf()
+                    return
+                }
+            } else {
+                rememberFallbackSessionSnapshot(snapshot)
             }
-            rememberFallbackSessionSnapshot(snapshot)
         }
         val loginComplete = ProviderLoginCompletionDetector.isLoginComplete(provider, url, payload)
         if (loginComplete) {
@@ -290,6 +299,7 @@ class ProviderUsageCollectionService : Service() {
             provider != ProviderId.CURSOR &&
             loginComplete &&
             payloadHasCollectedProviderSignals(payload) &&
+            canFinishWithExistingUsage(provider, snapshot) &&
             finishWithExistingUsage(provider)
         ) {
             return
@@ -329,7 +339,8 @@ class ProviderUsageCollectionService : Service() {
                     ProviderConnectionState.UNAVAILABLE
                 },
                 refreshState = ProviderRefreshState.IDLE,
-                planLabel = fallbackSession?.planLabel ?: currentSnapshot?.planLabel?.takeIf {
+                planLabel = normalizedPlanLabel(provider, fallbackSession?.planLabel)
+                    ?: normalizedPlanLabel(provider, currentSnapshot?.planLabel)?.takeIf {
                     freshConnectionObserved || hasUsageEvidence
                 },
                 updatedAt = Instant.now().toString(),
@@ -358,6 +369,10 @@ class ProviderUsageCollectionService : Service() {
         ) {
             return false
         }
+        val fallbackPlan = fallbackSessionSnapshot
+            ?.takeIf { it.providerId == provider }
+            ?.planLabel
+            ?.takeIf { it.isNotBlank() }
         completed = true
         Log.d(
             ProviderCollectionDiagnostics.TAG,
@@ -367,7 +382,8 @@ class ProviderUsageCollectionService : Service() {
             currentSnapshot.copy(
                 refreshState = ProviderRefreshState.IDLE,
                 updatedAt = Instant.now().toString(),
-                lines = sortStoredLines(provider, currentSnapshot.lines),
+                planLabel = normalizedPlanLabel(provider, fallbackPlan ?: currentSnapshot.planLabel),
+                lines = dedupeUsageLines(provider, currentSnapshot.lines.filter { it.isTrustedStoredLine() }),
                 message = getString(R.string.provider_usage_updated_message)
             )
         )
@@ -383,8 +399,14 @@ class ProviderUsageCollectionService : Service() {
         val current = fallbackSessionSnapshot
         fallbackSessionSnapshot = when {
             current == null -> snapshot
-            snapshot.lines.size > current.lines.size -> snapshot
-            current.planLabel.isNullOrBlank() && !snapshot.planLabel.isNullOrBlank() -> snapshot
+            snapshot.lines.size > current.lines.size -> snapshot.copy(
+                planLabel = snapshot.planLabel?.takeIf { it.isNotBlank() } ?: current.planLabel
+            )
+            current.planLabel.isNullOrBlank() && !snapshot.planLabel.isNullOrBlank() -> current.copy(
+                planLabel = snapshot.planLabel,
+                updatedAt = snapshot.updatedAt,
+                message = snapshot.message
+            )
             else -> current
         }
         if (fallbackCompletionScheduled) return
@@ -397,7 +419,22 @@ class ProviderUsageCollectionService : Service() {
             {
                 if (completed) return@postDelayed
                 val fallback = fallbackSessionSnapshot ?: return@postDelayed
-                if (fallback.lines.none { it.isTrustedCounterLine() } && finishWithExistingUsage(fallback.providerId)) {
+                if (
+                    shouldWaitForPlanLabel(fallback.providerId, fallback) &&
+                    (pendingUrls.isNotEmpty() || currentUrl != null)
+                ) {
+                    fallbackCompletionScheduled = false
+                    Log.d(
+                        ProviderCollectionDiagnostics.TAG,
+                        "collection waitPlan provider=${fallback.providerId.storageId}"
+                    )
+                    return@postDelayed
+                }
+                if (
+                    fallback.lines.none { it.isTrustedCounterLine() } &&
+                    canFinishWithExistingUsage(fallback.providerId, fallback) &&
+                    finishWithExistingUsage(fallback.providerId)
+                ) {
                     return@postDelayed
                 }
                 completed = true
@@ -426,6 +463,32 @@ class ProviderUsageCollectionService : Service() {
                 ProviderCollectionDiagnostics.safeUrl(endpoint)
         )
         webView?.loadUrl(endpoint, mapOf("Accept" to "application/json"))
+    }
+
+    private fun shouldWaitForPlanLabel(
+        provider: ProviderId,
+        snapshot: ProviderUsageSnapshot
+    ): Boolean {
+        if (provider != ProviderId.CLAUDE && provider != ProviderId.GEMINI) return false
+        if (!snapshot.planLabel.isNullOrBlank()) return false
+        if (!fallbackSessionSnapshot?.planLabel.isNullOrBlank()) return false
+        val currentSnapshot = LocalUsageRepository(applicationContext)
+            .readSnapshots()
+            .firstOrNull { it.providerId == provider }
+        return currentSnapshot?.planLabel.isNullOrBlank()
+    }
+
+    private fun canFinishWithExistingUsage(
+        provider: ProviderId,
+        sessionSnapshot: ProviderUsageSnapshot
+    ): Boolean {
+        if (provider != ProviderId.CLAUDE && provider != ProviderId.GEMINI) return true
+        if (!sessionSnapshot.planLabel.isNullOrBlank()) return true
+        if (!fallbackSessionSnapshot?.planLabel.isNullOrBlank()) return true
+        val currentSnapshot = LocalUsageRepository(applicationContext)
+            .readSnapshots()
+            .firstOrNull { it.providerId == provider }
+        return !currentSnapshot?.planLabel.isNullOrBlank()
     }
 
     private fun ProviderUsageSnapshot.hasLiveUsageCounters(): Boolean {
@@ -504,6 +567,7 @@ class ProviderUsageCollectionService : Service() {
                     ProviderConnectionState.CONNECTING
                 },
                 refreshState = ProviderRefreshState.REFRESHING,
+                planLabel = normalizedPlanLabel(providerId, currentSnapshot?.planLabel),
                 updatedAt = Instant.now().toString(),
                 lines = currentSnapshot?.lines.orEmpty().filter { it.isTrustedStoredLine() },
                 message = getString(R.string.provider_refresh_started_message)
@@ -514,13 +578,16 @@ class ProviderUsageCollectionService : Service() {
 
     private fun saveUsageSnapshot(snapshot: ProviderUsageSnapshot) {
         val repository = LocalUsageRepository(applicationContext)
-        val mergedLines = mergeUsageLines(
-            incoming = snapshot.lines.filter { it.isTrustedStoredLine() }
-        )
+        val currentSnapshot = repository.readSnapshots().firstOrNull { it.providerId == snapshot.providerId }
+        val mergedLines = dedupeUsageLines(snapshot.providerId, snapshot.lines.filter { it.isTrustedStoredLine() })
         repository.saveSnapshot(
             snapshot.copy(
                 connectionState = ProviderConnectionState.CONNECTED,
                 refreshState = ProviderRefreshState.IDLE,
+                planLabel = normalizedPlanLabel(
+                    snapshot.providerId,
+                    snapshot.planLabel?.takeIf { it.isNotBlank() } ?: currentSnapshot?.planLabel
+                ),
                 updatedAt = Instant.now().toString(),
                 lines = mergedLines,
                 message = if (mergedLines.isNotEmpty()) {
@@ -533,17 +600,55 @@ class ProviderUsageCollectionService : Service() {
         refreshDisplayOutputs()
     }
 
-    private fun mergeUsageLines(
+    private fun dedupeUsageLines(
+        provider: ProviderId,
         incoming: List<com.aiusage.mobile.local.ProviderUsageLine>
     ): List<com.aiusage.mobile.local.ProviderUsageLine> {
         val deduped = LinkedHashMap<String, com.aiusage.mobile.local.ProviderUsageLine>()
         incoming.forEach { line ->
-            val key = listOf(line.label, line.remainingText, line.resetText, line.sourceLabel)
+            val key = listOf(
+                line.label,
+                line.windowText,
+                line.category,
+                line.unit,
+                normalizedUsageSource(line.sourceLabel)
+            )
                 .joinToString("|")
                 .lowercase()
             deduped.putIfAbsent(key, line)
         }
-        return sortStoredLines(providerId ?: return deduped.values.toList(), deduped.values.toList())
+        return sortStoredLines(provider, deduped.values.toList())
+    }
+
+    private fun normalizedUsageSource(sourceLabel: String?): String {
+        return sourceLabel.orEmpty()
+            .replace(Regex("""[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}"""), ":id")
+            .replace(Regex("""[A-Za-z0-9_-]{18,}"""), ":id")
+    }
+
+    private fun normalizedPlanLabel(provider: ProviderId, planLabel: String?): String? {
+        val value = planLabel?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        val compact = value.lowercase()
+            .replace(Regex("""[^a-z0-9]+"""), "")
+        return when (provider) {
+            ProviderId.CLAUDE -> when (compact) {
+                "pro", "claudepro" -> "Claude Pro"
+                "max", "claudemax" -> "Claude Max"
+                "team", "claudeteam" -> "Claude Team"
+                "enterprise", "claudeenterprise" -> "Claude Enterprise"
+                "free", "claudefree" -> "Free"
+                else -> value
+            }
+            ProviderId.GEMINI -> when (compact) {
+                "pro", "aipro", "googleaipro" -> "Google AI Pro"
+                "ultra", "aiultra", "googleaiultra" -> "Google AI Ultra"
+                "advanced", "geminiadvanced" -> "Gemini Advanced"
+                "aipremium", "googleoneaipremium" -> "Google One AI Premium"
+                "free", "geminifree" -> "Free"
+                else -> value
+            }
+            else -> value
+        }
     }
 
     private fun sortStoredLines(

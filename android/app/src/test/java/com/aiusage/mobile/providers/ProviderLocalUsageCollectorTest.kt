@@ -70,8 +70,11 @@ class ProviderLocalUsageCollectorTest {
 
         assertTrue(claudeScript.contains("/api/bootstrap"))
         assertTrue(claudeScript.contains("/api/organizations"))
+        assertTrue(claudeScript.contains("/api/account_profile"))
         assertTrue(claudeScript.contains("fetchClaudeScopedEndpoints"))
+        assertTrue(claudeScript.contains("/api/bootstrap/\" + organizationId + \"/current_user_access"))
         assertTrue(claudeScript.contains("/api/organizations/\" + organizationId + \"/usage_limits"))
+        assertTrue(claudeScript.contains("/api/organizations/\" + organizationId + \"/subscription_details"))
         assertTrue(codexScript.contains("/backend-api/accounts/check/v4-2023-04-27"))
         assertTrue(codexScript.contains("/backend-api/accounts/default/usage_limits"))
         assertTrue(codexScript.contains("/backend-api/subscriptions/active"))
@@ -128,8 +131,22 @@ class ProviderLocalUsageCollectorTest {
         assertTrue(script.contains("rememberDerivedPlan(scanStructuredPlan"))
         assertTrue(script.contains("var plan = derivedPlans()[0]"))
         assertTrue(script.contains("trustedPlanSourcePattern"))
+        assertTrue(script.contains("booleanPlanValue"))
+        assertTrue(script.contains("is_free_plan"))
         assertTrue(script.contains("findVisiblePaidPlan"))
         assertFalse(script.contains("var direct = explicit || PLAN_PATTERN"))
+    }
+
+    @Test
+    fun providerExtractorsExposeExplicitPaidPlanHints() {
+        val claudeScript = ProviderLocalUsageCollector.scriptFor(com.aiusage.mobile.local.ProviderId.CLAUDE)
+        val geminiScript = ProviderLocalUsageCollector.scriptFor(com.aiusage.mobile.local.ProviderId.GEMINI)
+
+        assertTrue(claudeScript.contains("Claude Pro"))
+        assertTrue(claudeScript.contains("Claude Max"))
+        assertTrue(geminiScript.contains("Google AI Pro"))
+        assertTrue(geminiScript.contains("Google AI Ultra"))
+        assertTrue(geminiScript.contains("Google One AI Premium"))
     }
 
     @Test
@@ -262,6 +279,8 @@ class ProviderLocalUsageCollectorTest {
         assertTrue(claudeScript.contains("fetchClaudeScopedEndpoints(document.cookie"))
         assertTrue(claudeScript.contains("scanClaudeOrganizationUsage"))
         assertTrue(claudeScript.contains("/api\\/organizations\\/:id\\/usage"))
+        assertTrue(claudeScript.contains("/subscription_details"))
+        assertTrue(claudeScript.contains("/trial_status"))
         assertTrue(codexScript.contains("/backend-anon/accounts/check/v4-2023-04-27"))
         assertTrue(codexScript.contains("/backend-api/codex/usage"))
         assertTrue(codexScript.contains("/backend-api/wham/usage"))
@@ -320,6 +339,9 @@ class ProviderLocalUsageCollectorTest {
         assertTrue(script.contains("aPya6c"))
         assertTrue(script.contains("scanGeminiQuotaResponse"))
         assertTrue(script.contains("CheckGeminiQuota action"))
+        assertTrue(script.contains("hostEndsWith(\"gemini.google.com\")"))
+        assertTrue(script.contains("hostEndsWith(\"one.google.com\")"))
+        assertTrue(script.contains("/subscriptions?hl=ko"))
         assertTrue(script.contains("case 3:"))
         assertTrue(script.contains("case 4:"))
     }

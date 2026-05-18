@@ -427,6 +427,8 @@ object TextUsageExtractor {
             plan = plan
         )
 
+        val planLabel = structuredPlanLabel(providerId, plan, lines)
+
         if (lines.isEmpty()) {
             if (rawLines.isNotEmpty()) {
                 return ProviderUsageSnapshot.unavailable(
@@ -439,7 +441,7 @@ object TextUsageExtractor {
                 providerId = providerId,
                 connectionState = ProviderConnectionState.CONNECTED,
                 refreshState = ProviderRefreshState.IDLE,
-                planLabel = plan?.toDisplayLabel(),
+                planLabel = planLabel,
                 lines = emptyList(),
                 message = response.optNullableString("m")
                     ?: "No usage limits found in local provider session."
@@ -450,7 +452,7 @@ object TextUsageExtractor {
             providerId = providerId,
             connectionState = ProviderConnectionState.CONNECTED,
             refreshState = ProviderRefreshState.IDLE,
-            planLabel = plan?.toDisplayLabel(),
+            planLabel = planLabel,
             lines = lines
         )
     }
@@ -711,6 +713,24 @@ object TextUsageExtractor {
                 order[it.label.lowercase(Locale.US)] ?: 100
             }.thenBy { it.label.lowercase(Locale.US) }
         )
+    }
+
+    private fun structuredPlanLabel(
+        providerId: ProviderId,
+        rawPlan: String?,
+        lines: List<ProviderUsageLine>
+    ): String? {
+        rawPlan?.trim()?.takeIf { it.isNotBlank() }?.let { return it.toDisplayLabel() }
+        if (providerId != ProviderId.GEMINI) return null
+        return if (lines.looksLikeGeminiFreeQuota()) "Free" else null
+    }
+
+    private fun List<ProviderUsageLine>.looksLikeGeminiFreeQuota(): Boolean {
+        val byLabel = associateBy { it.label.lowercase(Locale.US) }
+        val proLimit = byLabel["pro"]?.limitAmount
+        val flashLimit = byLabel["flash"]?.limitAmount
+        val deepResearchLimit = byLabel["deep research"]?.limitAmount
+        return proLimit == 5.0 && flashLimit == 25.0 && (deepResearchLimit == null || deepResearchLimit == 3.0)
     }
 
     private fun normalizeClaudeRateLimitLabels(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {

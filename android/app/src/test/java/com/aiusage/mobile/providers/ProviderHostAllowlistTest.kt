@@ -20,6 +20,8 @@ class ProviderHostAllowlistTest {
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.CODEX, "https://login.microsoftonline.com/"))
         assertFalse(ProviderHostAllowlist.isAllowed(ProviderId.CODEX, "https://platform.openai.com/"))
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.GEMINI, "https://gemini.google.com/app"))
+        assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.GEMINI, "https://gemini.google/subscriptions?hl=ko"))
+        assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.GEMINI, "https://one.google.com/settings?hl=ko"))
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.GEMINI, "https://accounts.google.com/"))
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.COPILOT, "https://github.com/settings/copilot"))
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.COPILOT, "https://githubcopilot.com/"))
@@ -36,6 +38,7 @@ class ProviderHostAllowlistTest {
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.CLAUDE, "https://console.claude.ai/"))
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.CODEX, "https://login.auth.openai.com/"))
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.GEMINI, "https://login.accounts.google.com/"))
+        assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.GEMINI, "https://pay.one.google.com/"))
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.COPILOT, "https://docs.github.com/copilot"))
         assertTrue(ProviderHostAllowlist.isAllowed(ProviderId.CURSOR, "https://www.cursor.com/dashboard"))
     }

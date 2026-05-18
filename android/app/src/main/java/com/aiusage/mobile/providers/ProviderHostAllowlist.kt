@@ -45,7 +45,13 @@ object ProviderHostAllowlist {
             "appleid.apple.com",
             "login.microsoftonline.com"
         ),
-        ProviderId.GEMINI to listOf("gemini.google.com", "accounts.google.com", "myaccount.google.com"),
+        ProviderId.GEMINI to listOf(
+            "gemini.google.com",
+            "gemini.google",
+            "one.google.com",
+            "accounts.google.com",
+            "myaccount.google.com"
+        ),
         ProviderId.COPILOT to listOf("github.com", "githubcopilot.com"),
         ProviderId.CURSOR to listOf(
             "cursor.com",

@@ -56,4 +56,15 @@ class ProviderUsageProbeTargetsTest {
         assertTrue(urls.contains("https://api2.cursor.sh/auth/usage"))
         assertTrue(urls.contains("https://api2.cursor.sh/auth/me"))
     }
+
+    @Test
+    fun geminiChecksQuotaAndPlanSurfaces() {
+        val urls = ProviderUsageProbeTargets.urls(ProviderId.GEMINI)
+
+        assertTrue(urls.contains("https://gemini.google.com/app"))
+        assertTrue(urls.contains("https://gemini.google.com/app/settings"))
+        assertTrue(urls.contains("https://gemini.google/subscriptions?hl=ko"))
+        assertTrue(urls.contains("https://one.google.com/settings?hl=ko"))
+        assertTrue(urls.contains("https://one.google.com/explore-plan/gemini-advanced?hl=ko"))
+    }
 }

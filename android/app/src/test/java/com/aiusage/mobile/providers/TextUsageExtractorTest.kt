@@ -175,19 +175,26 @@ class TextUsageExtractorTest {
     fun keepsOnlyPlanLabelWhenPaidProviderSessionHasNoCounters() {
         val claude = TextUsageExtractor.extract(
             providerId = ProviderId.CLAUDE,
-            visibleText = authenticatedEmptyPayload("claude", "Pro")
+            visibleText = authenticatedEmptyPayload("claude", "Claude Max")
         )
         val codex = TextUsageExtractor.extract(
             providerId = ProviderId.CODEX,
             visibleText = authenticatedEmptyPayload("codex", "Pro")
         )
+        val gemini = TextUsageExtractor.extract(
+            providerId = ProviderId.GEMINI,
+            visibleText = authenticatedEmptyPayload("gemini", "Google AI Pro")
+        )
 
-        assertEquals("Pro", claude.planLabel)
+        assertEquals("Claude Max", claude.planLabel)
         assertEquals("Pro", codex.planLabel)
+        assertEquals("Google AI Pro", gemini.planLabel)
         assertTrue(claude.lines.isEmpty())
         assertTrue(codex.lines.isEmpty())
+        assertTrue(gemini.lines.isEmpty())
         assertNotNull(claude.message)
         assertNotNull(codex.message)
+        assertNotNull(gemini.message)
     }
 
     @Test
@@ -595,6 +602,7 @@ class TextUsageExtractorTest {
         )
 
         assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
+        assertEquals("Free", snapshot.planLabel)
         assertEquals(listOf("Pro", "Flash"), snapshot.lines.take(2).map { it.label })
         assertEquals(1f, snapshot.lines[0].remainingPercent)
         assertEquals("5 of 5 requests left", snapshot.lines[0].remainingText)
