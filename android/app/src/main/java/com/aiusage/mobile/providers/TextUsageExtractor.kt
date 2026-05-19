@@ -830,10 +830,69 @@ object TextUsageExtractor {
         val providerNormalized = when (providerId) {
             ProviderId.CLAUDE -> normalizeClaudeRateLimitLabels(lines)
             ProviderId.GEMINI -> normalizeGeminiUsageLines(lines)
+            ProviderId.COPILOT -> normalizeCopilotUsageLines(lines)
             ProviderId.CURSOR -> normalizeCursorUsageLines(lines)
             else -> lines
         }
         return providerNormalized
+    }
+
+    private fun normalizeCopilotUsageLines(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {
+        val order = mapOf(
+            "messages" to 0,
+            "chat" to 0,
+            "completions" to 1,
+            "premium_requests" to 2,
+            "premium requests" to 2
+        )
+        val deduped = LinkedHashMap<String, ProviderUsageLine>()
+        lines.forEach { line ->
+            val key = copilotUsageLineKey(line)
+            val existing = deduped[key]
+            if (existing == null || line.isBetterCopilotLineThan(existing)) {
+                deduped[key] = line
+            }
+        }
+        return deduped.values.sortedWith(
+            compareBy<ProviderUsageLine> {
+                order[it.category.orEmpty().lowercase(Locale.US)]
+                    ?: order[it.label.lowercase(Locale.US)]
+                    ?: 100
+            }.thenBy { it.label.lowercase(Locale.US) }
+        )
+    }
+
+    private fun copilotUsageLineKey(line: ProviderUsageLine): String {
+        val category = line.category.orEmpty().lowercase(Locale.US)
+        val label = line.label.lowercase(Locale.US)
+        return when {
+            category == "messages" || label == "chat" -> "copilot-chat"
+            category == "completions" || "completion" in label -> "copilot-completions"
+            category == "premium_requests" || "premium" in label -> "copilot-premium"
+            else -> listOf(line.label, line.category, line.windowText, line.unit)
+                .joinToString("|")
+                .lowercase(Locale.US)
+        }
+    }
+
+    private fun ProviderUsageLine.isBetterCopilotLineThan(existing: ProviderUsageLine): Boolean {
+        val score = copilotLineScore()
+        val existingScore = existing.copilotLineScore()
+        return when {
+            score != existingScore -> score > existingScore
+            (confidence ?: 0f) != (existing.confidence ?: 0f) -> (confidence ?: 0f) > (existing.confidence ?: 0f)
+            else -> false
+        }
+    }
+
+    private fun ProviderUsageLine.copilotLineScore(): Int {
+        var score = 0
+        if (remainingPercent != null) score += 16
+        if (limitAmount != null && remainingAmount != null) score += 8
+        if (!resetsAt.isNullOrBlank()) score += 4
+        if (!resetText.isNullOrBlank()) score += 2
+        if (!sourceLabel.isNullOrBlank()) score += 1
+        return score
     }
 
     private fun normalizeGeminiUsageLines(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {

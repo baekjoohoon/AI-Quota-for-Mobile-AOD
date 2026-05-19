@@ -311,10 +311,15 @@ private fun ClassicInfoLineWithRefresh(
     onRefresh: () -> Unit
 ) {
     Row(
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        ClassicInfoLine(text = text, bold = true)
+        ClassicInfoLine(
+            text = text,
+            modifier = Modifier.weight(1f),
+            bold = true
+        )
         RefreshIconButton(
             isRefreshing = isRefreshing,
             enabled = enabled,
@@ -494,15 +499,19 @@ private fun ClassicSectionTitle(text: String) {
 @Composable
 private fun ClassicInfoLine(
     text: String,
+    modifier: Modifier = Modifier,
     bold: Boolean = false
 ) {
     val colors = AIUsageTheme.colors
 
     Text(
         text = text,
+        modifier = modifier,
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal,
-        color = if (colors.theme == AppTheme.MACOS) colors.titleText else colors.textPrimary
+        color = if (colors.theme == AppTheme.MACOS) colors.titleText else colors.textPrimary,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis
     )
 }
 

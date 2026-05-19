@@ -563,6 +563,51 @@ class TextUsageExtractorTest {
     }
 
     @Test
+    fun dedupesCopilotStructuredCompletionLines() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.COPILOT,
+            visibleText = """
+                {
+                  "s": "s",
+                  "provider": "copilot",
+                  "d": {
+                    "p": "free",
+                    "x": [
+                      {
+                        "l": "Chat",
+                        "remaining": 88,
+                        "limit": 100,
+                        "unit": "messages",
+                        "category": "messages",
+                        "r": "2026-06-15T00:00:00Z"
+                      },
+                      {
+                        "l": "Completions",
+                        "remaining": 4000,
+                        "limit": 4000,
+                        "unit": "completions",
+                        "category": "completions",
+                        "r": "2026-06-15T00:00:00Z"
+                      },
+                      {
+                        "l": "Completions",
+                        "remaining": 4000,
+                        "limit": 4000,
+                        "unit": "completions",
+                        "category": "completions",
+                        "source": "/settings/copilot",
+                        "r": "2026-06-15T00:00:00Z"
+                      }
+                    ]
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals(listOf("Chat", "Completions"), snapshot.lines.map { it.label })
+    }
+
+    @Test
     fun extractsGeminiQuotaRowsFromStructuredCollectorPayload() {
         val snapshot = TextUsageExtractor.extract(
             providerId = ProviderId.GEMINI,

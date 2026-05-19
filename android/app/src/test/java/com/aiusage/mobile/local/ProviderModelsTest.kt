@@ -126,6 +126,40 @@ class ProviderModelsTest {
     }
 
     @Test
+    fun copilotUsageLinesDeduplicateByQuotaKind() {
+        val lines = ProviderId.COPILOT.deduplicateUsageLinesForStorage(
+            listOf(
+                ProviderUsageLine(
+                    label = "Chat",
+                    remainingPercent = 0.88f,
+                    remainingText = "88% left",
+                    category = "messages",
+                    unit = "messages",
+                    sourceLabel = "/settings/copilot"
+                ),
+                ProviderUsageLine(
+                    label = "Completions",
+                    remainingPercent = 1f,
+                    remainingText = "4,000 of 4,000 completions left",
+                    category = "completions",
+                    unit = "completions",
+                    sourceLabel = "/settings/copilot"
+                ),
+                ProviderUsageLine(
+                    label = "Completions",
+                    remainingPercent = 1f,
+                    remainingText = "4,000 of 4,000 completions left",
+                    category = "completions",
+                    unit = "completions",
+                    sourceLabel = "/copilot/usage"
+                )
+            )
+        )
+
+        assertEquals(listOf("Chat", "Completions"), lines.map { it.label })
+    }
+
+    @Test
     fun fromStorageIdMatchesCaseInsensitivelyAndRejectsUnknowns() {
         assertEquals(ProviderId.CLAUDE, ProviderId.fromStorageId("CLAUDE"))
         assertEquals(ProviderId.CODEX, ProviderId.fromStorageId("Codex"))

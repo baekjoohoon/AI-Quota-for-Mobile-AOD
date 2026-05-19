@@ -134,6 +134,9 @@ private fun ProviderId.usageLineDeduplicationKey(line: ProviderUsageLine): Strin
     if (this == ProviderId.CLAUDE) {
         claudeUsageWindowKey(line)?.let { return it }
     }
+    if (this == ProviderId.COPILOT) {
+        copilotUsageQuotaKey(line)?.let { return it }
+    }
     return listOf(
         line.label,
         line.windowText.orEmpty(),
@@ -160,6 +163,22 @@ private fun claudeUsageWindowKey(line: ProviderUsageLine): String? {
         "sevenday" in compact || "weekly" in compact || "주간" in compact || "7 day" in window -> {
             "claude:seven_day"
         }
+        else -> null
+    }
+}
+
+private fun copilotUsageQuotaKey(line: ProviderUsageLine): String? {
+    val label = line.label
+        .replace('_', ' ')
+        .replace('-', ' ')
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+        .lowercase(Locale.US)
+    val category = line.category.orEmpty().lowercase(Locale.US)
+    return when {
+        category == "messages" || label == "chat" -> "copilot:chat"
+        category == "completions" || "completion" in label -> "copilot:completions"
+        category == "premium_requests" || "premium" in label -> "copilot:premium_requests"
         else -> null
     }
 }
