@@ -160,10 +160,9 @@ class ProviderModelsTest {
     }
 
     @Test
-    fun cursorFreeUsdRemainingRestoresGaugeForStoredSnapshots() {
-        val lines = ProviderId.CURSOR.normalizeUsageLinesForStorage(
-            planLabel = "Free",
-            lines = listOf(
+    fun cursorFreeUsdRemainingIsNotStoredAsUsageLine() {
+        val lines = ProviderId.CURSOR.deduplicateUsageLinesForStorage(
+            listOf(
                 ProviderUsageLine(
                     label = "Total usage",
                     remainingPercent = null,
@@ -178,14 +177,32 @@ class ProviderModelsTest {
             )
         )
 
-        val line = lines.single()
-        assertEquals("Total usage", line.label)
-        assertEquals(1f, line.remainingPercent)
-        assertEquals("10 of 10 USD left", line.remainingText)
-        assertEquals("0 used of 10", line.detailText)
-        assertEquals(0.0, line.usedAmount)
-        assertEquals(10.0, line.limitAmount)
-        assertEquals(10.0, line.remainingAmount)
+        assertTrue(lines.isEmpty())
+    }
+
+    @Test
+    fun cursorLegacyDashboardUsdGaugeIsRemovedFromStorage() {
+        val lines = ProviderId.CURSOR.deduplicateUsageLinesForStorage(
+            listOf(
+                ProviderUsageLine(
+                    label = "Total usage",
+                    remainingPercent = 1f,
+                    remainingText = "10 of 10 USD left",
+                    detailText = "0 used of 10",
+                    severity = UsageSeverity.NORMAL,
+                    usedAmount = 0.0,
+                    limitAmount = 10.0,
+                    remainingAmount = 10.0,
+                    unit = "USD",
+                    category = "included_usage",
+                    windowText = "monthly",
+                    sourceLabel = "/dashboard",
+                    confidence = 0.84f
+                )
+            )
+        )
+
+        assertTrue(lines.isEmpty())
     }
 
     @Test

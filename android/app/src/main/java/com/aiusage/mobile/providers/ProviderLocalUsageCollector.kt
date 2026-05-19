@@ -799,14 +799,13 @@ object ProviderLocalUsageCollector {
                 var remaining = cursorMoneyAmount(planRemaining != null ? planRemaining : planLimit);
                 var cap = cursorMoneyAmount(planLimit);
                 var context = source + " " + path.join(".") + " billingCycle monthly";
+                var beforeCount = limits.length;
                 if (isNumber(cap) && cap > 0) {
                   pushAmountLimit(limits, "Total usage", null, cap, remaining, "USD", context, 0.96);
                 } else if (isNumber(cap) && cap === 0 && (!isNumber(remaining) || remaining === 0)) {
                   pushLimit(limits, "Total usage", 0, context);
-                } else {
-                  pushRemainingOnlyLimit(limits, "Total usage", remaining != null ? remaining : 0, "USD", context, 0.9);
                 }
-                attachWindowTimes(limits[limits.length - 1], value);
+                if (limits.length > beforeCount) attachWindowTimes(limits[limits.length - 1], value);
               }
             }
             var onDemand = individualUsage.onDemand;
@@ -816,10 +815,8 @@ object ProviderLocalUsageCollector {
               if (onDemandRemaining != null || onDemandLimit != null) {
                 if (isNumber(onDemandLimit) && onDemandLimit > 0) {
                   pushAmountLimit(limits, "On-demand usage", null, onDemandLimit, onDemandRemaining, "USD", source + " " + path.join(".") + " onDemand", 0.9);
-                } else {
-                  pushRemainingOnlyLimit(limits, "On-demand usage", onDemandRemaining != null ? onDemandRemaining : 0, "USD", source + " " + path.join(".") + " onDemand", 0.82);
+                  attachWindowTimes(limits[limits.length - 1], value);
                 }
-                attachWindowTimes(limits[limits.length - 1], value);
               }
             }
           }
@@ -1185,6 +1182,7 @@ object ProviderLocalUsageCollector {
               }
             }
             if (
+              PROVIDER_ID !== "cursor" &&
               cap == null &&
               used == null &&
               remaining != null &&
@@ -1304,6 +1302,40 @@ object ProviderLocalUsageCollector {
             }
             return limits;
           }
+          function extractCursorVisibleUsageLimits(text) {
+            var limits = [];
+            if (PROVIDER_ID !== "cursor" || !hostEndsWith("cursor.com")) return limits;
+            var lines = safeText(text)
+              .split(/\n+/)
+              .map(function(line) { return safeText(line); })
+              .filter(Boolean);
+            var labelPattern = /^(Total usage|Auto usage|API usage|On-demand|On-demand usage)$/i;
+            for (var index = 0; index < lines.length && limits.length < 4; index += 1) {
+              var labelMatch = labelPattern.exec(lines[index]);
+              var label = labelMatch && labelMatch[1];
+              var searchStart = index;
+              if (!label) {
+                var inline = /(Total usage|Auto usage|API usage|On-demand|On-demand usage)\b/i.exec(lines[index]);
+                if (!inline) continue;
+                label = inline[1];
+              }
+              var context = lines.slice(searchStart, Math.min(lines.length, searchStart + 5)).join(" ");
+              var percentMatch = /([0-9]{1,3}(?:\.[0-9]+)?)\s*%\s*(left|remaining|used)\b/i.exec(context);
+              if (!percentMatch) continue;
+              var amount = parseNumber(percentMatch[1]);
+              if (!isNumber(amount)) continue;
+              var word = safeText(percentMatch[2]).toLowerCase();
+              var utilization = word === "used" ? amount : 100 - amount;
+              pushLimit(limits, label, utilization, "cursor dashboard usage visible " + context);
+              var last = limits[limits.length - 1];
+              if (last) {
+                last.confidence = 0.88;
+                last.source = "/dashboard/usage";
+                last.window = "monthly";
+              }
+            }
+            return limits;
+          }
           function shouldUseGenericTextLimits() {
             return PROVIDER_ID !== "cursor";
           }
@@ -1383,6 +1415,7 @@ object ProviderLocalUsageCollector {
                 domMatches('[data-testid*="settings"],[data-testid*="billing"],summary[aria-label*="View profile"]');
             }
             if (PROVIDER_ID === "cursor") {
+              if (!hostEndsWith("cursor.com")) return false;
               return /(dashboard|usage|settings|account|workspace)/i.test(value) ||
                 domMatches('[data-testid*="dashboard"],[data-testid*="settings"],[data-testid*="usage"]');
             }
@@ -1402,7 +1435,7 @@ object ProviderLocalUsageCollector {
           }
           function authenticatedEndpointMarker() {
             if (PROVIDER_ID === "cursor") {
-              return hasSuccessfulEndpoint(/^\/(?:api\/(?:usage|auth\/me)|auth\/(?:usage|me))$/);
+              return hasSuccessfulEndpoint(/^\/(?:api\/(?:usage|auth\/me|auth\/stripe)|auth\/(?:usage|me))$/);
             }
             return false;
           }
@@ -1419,7 +1452,7 @@ object ProviderLocalUsageCollector {
             if (PROVIDER_ID === "codex") return hostEndsWith("chatgpt.com") || hostEndsWith("chat.openai.com");
             if (PROVIDER_ID === "gemini") return hostEndsWith("gemini.google.com") || hostEndsWith("gemini.google") || hostEndsWith("one.google.com");
             if (PROVIDER_ID === "copilot") return hostEndsWith("github.com") || hostEndsWith("githubcopilot.com");
-            if (PROVIDER_ID === "cursor") return hostEndsWith("cursor.com") || hostEndsWith("cursor.sh");
+            if (PROVIDER_ID === "cursor") return hostEndsWith("cursor.com");
             return false;
           }
           function providerEndpointCandidates() {
@@ -1511,6 +1544,8 @@ object ProviderLocalUsageCollector {
                 "/api/billing",
                 "/api/settings",
                 "/api/me",
+                "/api/auth/stripe",
+                "/api/auth/me",
                 "/api/auth/session",
                 "/api/limits",
                 "/api/dashboard/get-plan-info",
@@ -1555,7 +1590,9 @@ object ProviderLocalUsageCollector {
               .concat(collectStorage(safeStorage('sessionStorage'), 'sessionStorage'))
               .concat(window.__AI_USAGE_PROVIDER_EVENTS__ || []);
             var combinedText = rows.filter(Boolean).join('\n');
-            var structuredLimits = derivedLimits().concat(extractJsonLimits(rows));
+            var structuredLimits = derivedLimits()
+              .concat(extractJsonLimits(rows))
+              .concat(extractCursorVisibleUsageLimits(visibleText));
             var limits = cursorStructuredLimits(
               structuredLimits.concat(shouldUseGenericTextLimits() ? extractLimits(combinedText) : [])
             ).slice(0, 8);
@@ -1971,8 +2008,175 @@ object ProviderLocalUsageCollector {
             fetchClaudeScopedEndpoints(text);
             fetchAccountScopedEndpoints(text);
           }
+          function extractCursorUserIds(text) {
+            var ids = [];
+            var seen = {};
+            function remember(value) {
+              var id = safeText(value);
+              if (!id || seen[id] || ids.length >= 5) return;
+              if (/^(user|users|id|account|accounts|customer|subscription|default|me)$/i.test(id)) return;
+              if (!/^[A-Za-z0-9_@.-]{6,160}$/.test(id)) return;
+              seen[id] = true;
+              ids.push(id);
+            }
+            function scan(value, depth) {
+              if (depth > 8 || value == null || ids.length >= 5) return;
+              if (Array.isArray(value)) {
+                value.forEach(function(item) { scan(item, depth + 1); });
+                return;
+              }
+              if (typeof value !== "object") return;
+              Object.keys(value).forEach(function(key) {
+                if (ids.length >= 5) return;
+                var child = value[key];
+                if (/^(userId|user_id|workosUserId|workos_user_id|ownerUserId|owner_user_id|sub)$/i.test(key) && typeof child === "string") {
+                  remember(child);
+                }
+                scan(child, depth + 1);
+              });
+            }
+            try {
+              var candidate = extractJsonCandidate(text) || text;
+              scan(JSON.parse(candidate), 0);
+            } catch (error) {}
+            try {
+              [
+                /"(?:userId|user_id|workosUserId|workos_user_id|ownerUserId|owner_user_id|sub)"\s*:\s*"([^"]+)"/gi,
+                /(?:userId|user_id)=([^&\s"']+)/gi
+              ].forEach(function(pattern) {
+                var match;
+                while ((match = pattern.exec(text || ""))) remember(match[1]);
+              });
+            } catch (error) {}
+            return ids;
+          }
+          function cursorSessionTokenParts() {
+            if (PROVIDER_ID !== "cursor") return null;
+            var values = [];
+            function addValue(value) {
+              var text = safeText(value);
+              if (!text || values.length >= 40) return;
+              values.push(text);
+              try {
+                var decoded = decodeURIComponent(text);
+                if (decoded && decoded !== text) values.push(decoded);
+              } catch (error) {}
+            }
+            try { addValue(document.cookie || ""); } catch (error) {}
+            [safeStorage("localStorage"), safeStorage("sessionStorage")].forEach(function(storage) {
+              if (!storage) return;
+              try {
+                for (var index = 0; index < storage.length && values.length < 40; index += 1) {
+                  var key = storage.key(index);
+                  if (!/cursor|workos|auth|token|session/i.test(key || "")) continue;
+                  addValue(storage.getItem(key));
+                }
+              } catch (error) {}
+            });
+            for (var index = 0; index < values.length; index += 1) {
+              var value = values[index];
+              var cookieMatch = /WorkosCursorSessionToken=([^;]+)/i.exec(value);
+              if (cookieMatch) addValue(cookieMatch[1]);
+              var pairMatch = /([A-Za-z0-9_@.-]{6,160})::([A-Za-z0-9._-]{20,})/.exec(value);
+              if (pairMatch) {
+                return {
+                  userId: pairMatch[1],
+                  accessToken: pairMatch[2]
+                };
+              }
+            }
+            return null;
+          }
+          function fetchCursorJsonEndpoint(endpoint, onValue) {
+            try {
+              if (PROVIDER_ID !== "cursor" || !isProviderOrigin() || typeof fetch !== "function") return;
+              if (!window.__AI_USAGE_CURSOR_FETCHED_ENDPOINTS__) window.__AI_USAGE_CURSOR_FETCHED_ENDPOINTS__ = {};
+              var targetUrl = new URL(endpoint, location.origin).toString();
+              if (window.__AI_USAGE_CURSOR_FETCHED_ENDPOINTS__[targetUrl]) return;
+              window.__AI_USAGE_CURSOR_FETCHED_ENDPOINTS__[targetUrl] = true;
+              fetch(targetUrl, { credentials: "include" })
+                .then(function(response) {
+                  return response.clone().text()
+                    .then(function(value) {
+                      rememberEndpointSummary(endpoint, response, value);
+                      return value;
+                    })
+                    .catch(function() {
+                      rememberEndpointSummary(endpoint, response, "");
+                      return "";
+                    });
+                })
+                .then(function(value) {
+                  if (!/\/api\/auth\//.test(endpoint)) rememberSignal(endpoint + " " + value);
+                  if (typeof onValue === "function") onValue(value);
+                  emitResponse(buildResponse());
+                })
+                .catch(function() {
+                  rememberEndpointError(endpoint, -1);
+                  emitResponse(buildResponse());
+                });
+            } catch (error) {}
+          }
+          function fetchCursorUsageForUsers(text) {
+            extractCursorUserIds(text).forEach(function(userId) {
+              fetchCursorJsonEndpoint("/api/usage?user=" + encodeURIComponent(userId));
+            });
+          }
+          function fetchCursorApi2DashboardEndpoints() {
+            try {
+              if (PROVIDER_ID !== "cursor" || !isProviderOrigin() || typeof fetch !== "function") return;
+              var session = cursorSessionTokenParts();
+              if (!session || !session.accessToken) return;
+              if (window.__AI_USAGE_CURSOR_API2_STARTED__) return;
+              window.__AI_USAGE_CURSOR_API2_STARTED__ = true;
+              if (session.userId) fetchCursorUsageForUsers(JSON.stringify({ userId: session.userId }));
+              [
+                "DashboardService/GetCurrentPeriodUsage",
+                "DashboardService/GetPlanInfo",
+                "DashboardService/GetCreditGrantsBalance"
+              ].forEach(function(servicePath) {
+                var endpoint = "https://api2.cursor.sh/aiserver.v1." + servicePath;
+                fetch(endpoint, {
+                  method: "POST",
+                  credentials: "omit",
+                  headers: {
+                    "authorization": "Bearer " + session.accessToken,
+                    "content-type": "application/json"
+                  },
+                  body: "{}"
+                })
+                  .then(function(response) {
+                    return response.clone().text()
+                      .then(function(value) {
+                        rememberEndpointSummary(endpoint, response, value);
+                        return value;
+                      })
+                      .catch(function() {
+                        rememberEndpointSummary(endpoint, response, "");
+                        return "";
+                      });
+                  })
+                  .then(function(value) {
+                    rememberSignal(servicePath + " " + value);
+                    emitResponse(buildResponse());
+                  })
+                  .catch(function() {
+                    rememberEndpointError(endpoint, -1);
+                    emitResponse(buildResponse());
+                  });
+              });
+            } catch (error) {}
+          }
+          function fetchCursorAuthenticatedUsage() {
+            if (PROVIDER_ID !== "cursor" || !isProviderOrigin()) return;
+            fetchCursorApi2DashboardEndpoints();
+            ["/api/auth/stripe", "/api/auth/me", "/api/me"].forEach(function(endpoint) {
+              fetchCursorJsonEndpoint(endpoint, fetchCursorUsageForUsers);
+            });
+          }
           function fetchCursorDashboardEndpoints() {
             if (PROVIDER_ID !== "cursor" || !isProviderOrigin()) return;
+            fetchCursorAuthenticatedUsage();
             providerEndpointCandidates().forEach(fetchEndpoint);
           }
           function fetchProviderEndpoints() {

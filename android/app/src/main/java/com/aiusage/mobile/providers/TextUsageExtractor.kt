@@ -8,6 +8,7 @@ import com.aiusage.mobile.local.ProviderUsageSnapshot
 import com.aiusage.mobile.local.UsageSeverity
 import com.aiusage.mobile.local.hasStartOnMessageReset
 import com.aiusage.mobile.local.isSupportedUsageLineLabel
+import com.aiusage.mobile.local.isUnsupportedUsageLine
 import com.aiusage.mobile.local.normalizedPlanLabelForDisplay
 import com.aiusage.mobile.local.normalizedUsageLineLabelForDisplay
 import org.json.JSONObject
@@ -556,6 +557,13 @@ object TextUsageExtractor {
             val cursorPlanOnlyAfterDiscard = providerId == ProviderId.CURSOR &&
                 planLabel != null &&
                 rawLines.none { it.hasBlockedNavigationCounterText() }
+            if (providerId == ProviderId.CURSOR && planLabel == null) {
+                return ProviderUsageSnapshot.unavailable(
+                    providerId = providerId,
+                    message = response.optNullableString("m")
+                        ?: "No usage limits found in local provider session."
+                )
+            }
             if (rawLines.isNotEmpty() && !cursorPlanOnlyAfterDiscard) {
                 return ProviderUsageSnapshot.unavailable(
                     providerId = providerId,
@@ -831,7 +839,7 @@ object TextUsageExtractor {
             ProviderId.CLAUDE -> normalizeClaudeRateLimitLabels(lines)
             ProviderId.GEMINI -> normalizeGeminiUsageLines(lines)
             ProviderId.COPILOT -> normalizeCopilotUsageLines(lines)
-            ProviderId.CURSOR -> normalizeCursorUsageLines(lines, plan)
+            ProviderId.CURSOR -> normalizeCursorUsageLines(lines)
             else -> lines
         }
         return providerNormalized
@@ -1006,7 +1014,7 @@ object TextUsageExtractor {
         }
     }
 
-    private fun normalizeCursorUsageLines(lines: List<ProviderUsageLine>, plan: String?): List<ProviderUsageLine> {
+    private fun normalizeCursorUsageLines(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {
         val normalizedLines = lines.filter { line ->
             line.isTrustedCursorUsageLine()
         }.map { line ->
@@ -1025,7 +1033,7 @@ object TextUsageExtractor {
                 "plan usage",
                 "total usage"
             ) || modelRequestLine
-            val relabeled = if (!totalUsageLine) {
+            if (!totalUsageLine) {
                 line
             } else {
                 line.copy(
@@ -1034,7 +1042,8 @@ object TextUsageExtractor {
                     windowText = line.windowText ?: "monthly"
                 )
             }
-            relabeled.withCursorFreeUsdGauge(plan)
+        }.filterNot { line ->
+            ProviderId.CURSOR.isUnsupportedUsageLine(line)
         }
         val deduped = LinkedHashMap<String, ProviderUsageLine>()
         normalizedLines.forEach { line ->
@@ -1049,39 +1058,6 @@ object TextUsageExtractor {
             }
         }
         return deduped.values.toList()
-    }
-
-    private fun ProviderUsageLine.withCursorFreeUsdGauge(plan: String?): ProviderUsageLine {
-        if (!isCursorFreePlan(plan)) return this
-        if (remainingPercent != null) return this
-        val remaining = remainingAmount ?: return this
-        if (!unit.equals("USD", ignoreCase = true)) return this
-        val labelText = label.lowercase(Locale.US)
-        val categoryText = category.orEmpty().lowercase(Locale.US)
-        val isIncludedUsage = labelText == "total usage" ||
-            labelText == "included usage" ||
-            categoryText == "included_usage"
-        if (!isIncludedUsage) return this
-
-        val limit = (limitAmount?.takeIf { it > 0.0 } ?: CURSOR_FREE_INCLUDED_USAGE_LIMIT)
-            .coerceAtLeast(remaining)
-        val used = (usedAmount ?: (limit - remaining)).coerceAtLeast(0.0)
-        val ratio = (remaining / limit).coerceIn(0.0, 1.0).toFloat()
-        return copy(
-            remainingPercent = ratio,
-            remainingText = remainingLimitText(remaining, limit, unit, ratio),
-            detailText = usedLimitText(used, limit, (used / limit) * 100.0),
-            severity = severityForStructured(ratio),
-            usedAmount = used,
-            limitAmount = limit,
-            remainingAmount = remaining,
-            category = category ?: "included_usage",
-            windowText = windowText ?: "monthly"
-        )
-    }
-
-    private fun isCursorFreePlan(plan: String?): Boolean {
-        return plan.orEmpty().lowercase(Locale.US).contains("free")
     }
 
     private fun ProviderUsageLine.isBetterCursorLineThan(existing: ProviderUsageLine): Boolean {
@@ -1200,5 +1176,4 @@ object TextUsageExtractor {
     private const val DANGER_THRESHOLD = 0.15f
     private const val WARNING_THRESHOLD = 0.35f
     private const val COPILOT_FREE_COMPLETIONS_LIMIT = 4000.0
-    private const val CURSOR_FREE_INCLUDED_USAGE_LIMIT = 10.0
 }

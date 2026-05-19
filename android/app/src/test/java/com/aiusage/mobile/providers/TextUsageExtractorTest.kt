@@ -1025,7 +1025,7 @@ class TextUsageExtractorTest {
     }
 
     @Test
-    fun extractsCursorFreeUsdRemainingAsTotalUsageGauge() {
+    fun discardsCursorFreeUsdRemainingWithoutUsageCounter() {
         val snapshot = TextUsageExtractor.extract(
             providerId = ProviderId.CURSOR,
             visibleText = """
@@ -1050,16 +1050,34 @@ class TextUsageExtractorTest {
             """.trimIndent()
         )
 
-        val line = snapshot.lines.single()
         assertEquals("Free", snapshot.planLabel)
-        assertEquals("Total usage", line.label)
-        assertEquals(1f, line.remainingPercent)
-        assertEquals("10 of 10 USD left", line.remainingText)
-        assertEquals("0 used of 10", line.detailText)
-        assertEquals(0.0, line.usedAmount)
-        assertEquals(10.0, line.limitAmount)
-        assertEquals(10.0, line.remainingAmount)
-        assertEquals("included_usage", line.category)
+        assertTrue(snapshot.lines.isEmpty())
+    }
+
+    @Test
+    fun rejectsCursorAuthenticatorPayloadWithoutPlanOrUsage() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.CURSOR,
+            visibleText = """
+                {
+                  "s": "s",
+                  "provider": "cursor",
+                  "c": {
+                    "login": false,
+                    "providerPage": true,
+                    "authenticatedApp": true,
+                    "textLength": 151
+                  },
+                  "d": {
+                    "p": null,
+                    "x": []
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals(ProviderConnectionState.UNAVAILABLE, snapshot.connectionState)
+        assertTrue(snapshot.lines.isEmpty())
     }
 
     @Test

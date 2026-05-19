@@ -320,7 +320,7 @@ class ProviderLocalUsageCollectorTest {
         assertTrue(script.contains("remainingRequestUsage"))
         assertTrue(script.contains("remainingCap"))
         assertTrue(script.contains("authenticatedEndpointMarker"))
-        assertTrue(script.contains("/^\\/(?:api\\/(?:usage|auth\\/me)|auth\\/(?:usage|me))$/"))
+        assertTrue(script.contains("/^\\/(?:api\\/(?:usage|auth\\/me|auth\\/stripe)|auth\\/(?:usage|me))$/"))
         assertTrue(script.contains("scanCursorUsageSummary"))
         assertTrue(script.contains("rememberCursorPlan"))
         assertTrue(script.contains("scanCursorPlanUsage"))
@@ -333,9 +333,18 @@ class ProviderLocalUsageCollectorTest {
         assertTrue(script.contains("planInfo"))
         assertTrue(script.contains("billingCycleStart"))
         assertTrue(script.contains("cursorStructuredLimits"))
+        assertTrue(script.contains("extractCursorVisibleUsageLimits"))
+        assertTrue(script.contains("Total usage|Auto usage|API usage|On-demand"))
         assertTrue(script.contains("shouldUseGenericTextLimits"))
         assertTrue(script.contains("return PROVIDER_ID !== \"cursor\""))
         assertTrue(script.contains("fetchCursorDashboardEndpoints"))
+        assertTrue(script.contains("fetchCursorAuthenticatedUsage"))
+        assertTrue(script.contains("/api/auth/stripe"))
+        assertTrue(script.contains("/api/usage?user="))
+        assertTrue(script.contains("WorkosCursorSessionToken"))
+        assertTrue(script.contains("DashboardService/GetCurrentPeriodUsage"))
+        assertTrue(script.contains("DashboardService/GetPlanInfo"))
+        assertTrue(script.contains("DashboardService/GetCreditGrantsBalance"))
     }
 
     @Test
