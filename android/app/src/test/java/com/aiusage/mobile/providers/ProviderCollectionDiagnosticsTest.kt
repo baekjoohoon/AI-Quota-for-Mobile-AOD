@@ -87,7 +87,7 @@ class ProviderCollectionDiagnosticsTest {
         )
 
         assertTrue(summary.contains("plan=false"))
-        assertTrue(summary.contains("/backend-api/accounts/:id/usage:200/l3/r2/p1"))
+        assertTrue(summary.contains("/backend-api/accounts/:id/usage:200/l3/r2/u0/p1"))
         assertTrue(summary.contains("accounts[].entitlements.plan_type"))
     }
 }

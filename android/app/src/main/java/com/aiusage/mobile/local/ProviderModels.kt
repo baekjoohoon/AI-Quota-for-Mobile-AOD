@@ -112,8 +112,16 @@ fun ProviderUsageLine.hasStartOnMessageReset(): Boolean {
 
 fun ProviderId.isUnsupportedUsageLine(line: ProviderUsageLine): Boolean {
     if (this != ProviderId.CURSOR) return false
-    if (line.remainingAmount == null) return false
-    if (!line.unit.equals("USD", ignoreCase = true)) return false
+    val source = line.sourceLabel.orEmpty().lowercase(Locale.US)
+    if (
+        line.remainingPercent != null &&
+        line.usedAmount == null &&
+        line.limitAmount == null &&
+        line.remainingAmount == null &&
+        source == "/dashboard"
+    ) {
+        return true
+    }
     val label = line.label
         .replace('_', ' ')
         .replace('-', ' ')
@@ -124,8 +132,26 @@ fun ProviderId.isUnsupportedUsageLine(line: ProviderUsageLine): Boolean {
     val isIncludedUsage = label in setOf("total usage", "included usage", "plan usage", "planusage") ||
         category == "included_usage"
     if (!isIncludedUsage) return false
+    val hasNoAmountEvidence = line.usedAmount == null &&
+        line.limitAmount == null &&
+        line.remainingAmount == null
+    if (
+        source.contains("/api/usage-summary") &&
+        hasNoAmountEvidence &&
+        (line.remainingPercent == null || line.remainingPercent >= 0.995f)
+    ) {
+        return true
+    }
+    if (line.remainingAmount == null) return false
+    if (!line.unit.equals("USD", ignoreCase = true)) return false
+    if (
+        line.limitAmount == 0.0 &&
+        line.remainingAmount == 0.0 &&
+        (line.usedAmount == null || line.usedAmount == 0.0)
+    ) {
+        return true
+    }
     if (line.remainingPercent == null && line.usedAmount == null && line.limitAmount == null) return true
-    val source = line.sourceLabel.orEmpty().lowercase(Locale.US)
     val isLegacyDashboardGauge = source == "/dashboard" &&
         line.resetText.isNullOrBlank() &&
         line.startsAt.isNullOrBlank() &&

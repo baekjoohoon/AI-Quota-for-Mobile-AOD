@@ -307,6 +307,7 @@ provider 응답이 used percent만 주면 앱은 `remainingPercent = 1 - usedPer
 - Cursor WebView 세션과 dashboard JSON/network/상태 응답을 사용한다.
 - main-frame probe는 `dashboard`, `dashboard/usage`, `settings` 같은 앱 shell 화면만 로드한다.
 - `/api/*`, `api2.cursor.sh/auth/*`는 main-frame으로 직접 로드하지 않는다. dashboard 앱 shell이 열린 뒤 같은 WebView 세션에서 `credentials: include` fetch와 network hook으로 수집한다.
+- Google/WorkOS 로그인 직후 `authenticator.cursor.sh` main-frame transient error가 발생할 수 있다. 이 경우 즉시 `ERROR`로 저장하지 않고 짧게 대기한 뒤 `https://cursor.com/dashboard`로 복구 진입한다.
 
 ### plan 수집
 
@@ -318,6 +319,8 @@ provider 응답이 used percent만 주면 앱은 `remainingPercent = 1 - usedPer
 ### 사용량 수집
 
 Cursor는 세 구조를 모두 지원해야 한다.
+
+로그인 후 실제 내부 사용량 API를 열기 위해 JS extractor는 Android bridge를 통해 `CookieManager`의 Cursor cookie header를 읽는다. `WorkosCursorSessionToken`은 HttpOnly라 `document.cookie`에서는 보이지 않을 수 있으므로, 이 bridge 없이는 `api2.cursor.sh` 사용량 API를 호출하지 못한다.
 
 #### 1. planUsage 방식
 
@@ -339,6 +342,7 @@ Cursor는 세 구조를 모두 지원해야 한다.
 - 금액 단위가 cent처럼 큰 정수로 내려오면 `cursorMoneyAmount()`에서 USD로 보정한다.
 - 기본 line은 `Total usage`다.
 - 가능한 breakdown은 `Auto usage`, `API usage`, `On-demand`다.
+- `api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage`의 `planUsage`는 우선 수집 대상이다.
 
 #### 2. request-based 방식
 
@@ -366,6 +370,9 @@ Cursor는 세 구조를 모두 지원해야 한다.
 ### 금지 fallback
 
 - `remainingCap`만 있는 낮은 confidence line은 더 신뢰도 높은 `Total usage`가 있으면 우선순위에서 밀려야 한다.
+- `remainingCap`, `capWindowLabel`, `10 USD left`는 free plan의 실제 총 사용량이 아니다. 이 값만으로 `Total usage`를 만들면 안 된다.
+- `/api/usage-summary`가 `individualUsage.plan.used=0`, limit/remaining=0 또는 percent-only 100% 형태만 줄 때는 실제 총 사용량으로 저장하면 안 된다.
+- `On-demand` 같은 breakdown이 DOM에서 percent-only로 단독 수집되면 대표 사용량으로 저장하면 안 된다. 구조화된 `Total usage` 또는 planUsage 기반 breakdown이 있을 때만 세부 항목으로 유지한다.
 - `completed`, `sitemap`, 마케팅 텍스트는 저장하면 안 된다.
 - Cursor는 `isTrustedCursorUsageLine()` 기준을 통과해야 live counter로 취급한다.
 - `source="/"`, label `Md`, unit `md`, generic `2 of 3 left` 같은 DOM text fallback은 저장하면 안 된다.

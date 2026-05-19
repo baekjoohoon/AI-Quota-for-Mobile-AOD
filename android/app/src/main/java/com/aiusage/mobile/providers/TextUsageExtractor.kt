@@ -466,29 +466,6 @@ object TextUsageExtractor {
                         ?: "Usage").toDisplayLabel()
                     val startsAt = limit.optTimeString("startsAt", "s")
                     val resetsAt = limit.optTimeString("resetsAt", "r")
-                    if (isCursorZeroLimitAsFull(providerId, limitAmount, remainingAmount, label, unit)) {
-                        add(
-                            ProviderUsageLine(
-                                label = "Total usage",
-                                remainingPercent = 1f,
-                                remainingText = "100% left",
-                                resetText = reset,
-                                detailText = "0% used",
-                                severity = UsageSeverity.NORMAL,
-                                usedAmount = 0.0,
-                                limitAmount = null,
-                                remainingAmount = null,
-                                unit = "percent",
-                                category = "usage_window",
-                                windowText = limit.optNullableString("window") ?: limit.optNullableString("windowText"),
-                                startsAt = startsAt,
-                                resetsAt = resetsAt,
-                                sourceLabel = limit.optNullableString("source") ?: limit.optNullableString("sourceLabel"),
-                                confidence = limit.optNumber("confidence")?.coerceIn(0.0, 1.0)?.toFloat()
-                            )
-                        )
-                        continue
-                    }
                     if (usedPercent == null && remainingAmount != null) {
                         add(
                             ProviderUsageLine(
@@ -783,22 +760,6 @@ object TextUsageExtractor {
         }
     }
 
-    private fun isCursorZeroLimitAsFull(
-        providerId: ProviderId,
-        limitAmount: Double?,
-        remainingAmount: Double?,
-        label: String,
-        unit: String?
-    ): Boolean {
-        if (providerId != ProviderId.CURSOR) return false
-        if (limitAmount != 0.0 || remainingAmount != 0.0) return false
-        val text = "$label ${unit.orEmpty()}".lowercase(Locale.US)
-        return "included usage" in text ||
-            "total usage" in text ||
-            "planusage" in text ||
-            "usd" in text
-    }
-
     private fun ProviderUsageLine.isIgnoredExtractedLine(providerId: ProviderId): Boolean {
         val labelText = listOf(label, unit).joinToString(" ").lowercase(Locale.US)
         val allText = listOf(label, unit, sourceLabel).joinToString(" ").lowercase(Locale.US)
@@ -1045,8 +1006,14 @@ object TextUsageExtractor {
         }.filterNot { line ->
             ProviderId.CURSOR.isUnsupportedUsageLine(line)
         }
+        val trustedBreakdownLines = normalizedLines.filterNot { it.isCursorUnverifiedDomBreakdownLine() }
+        val cursorLines = if (trustedBreakdownLines.any { it.isCursorTotalUsageLine() }) {
+            trustedBreakdownLines
+        } else {
+            trustedBreakdownLines.filterNot { it.isCursorBreakdownUsageLine() }
+        }
         val deduped = LinkedHashMap<String, ProviderUsageLine>()
-        normalizedLines.forEach { line ->
+        cursorLines.forEach { line ->
             val key = if (line.label.equals("Total usage", ignoreCase = true)) {
                 "cursor-total-usage"
             } else {
@@ -1058,6 +1025,46 @@ object TextUsageExtractor {
             }
         }
         return deduped.values.toList()
+    }
+
+    private fun ProviderUsageLine.isCursorTotalUsageLine(): Boolean {
+        val normalized = normalizedCursorLabel()
+        return normalized in setOf(
+            "total usage",
+            "included usage",
+            "planusage",
+            "plan usage"
+        ) || category.orEmpty().lowercase(Locale.US) == "included_usage"
+    }
+
+    private fun ProviderUsageLine.isCursorBreakdownUsageLine(): Boolean {
+        return normalizedCursorLabel() in setOf(
+            "auto usage",
+            "api usage",
+            "on demand",
+            "on demand usage",
+            "on-demand",
+            "on-demand usage"
+        )
+    }
+
+    private fun ProviderUsageLine.isCursorUnverifiedDomBreakdownLine(): Boolean {
+        return isCursorBreakdownUsageLine() &&
+            sourceLabel.orEmpty().equals("/dashboard/usage-dom", ignoreCase = true) &&
+            usedAmount == null &&
+            limitAmount == null &&
+            remainingAmount == null &&
+            resetText.isNullOrBlank() &&
+            resetsAt.isNullOrBlank()
+    }
+
+    private fun ProviderUsageLine.normalizedCursorLabel(): String {
+        return label
+            .replace('_', ' ')
+            .replace('-', ' ')
+            .replace(WHITESPACE, " ")
+            .trim()
+            .lowercase(Locale.US)
     }
 
     private fun ProviderUsageLine.isBetterCursorLineThan(existing: ProviderUsageLine): Boolean {

@@ -50,6 +50,7 @@ object ProviderCollectionDiagnostics {
                         val statusCode = summary.optInt("s", -1)
                         val limitKeys = summary.optInt("lk", 0)
                         val remainingKeys = summary.optInt("rk", 0)
+                        val usageKeys = summary.optInt("uk", 0)
                         val planKeys = summary.optInt("pk", 0)
                         val keyPaths = summary.optJSONArray("k")
                             ?.let { keys ->
@@ -63,7 +64,19 @@ object ProviderCollectionDiagnostics {
                             ?.takeIf { it.isNotBlank() }
                             ?.let { "[$it]" }
                             .orEmpty()
-                        add("$endpoint:$statusCode/l$limitKeys/r$remainingKeys/p$planKeys$keyPaths")
+                        val metricValues = summary.optJSONArray("v")
+                            ?.let { values ->
+                                buildList {
+                                    for (valueIndex in 0 until values.length().coerceAtMost(4)) {
+                                        val metric = values.optString(valueIndex).trim()
+                                        if (metric.isNotBlank()) add(metric.take(80))
+                                    }
+                                }.joinToString(",")
+                            }
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { "{$it}" }
+                            .orEmpty()
+                        add("$endpoint:$statusCode/l$limitKeys/r$remainingKeys/u$usageKeys/p$planKeys$keyPaths$metricValues")
                     }
                 }.joinToString("|")
             }

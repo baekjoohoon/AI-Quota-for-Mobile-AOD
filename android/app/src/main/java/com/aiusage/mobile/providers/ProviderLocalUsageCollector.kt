@@ -158,8 +158,9 @@ object ProviderLocalUsageCollector {
                 j: false,
                 lk: 0,
                 rk: 0,
-                pk: 0,
-                k: []
+                 pk: 0,
+                k: [],
+                v: []
               };
               var candidate = extractJsonCandidate(text);
               if (candidate) {
@@ -203,11 +204,43 @@ object ProviderLocalUsageCollector {
             if (value.length > 32 || /^[A-Za-z0-9_-]{16,}$/.test(value)) return ":key";
             return value;
           }
-          function rememberKeyPath(summary, path) {
-            if (!summary || !summary.k || summary.k.length >= 8) return;
-            var value = safeText(path).slice(0, 120);
-            if (!value || summary.k.indexOf(value) >= 0) return;
-            summary.k.push(value);
+           function rememberKeyPath(summary, path) {
+             if (!summary || !summary.k || summary.k.length >= 8) return;
+             var value = safeText(path).slice(0, 120);
+             if (!value || summary.k.indexOf(value) >= 0) return;
+             summary.k.push(value);
+           }
+          function rememberNumericMetric(summary, path, value) {
+            if (!summary || !summary.v || summary.v.length >= 8) return;
+            if (!isNumber(value)) return;
+            var safePath = safeText(path).slice(0, 120);
+            if (!safePath) return;
+            var metric = safePath + "=" + Math.round(value * 10000) / 10000;
+            if (summary.v.indexOf(metric) >= 0) return;
+            summary.v.push(metric);
+          }
+          function rememberMetricShape(summary, path, value) {
+            if (!summary || !summary.v || summary.v.length >= 8) return;
+            var safePath = safeText(path).slice(0, 120);
+            if (!safePath) return;
+            var shape = null;
+            if (Array.isArray(value)) {
+              shape = "array:" + value.length;
+            } else if (value && typeof value === "object") {
+              shape = "object:" + Object.keys(value).filter(function(key) {
+                return !shouldSkipKey(key);
+              }).slice(0, 4).map(safeKeySegment).join("/");
+            } else if (typeof value === "string") {
+              shape = "string:" + value.length;
+            } else if (typeof value === "boolean") {
+              shape = "boolean";
+            } else if (value == null) {
+              shape = "null";
+            }
+            if (!shape) return;
+            var metric = safePath + "<" + shape + ">";
+            if (summary.v.indexOf(metric) >= 0) return;
+            summary.v.push(metric);
           }
           function summarizeJsonKeys(value, summary, depth, path) {
             if (!value || depth > 8) return;
@@ -223,9 +256,18 @@ object ProviderLocalUsageCollector {
               var keyPath = path ? path + "." + safeKeySegment(key) : safeKeySegment(key);
               if (/limit|quota|cap|max|allowance|included|rate/i.test(key)) summary.lk += 1;
               if (/remaining|left|available|balance/i.test(key)) summary.rk += 1;
+              if (/used|usage|request|requests|spent|spend|num/i.test(key)) summary.uk = (summary.uk || 0) + 1;
               if (/plan|subscription|tier|entitlement/i.test(key)) summary.pk += 1;
-              if (/limit|quota|cap|max|allowance|included|rate|remaining|left|available|balance|plan|subscription|tier|entitlement/i.test(key)) {
+              if (/limit|quota|cap|max|allowance|included|rate|remaining|left|available|balance|used|usage|request|requests|spent|spend|num|plan|subscription|tier|entitlement/i.test(key)) {
                 rememberKeyPath(summary, keyPath);
+              }
+              if (/limit|quota|cap|max|allowance|included|rate|remaining|left|available|balance|used|usage|request|requests|spent|spend|num/i.test(key)) {
+                var numericValue = parseNumber(value[key]);
+                if (isNumber(numericValue)) {
+                  rememberNumericMetric(summary, keyPath, numericValue);
+                } else {
+                  rememberMetricShape(summary, keyPath, value[key]);
+                }
               }
               summarizeJsonKeys(value[key], summary, depth + 1, keyPath);
             });
@@ -660,10 +702,6 @@ object ProviderLocalUsageCollector {
               attachWindowTimes(limits[limits.length - 1], windowObject || {});
               return;
             }
-            if (isNumber(cap) && cap === 0 && (!isNumber(remaining) || remaining === 0) && (!isNumber(used) || used === 0)) {
-              pushLimit(limits, label, 0, context);
-              attachWindowTimes(limits[limits.length - 1], windowObject || {});
-            }
           }
           function scanCursorPlanUsageObject(planUsage, path, source, limits, windowObject) {
             if (!isCursorPlanUsageObject(planUsage)) return false;
@@ -680,8 +718,6 @@ object ProviderLocalUsageCollector {
             } else if (isNumber(percentUsed)) {
               pushLimit(limits, "Total usage", percentUsed, context);
               attachWindowTimes(limits[limits.length - 1], windowObject || planUsage);
-            } else {
-              pushCursorUsageLine(limits, "Total usage", used, cap, remaining, "USD", context, 0.9, windowObject || planUsage);
             }
 
             var breakdowns = [
@@ -777,9 +813,6 @@ object ProviderLocalUsageCollector {
             if (totalCap > 0) {
               pushAmountLimit(limits, "Total usage", totalUsed, totalCap, Math.max(0, totalCap - totalUsed), "requests", context, 0.92);
               attachWindowTimes(limits[limits.length - 1], value);
-            } else {
-              pushLimit(limits, "Total usage", 0, context);
-              attachWindowTimes(limits[limits.length - 1], value);
             }
             return true;
           }
@@ -802,8 +835,6 @@ object ProviderLocalUsageCollector {
                 var beforeCount = limits.length;
                 if (isNumber(cap) && cap > 0) {
                   pushAmountLimit(limits, "Total usage", null, cap, remaining, "USD", context, 0.96);
-                } else if (isNumber(cap) && cap === 0 && (!isNumber(remaining) || remaining === 0)) {
-                  pushLimit(limits, "Total usage", 0, context);
                 }
                 if (limits.length > beforeCount) attachWindowTimes(limits[limits.length - 1], value);
               }
@@ -1166,21 +1197,6 @@ object ProviderLocalUsageCollector {
               pushAmountLimit(limits, title, used, cap, remaining, unit, source + " " + path.join("."), 0.92);
               attachWindowTimes(limits[limits.length - 1], value);
             }
-            if (PROVIDER_ID === "cursor" && cap == null && used == null) {
-              var remainingCap = propertyNumber(value, ["remainingCap", "remaining_cap", "capRemaining", "cap_remaining"]);
-              if (remainingCap != null) {
-                var capWindowLabel = propertyText(value, ["capWindowLabel", "cap_window_label", "windowLabel", "window_label", "limitType", "limit_type"]);
-                pushRemainingOnlyLimit(
-                  limits,
-                  "Included usage",
-                  remainingCap,
-                  "USD",
-                  source + " " + path.join(".") + " " + (capWindowLabel || ""),
-                  0.84
-                );
-                attachWindowTimes(limits[limits.length - 1], value);
-              }
-            }
             if (
               PROVIDER_ID !== "cursor" &&
               cap == null &&
@@ -1305,6 +1321,33 @@ object ProviderLocalUsageCollector {
           function extractCursorVisibleUsageLimits(text) {
             var limits = [];
             if (PROVIDER_ID !== "cursor" || !hostEndsWith("cursor.com")) return limits;
+            var collapsedText = safeText(text);
+            [
+              "Total usage",
+              "Included usage",
+              "Plan usage",
+              "Auto usage",
+              "API usage",
+              "On-demand",
+              "On-demand usage"
+            ].forEach(function(label) {
+              if (limits.length >= 4) return;
+              var pattern = new RegExp("\\b" + label + "\\b[\\s\\S]{0,260}?([0-9]{1,3}(?:\\.[0-9]+)?)\\s*%\\s*(left|remaining|used)\\b", "ig");
+              var match = pattern.exec(collapsedText);
+              if (!match) return;
+              var amount = parseNumber(match[1]);
+              if (!isNumber(amount)) return;
+              var word = safeText(match[2]).toLowerCase();
+              var utilization = word === "used" ? amount : 100 - amount;
+              pushLimit(limits, label, utilization, "cursor dashboard usage visible " + match[0]);
+              var last = limits[limits.length - 1];
+              if (last) {
+                last.confidence = 0.94;
+                last.source = "/dashboard/usage-visible";
+                last.window = "monthly";
+              }
+            });
+            if (limits.length > 0) return limits;
             var lines = safeText(text)
               .split(/\n+/)
               .map(function(line) { return safeText(line); })
@@ -1334,6 +1377,110 @@ object ProviderLocalUsageCollector {
                 last.window = "monthly";
               }
             }
+            return limits;
+          }
+          function extractCursorDomUsageLimits() {
+            var limits = [];
+            if (PROVIDER_ID !== "cursor" || !hostEndsWith("cursor.com")) return limits;
+            var labelPattern = /(Total usage|Included usage|Plan usage|Auto usage|API usage|On-demand usage|On-demand)/i;
+            var labelNodes = [];
+            try {
+              labelNodes = Array.prototype.slice.call(document.querySelectorAll("body *"), 0, 800).filter(function(node) {
+                var text = safeText(node && (node.innerText || node.textContent));
+                return text.length > 2 && text.length <= 80 && labelPattern.test(text);
+              });
+            } catch (error) {}
+            labelNodes.forEach(function(labelNode) {
+              if (limits.length >= 4 || !labelNode) return;
+              var labelText = safeText(labelNode.innerText || labelNode.textContent);
+              var labelMatch = labelPattern.exec(labelText);
+              if (!labelMatch) return;
+              var label = safeText(labelMatch[1]);
+              var contextNode = labelNode;
+              for (var depth = 0; depth < 7 && contextNode; depth += 1) {
+                var context = safeText(contextNode.innerText || contextNode.textContent);
+                var percentMatch = /([0-9]{1,3}(?:\.[0-9]+)?)\s*%\s*(left|remaining|used)\b/i.exec(context);
+                if (percentMatch) {
+                  var amount = parseNumber(percentMatch[1]);
+                  if (!isNumber(amount)) return;
+                  var word = safeText(percentMatch[2]).toLowerCase();
+                  var utilization = word === "used" ? amount : 100 - amount;
+                  pushLimit(limits, label, utilization, "cursor dashboard usage label-dom " + context.slice(0, 260));
+                  var last = limits[limits.length - 1];
+                  if (last) {
+                    last.confidence = 0.96;
+                    last.source = "/dashboard/usage-dom";
+                    last.window = "monthly";
+                  }
+                  return;
+                }
+                contextNode = contextNode.parentElement;
+              }
+            });
+            if (limits.some(function(limit) {
+              var label = safeText(limit && limit.l).toLowerCase();
+              return label === "total usage" || label === "included usage" || label === "plan usage";
+            })) {
+              return limits;
+            }
+            var nodes = [];
+            try {
+              nodes = Array.prototype.slice.call(document.querySelectorAll(
+                '[role="progressbar"],[aria-valuenow],[aria-valuetext],[aria-label],[style*="width"]'
+              ), 0, 240);
+            } catch (error) {
+              return limits;
+            }
+            nodes.forEach(function(node) {
+              if (limits.length >= 4 || !node) return;
+              var contextNode = node;
+              var context = "";
+              for (var depth = 0; depth < 5 && contextNode; depth += 1) {
+                context = safeText(contextNode.innerText || contextNode.textContent);
+                if (labelPattern.test(context)) break;
+                contextNode = contextNode.parentElement;
+              }
+              var labelMatch = labelPattern.exec(context);
+              if (!labelMatch) return;
+              var label = safeText(labelMatch[1]);
+              var attrText = [
+                node.getAttribute && node.getAttribute("aria-label"),
+                node.getAttribute && node.getAttribute("aria-valuetext"),
+                node.getAttribute && node.getAttribute("title")
+              ].map(safeText).join(" ");
+              var combined = safeText(context + " " + attrText);
+              var percentMatch = /([0-9]{1,3}(?:\.[0-9]+)?)\s*%\s*(left|remaining|used)\b/i.exec(combined);
+              var amount = null;
+              var word = null;
+              if (percentMatch) {
+                amount = parseNumber(percentMatch[1]);
+                word = safeText(percentMatch[2]).toLowerCase();
+              } else {
+                var ariaNow = parseNumber(node.getAttribute && node.getAttribute("aria-valuenow"));
+                var ariaMax = parseNumber(node.getAttribute && node.getAttribute("aria-valuemax")) || 100;
+                if (isNumber(ariaNow) && ariaMax > 0 && /\b(left|remaining|used)\b/i.test(combined)) {
+                  amount = Math.max(0, Math.min(100, ariaNow / ariaMax * 100));
+                  word = /\bused\b/i.test(combined) ? "used" : "left";
+                }
+              }
+              if (!isNumber(amount)) {
+                var styleWidth = safeText(node.style && node.style.width);
+                var widthMatch = /^([0-9]{1,3}(?:\.[0-9]+)?)%$/.exec(styleWidth);
+                if (widthMatch && /\b(left|remaining|used)\b/i.test(combined)) {
+                  amount = parseNumber(widthMatch[1]);
+                  word = /\bused\b/i.test(combined) ? "used" : "left";
+                }
+              }
+              if (!isNumber(amount) || !word) return;
+              var utilization = word === "used" ? amount : 100 - amount;
+              pushLimit(limits, label, utilization, "cursor dashboard usage dom " + combined.slice(0, 260));
+              var last = limits[limits.length - 1];
+              if (last) {
+                last.confidence = 0.95;
+                last.source = "/dashboard/usage-dom";
+                last.window = "monthly";
+              }
+            });
             return limits;
           }
           function shouldUseGenericTextLimits() {
@@ -1592,6 +1739,7 @@ object ProviderLocalUsageCollector {
             var combinedText = rows.filter(Boolean).join('\n');
             var structuredLimits = derivedLimits()
               .concat(extractJsonLimits(rows))
+              .concat(extractCursorDomUsageLimits())
               .concat(extractCursorVisibleUsageLimits(visibleText));
             var limits = cursorStructuredLimits(
               structuredLimits.concat(shouldUseGenericTextLimits() ? extractLimits(combinedText) : [])
@@ -2061,11 +2209,18 @@ object ProviderLocalUsageCollector {
                 var decoded = decodeURIComponent(text);
                 if (decoded && decoded !== text) values.push(decoded);
               } catch (error) {}
-            }
-            try { addValue(document.cookie || ""); } catch (error) {}
-            [safeStorage("localStorage"), safeStorage("sessionStorage")].forEach(function(storage) {
-              if (!storage) return;
-              try {
+             }
+             try { addValue(document.cookie || ""); } catch (error) {}
+             try {
+               var bridge = window.AIUsageLocalCollector;
+               if (bridge && typeof bridge.providerCookies === "function") {
+                 addValue(bridge.providerCookies("https://cursor.com/") || "");
+                 addValue(bridge.providerCookies("https://authenticator.cursor.sh/") || "");
+               }
+             } catch (error) {}
+             [safeStorage("localStorage"), safeStorage("sessionStorage")].forEach(function(storage) {
+               if (!storage) return;
+               try {
                 for (var index = 0; index < storage.length && values.length < 40; index += 1) {
                   var key = storage.key(index);
                   if (!/cursor|workos|auth|token|session/i.test(key || "")) continue;

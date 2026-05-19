@@ -206,6 +206,70 @@ class ProviderModelsTest {
     }
 
     @Test
+    fun cursorLowConfidenceFullDashboardGaugeIsRemovedFromStorage() {
+        val lines = ProviderId.CURSOR.deduplicateUsageLinesForStorage(
+            listOf(
+                ProviderUsageLine(
+                    label = "Total usage",
+                    remainingPercent = 1f,
+                    remainingText = "100% left",
+                    detailText = "0% used",
+                    severity = UsageSeverity.NORMAL,
+                    category = "usage_window",
+                    windowText = "monthly",
+                    sourceLabel = "/dashboard",
+                    confidence = 0.7f
+                )
+            )
+        )
+
+        assertTrue(lines.isEmpty())
+    }
+
+    @Test
+    fun cursorDashboardPercentWithoutCounterEvidenceIsRemovedFromStorage() {
+        val lines = ProviderId.CURSOR.deduplicateUsageLinesForStorage(
+            listOf(
+                ProviderUsageLine(
+                    label = "Total usage",
+                    remainingPercent = 0.1f,
+                    remainingText = "10% left",
+                    detailText = "90% used",
+                    severity = UsageSeverity.DANGER,
+                    category = "usage_window",
+                    windowText = "monthly",
+                    sourceLabel = "/dashboard",
+                    confidence = 0.93f
+                )
+            )
+        )
+
+        assertTrue(lines.isEmpty())
+    }
+
+    @Test
+    fun cursorUsageSummaryPercentOnlyFullGaugeIsRemovedFromStorage() {
+        val lines = ProviderId.CURSOR.deduplicateUsageLinesForStorage(
+            listOf(
+                ProviderUsageLine(
+                    label = "Total usage",
+                    remainingPercent = 1f,
+                    remainingText = "100% left",
+                    detailText = "0% used",
+                    severity = UsageSeverity.NORMAL,
+                    category = "usage_window",
+                    windowText = "monthly",
+                    resetsAt = "2026-06-17T06:32:31Z",
+                    sourceLabel = "/api/usage-summary",
+                    confidence = 0.92f
+                )
+            )
+        )
+
+        assertTrue(lines.isEmpty())
+    }
+
+    @Test
     fun fromStorageIdMatchesCaseInsensitivelyAndRejectsUnknowns() {
         assertEquals(ProviderId.CLAUDE, ProviderId.fromStorageId("CLAUDE"))
         assertEquals(ProviderId.CODEX, ProviderId.fromStorageId("Codex"))

@@ -44,6 +44,7 @@ class WebLoginActivity : Activity() {
     private var codexOAuthCompletionStarted = false
     private var geminiOAuthCompletionStarted = false
     private var claudeSessionVerificationInFlight = false
+    private var cursorAuthenticatorRecoveryAttempts = 0
     private val popupViews = mutableListOf<WebView>()
     private val popupContainers = mutableMapOf<WebView, FrameLayout>()
 
@@ -161,6 +162,12 @@ class WebLoginActivity : Activity() {
                                 ProviderCollectionDiagnostics.safeUrl(errorUrl)
                         )
                         finishConnectedCaptureWithoutUsage(providerId)
+                    } else if (maybeRecoverCursorAuthenticatorError(providerId, this, errorUrl)) {
+                        Log.d(
+                            ProviderCollectionDiagnostics.TAG,
+                            "login cursorAuthenticatorRecover provider=${providerId.storageId} url=" +
+                                ProviderCollectionDiagnostics.safeUrl(errorUrl)
+                        )
                     } else {
                         Log.w(
                             ProviderCollectionDiagnostics.TAG,
@@ -296,6 +303,25 @@ class WebLoginActivity : Activity() {
         }
         popupViews.remove(window)
         window.destroy()
+    }
+
+    private fun maybeRecoverCursorAuthenticatorError(
+        providerId: ProviderId,
+        target: WebView,
+        url: String?
+    ): Boolean {
+        if (!isCursorAuthenticatorUrl(providerId, url)) return false
+        if (cursorAuthenticatorRecoveryAttempts >= MAX_CURSOR_AUTHENTICATOR_RECOVERY_ATTEMPTS) return false
+        cursorAuthenticatorRecoveryAttempts += 1
+        target.postDelayed(
+            {
+                if (!isFinishing && !connectionRecorded && !usageRecorded) {
+                    target.loadUrl(CURSOR_DASHBOARD_URL)
+                }
+            },
+            CURSOR_AUTHENTICATOR_RECOVERY_DELAY_MS
+        )
+        return true
     }
 
     private fun systemBarDimensionPx(name: String): Int {
@@ -720,6 +746,14 @@ class WebLoginActivity : Activity() {
                 )
             }
         }
+
+        @JavascriptInterface
+        fun providerCookies(url: String?): String {
+            if (providerId != ProviderId.CURSOR) return ""
+            val candidateUrl = url?.trim().orEmpty()
+            if (!ProviderHostAllowlist.isAllowed(providerId, candidateUrl)) return ""
+            return CookieManager.getInstance().getCookie(candidateUrl).orEmpty()
+        }
     }
 
     private class UsageWebChromeClient(
@@ -775,6 +809,9 @@ class WebLoginActivity : Activity() {
         private const val MAX_USAGE_CAPTURE_ATTEMPTS = 4
         private const val POPUP_CLOSE_REFRESH_DELAY_MS = 300L
         private const val WEB_LOGIN_TOP_SAFE_PADDING_DP = 12
+        private const val MAX_CURSOR_AUTHENTICATOR_RECOVERY_ATTEMPTS = 2
+        private const val CURSOR_AUTHENTICATOR_RECOVERY_DELAY_MS = 1_500L
+        private const val CURSOR_DASHBOARD_URL = "https://cursor.com/dashboard"
         fun createIntent(context: Context, providerId: ProviderId, startUrl: String): Intent {
             return Intent(context, WebLoginActivity::class.java)
                 .putExtra(EXTRA_PROVIDER_ID, providerId.storageId)

@@ -1063,6 +1063,15 @@ class ProviderUsageCollectionService : Service() {
                 service.handleBridgeUsagePayload(payload.orEmpty())
             }
         }
+
+        @JavascriptInterface
+        fun providerCookies(url: String?): String {
+            val provider = service.providerId ?: return ""
+            if (provider != ProviderId.CURSOR) return ""
+            val candidateUrl = url?.trim().orEmpty()
+            if (!ProviderHostAllowlist.isAllowed(provider, candidateUrl)) return ""
+            return CookieManager.getInstance().getCookie(candidateUrl).orEmpty()
+        }
     }
 
     companion object {

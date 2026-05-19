@@ -989,7 +989,7 @@ class TextUsageExtractorTest {
     }
 
     @Test
-    fun extractsCursorIncludedUsageWhenPlanLimitIsZero() {
+    fun rejectsCursorZeroUsdLimitAsUsageGauge() {
         val snapshot = TextUsageExtractor.extract(
             providerId = ProviderId.CURSOR,
             visibleText = """
@@ -1015,13 +1015,9 @@ class TextUsageExtractorTest {
             """.trimIndent()
         )
 
-        val line = snapshot.lines.single()
         assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
         assertEquals("Free", snapshot.planLabel)
-        assertEquals("Total usage", line.label)
-        assertEquals(1f, line.remainingPercent)
-        assertEquals("100% left", line.remainingText)
-        assertEquals("usage_window", line.category)
+        assertTrue(snapshot.lines.isEmpty())
     }
 
     @Test
@@ -1119,7 +1115,7 @@ class TextUsageExtractorTest {
     }
 
     @Test
-    fun extractsCursorDashboardAppStateUsageWithBillingWindow() {
+    fun rejectsCursorLowConfidenceDashboardFullUsage() {
         val snapshot = TextUsageExtractor.extract(
             providerId = ProviderId.CURSOR,
             visibleText = """
@@ -1145,12 +1141,8 @@ class TextUsageExtractorTest {
             """.trimIndent()
         )
 
-        val line = snapshot.lines.single()
-        assertEquals("Total usage", line.label)
-        assertEquals(1f, line.remainingPercent)
-        assertEquals("2026-05-17T06:32:31.075Z", line.startsAt)
-        assertEquals("2026-06-17T06:32:31.075Z", line.resetsAt)
-        assertEquals("/dashboard", line.sourceLabel)
+        assertEquals("Free", snapshot.planLabel)
+        assertTrue(snapshot.lines.isEmpty())
     }
 
     @Test
@@ -1196,7 +1188,74 @@ class TextUsageExtractorTest {
     }
 
     @Test
-    fun prefersCursorTotalUsageGaugeOverRemainingOnlyFallback() {
+    fun rejectsCursorBreakdownOnlyDashboardUsage() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.CURSOR,
+            visibleText = """
+                {
+                  "s": "s",
+                  "provider": "cursor",
+                  "d": {
+                    "p": "Free",
+                    "x": [
+                      {
+                        "l": "On-demand",
+                        "u": 16,
+                        "window": "monthly",
+                        "source": "/dashboard/usage-dom",
+                        "confidence": 0.95
+                      }
+                    ]
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals("Free", snapshot.planLabel)
+        assertTrue(snapshot.lines.isEmpty())
+    }
+
+    @Test
+    fun keepsCursorDashboardTotalUsageWhenPresent() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.CURSOR,
+            visibleText = """
+                {
+                  "s": "s",
+                  "provider": "cursor",
+                  "d": {
+                    "p": "Free",
+                    "x": [
+                      {
+                        "l": "Total usage",
+                        "u": 4,
+                        "window": "monthly",
+                        "resetsAt": "2026-06-17T06:32:31Z",
+                        "source": "/dashboard/usage-dom",
+                        "confidence": 0.96
+                      },
+                      {
+                        "l": "On-demand",
+                        "u": 16,
+                        "window": "monthly",
+                        "source": "/dashboard/usage-dom",
+                        "confidence": 0.95
+                      }
+                    ]
+                  }
+                }
+            """.trimIndent()
+        )
+
+        val line = snapshot.lines.first()
+        assertEquals(1, snapshot.lines.size)
+        assertEquals("Total usage", line.label)
+        assertEquals(0.96f, line.remainingPercent ?: -1f, 0.0001f)
+        assertEquals("2026-06-17T06:32:31Z", line.resetsAt)
+    }
+
+    @Test
+    fun rejectsCursorPercentOnlyUsageSummaryWithoutAmountEvidence() {
         val snapshot = TextUsageExtractor.extract(
             providerId = ProviderId.CURSOR,
             visibleText = """
@@ -1228,11 +1287,8 @@ class TextUsageExtractorTest {
             """.trimIndent()
         )
 
-        val line = snapshot.lines.single()
-        assertEquals("Total usage", line.label)
-        assertEquals(1f, line.remainingPercent)
-        assertEquals("100% left", line.remainingText)
-        assertEquals("2026-06-17T06:32:31Z", line.resetsAt)
+        assertEquals("Free", snapshot.planLabel)
+        assertTrue(snapshot.lines.isEmpty())
     }
 
     @Test

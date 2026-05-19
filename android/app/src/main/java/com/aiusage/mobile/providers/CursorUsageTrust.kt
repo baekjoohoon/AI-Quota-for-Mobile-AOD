@@ -25,6 +25,13 @@ internal fun ProviderUsageLine.isTrustedCursorUsageLine(): Boolean {
     val knownUsageLine = normalizedLabel in CURSOR_USAGE_LABELS || modelRequestLine
     if (!knownUsageLine) return false
 
+    val unsupportedDashboardPercentLine = remainingPercent != null &&
+        usedAmount == null &&
+        limitAmount == null &&
+        remainingAmount == null &&
+        normalizedSource == "/dashboard"
+    if (unsupportedDashboardPercentLine) return false
+
     val trustedSource = CURSOR_USAGE_SOURCES.any { it in normalizedSource }
     val hasWindowEvidence = !startsAt.isNullOrBlank() ||
         !resetsAt.isNullOrBlank() ||
