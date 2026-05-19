@@ -44,17 +44,14 @@ class ProviderUsageProbeTargetsTest {
     }
 
     @Test
-    fun cursorChecksDashboardAndAccountApiSurfaces() {
+    fun cursorLoadsDashboardSurfacesAsMainFramesOnly() {
         val urls = ProviderUsageProbeTargets.urls(ProviderId.CURSOR)
 
+        assertTrue(urls.contains("https://cursor.com/dashboard"))
         assertTrue(urls.contains("https://cursor.com/dashboard/usage"))
-        assertTrue(urls.contains("https://cursor.com/api/usage"))
-        assertTrue(urls.contains("https://cursor.com/api/usage-summary"))
-        assertTrue(urls.contains("https://cursor.com/api/subscription"))
-        assertTrue(urls.contains("https://cursor.com/api/me"))
-        assertTrue(urls.contains("https://cursor.com/api/dashboard/get-plan-info"))
-        assertTrue(urls.contains("https://api2.cursor.sh/auth/usage"))
-        assertTrue(urls.contains("https://api2.cursor.sh/auth/me"))
+        assertTrue(urls.contains("https://cursor.com/settings"))
+        assertFalse(urls.any { url -> url.contains("/api/") })
+        assertFalse(urls.any { url -> url.contains("api2.cursor.sh") })
     }
 
     @Test

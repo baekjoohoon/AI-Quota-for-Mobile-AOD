@@ -39,17 +39,7 @@ object ProviderUsageProbeTargets {
             ProviderId.CURSOR -> listOf(
                 "https://cursor.com/dashboard",
                 "https://cursor.com/dashboard/usage",
-                "https://cursor.com/settings",
-                "https://cursor.com/api/usage",
-                "https://cursor.com/api/usage-summary",
-                "https://cursor.com/api/subscription",
-                "https://cursor.com/api/billing",
-                "https://cursor.com/api/me",
-                "https://cursor.com/api/dashboard/get-plan-info",
-                "https://cursor.com/api/dashboard/get-current-billing-cycle",
-                "https://cursor.com/api/dashboard/get-credit-grants-balance",
-                "https://api2.cursor.sh/auth/usage",
-                "https://api2.cursor.sh/auth/me"
+                "https://cursor.com/settings"
             )
         }.filter { url -> ProviderHostAllowlist.isAllowed(providerId, url) }
     }

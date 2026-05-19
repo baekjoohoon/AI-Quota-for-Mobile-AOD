@@ -1304,6 +1304,33 @@ object ProviderLocalUsageCollector {
             }
             return limits;
           }
+          function shouldUseGenericTextLimits() {
+            return PROVIDER_ID !== "cursor";
+          }
+          function cursorStructuredLimits(limits) {
+            if (PROVIDER_ID !== "cursor") return limits;
+            return (limits || []).filter(function(limit) {
+              var label = safeText(limit && limit.l).replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+              var unit = safeText(limit && limit.unit).toLowerCase();
+              var source = safeText(limit && limit.source).toLowerCase();
+              var category = safeText(limit && limit.category).toLowerCase();
+              if (!label || label === "md" || unit === "md") return false;
+              if (/\b(sitemap|completed)\b/.test([label, unit, source].join(" "))) return false;
+              var knownLabel = /^(included usage|planusage|plan usage|total usage|auto usage|api usage|on[- ]?demand(?: usage)?|request usage|requests)$/.test(label) ||
+                /^gpt\s*\d/.test(label) ||
+                /^claude\s*\d/.test(label);
+              if (!knownLabel) return false;
+              var trustedSource = /\/dashboard|\/api\/dashboard|\/api\/usage|\/api\/usage-summary|\/api\/subscription|\/auth\/usage|planusage|requestusage|individualusage/.test(source);
+              var hasWindow = !!(limit.r || limit.s || limit.t);
+              var hasMetric = limit.u !== undefined ||
+                limit.limit !== undefined ||
+                limit.remaining !== undefined ||
+                limit.used !== undefined;
+              var hasSchema = /^(usd|requests?|percent)$/.test(unit) ||
+                /^(usage_window|included_usage|fast_requests|requests|messages)$/.test(category);
+              return hasMetric && (trustedSource || hasWindow || hasSchema);
+            });
+          }
           function hasLoginPrompt(text) {
             var value = safeText(text).toLowerCase();
             if (!value) return false;
@@ -1528,7 +1555,10 @@ object ProviderLocalUsageCollector {
               .concat(collectStorage(safeStorage('sessionStorage'), 'sessionStorage'))
               .concat(window.__AI_USAGE_PROVIDER_EVENTS__ || []);
             var combinedText = rows.filter(Boolean).join('\n');
-            var limits = derivedLimits().concat(extractJsonLimits(rows)).concat(extractLimits(combinedText)).slice(0, 8);
+            var structuredLimits = derivedLimits().concat(extractJsonLimits(rows));
+            var limits = cursorStructuredLimits(
+              structuredLimits.concat(shouldUseGenericTextLimits() ? extractLimits(combinedText) : [])
+            ).slice(0, 8);
             var plan = derivedPlans()[0] || findTrustedPlan(rows) || findStructuredPlan(rows) || findVisiblePaidPlan(visibleText);
             var providerPage = PROVIDER_LABEL_PATTERN.test(combinedText);
             var authenticatedApp = authenticatedAppShellMarker(visibleText) || authenticatedEndpointMarker();
@@ -1941,6 +1971,10 @@ object ProviderLocalUsageCollector {
             fetchClaudeScopedEndpoints(text);
             fetchAccountScopedEndpoints(text);
           }
+          function fetchCursorDashboardEndpoints() {
+            if (PROVIDER_ID !== "cursor" || !isProviderOrigin()) return;
+            providerEndpointCandidates().forEach(fetchEndpoint);
+          }
           function fetchProviderEndpoints() {
             if (!isProviderOrigin()) return;
             if (window.__AI_USAGE_ENDPOINT_PROBES_STARTED__) return;
@@ -1949,6 +1983,10 @@ object ProviderLocalUsageCollector {
               fetchClaudeScopedEndpoints(document.cookie || "");
             }
             fetchGeminiQuotaEndpoints();
+            if (PROVIDER_ID === "cursor") {
+              fetchCursorDashboardEndpoints();
+              return;
+            }
             var endpoints = providerEndpointCandidates();
             endpoints.forEach(fetchEndpoint);
           }

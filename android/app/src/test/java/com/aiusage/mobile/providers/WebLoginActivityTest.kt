@@ -66,4 +66,24 @@ class WebLoginActivityTest {
             )
         )
     }
+
+    @Test
+    fun detectsCursorAuthenticatorRedirectPage() {
+        assertTrue(
+            isCursorAuthenticatorUrl(
+                provider = com.aiusage.mobile.local.ProviderId.CURSOR,
+                url = "https://authenticator.cursor.sh/"
+            )
+        )
+    }
+
+    @Test
+    fun rejectsCursorAuthenticatorForOtherProviders() {
+        assertFalse(
+            isCursorAuthenticatorUrl(
+                provider = com.aiusage.mobile.local.ProviderId.CLAUDE,
+                url = "https://authenticator.cursor.sh/"
+            )
+        )
+    }
 }

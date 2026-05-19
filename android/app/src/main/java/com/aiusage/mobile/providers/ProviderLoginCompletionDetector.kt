@@ -72,7 +72,7 @@ object ProviderLoginCompletionDetector {
                 hostEndsWith(url, "chat.openai.com"))
             ProviderId.GEMINI -> hostEndsWith(url, "gemini.google.com")
             ProviderId.COPILOT -> hostEndsWith(url, "github.com") || hostEndsWith(url, "githubcopilot.com")
-            ProviderId.CURSOR -> hostEndsWith(url, "cursor.com") || hostEndsWith(url, "cursor.sh")
+            ProviderId.CURSOR -> hostEndsWith(url, "cursor.com")
         }
     }
 
@@ -117,7 +117,7 @@ object ProviderLoginCompletionDetector {
 
     private fun isCursorComplete(url: String, text: String): Boolean {
         if (containsAny(text, cursorLoggedOutPrompts)) return false
-        return (hostEndsWith(url, "cursor.com") || hostEndsWith(url, "cursor.sh")) &&
+        return hostEndsWith(url, "cursor.com") &&
             containsAny(text, cursorAuthenticatedPrompts)
     }
 

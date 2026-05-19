@@ -305,6 +305,8 @@ provider 응답이 used percent만 주면 앱은 `remainingPercent = 1 - usedPer
 
 - 시작 URL: `https://cursor.com/dashboard`
 - Cursor WebView 세션과 dashboard JSON/network/상태 응답을 사용한다.
+- main-frame probe는 `dashboard`, `dashboard/usage`, `settings` 같은 앱 shell 화면만 로드한다.
+- `/api/*`, `api2.cursor.sh/auth/*`는 main-frame으로 직접 로드하지 않는다. dashboard 앱 shell이 열린 뒤 같은 WebView 세션에서 `credentials: include` fetch와 network hook으로 수집한다.
 
 ### plan 수집
 
@@ -365,7 +367,10 @@ Cursor는 세 구조를 모두 지원해야 한다.
 
 - `remainingCap`만 있는 낮은 confidence line은 더 신뢰도 높은 `Total usage`가 있으면 우선순위에서 밀려야 한다.
 - `completed`, `sitemap`, 마케팅 텍스트는 저장하면 안 된다.
-- Cursor는 `isCursorLiveCounterLine()` 기준을 통과해야 live counter로 취급한다.
+- Cursor는 `isTrustedCursorUsageLine()` 기준을 통과해야 live counter로 취급한다.
+- `source="/"`, label `Md`, unit `md`, generic `2 of 3 left` 같은 DOM text fallback은 저장하면 안 된다.
+- Cursor에서 generic visible text fallback은 사용하지 않는다. 실제 원천은 dashboard network response, app-state JSON, storage/script JSON 안의 `planUsage`, request usage, `individualUsage` schema여야 한다.
+- 새 refresh에서 schema 기반 line을 못 찾으면 숫자를 발명하지 않고 마지막 정상 Cursor snapshot만 유지한다.
 
 ## 문제 발생 시 확인 절차
 

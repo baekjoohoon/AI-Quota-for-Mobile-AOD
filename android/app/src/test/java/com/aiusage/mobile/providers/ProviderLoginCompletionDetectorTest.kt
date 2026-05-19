@@ -333,6 +333,31 @@ class ProviderLoginCompletionDetectorTest {
     }
 
     @Test
+    fun rejectsCursorAuthenticatorStructuredPayloadBeforeDashboardReturn() {
+        assertFalse(
+            ProviderLoginCompletionDetector.isLoginComplete(
+                providerId = ProviderId.CURSOR,
+                url = "https://authenticator.cursor.sh/",
+                visibleText = """
+                    {
+                      "s": "s",
+                      "provider": "cursor",
+                      "c": {
+                        "login": false,
+                        "providerPage": true,
+                        "authenticatedApp": true,
+                        "textLength": 151
+                      },
+                      "d": {
+                        "x": []
+                      }
+                    }
+                """.trimIndent()
+            )
+        )
+    }
+
+    @Test
     fun detectsStructuredCursorPayloadWithUsageDataAndHiddenDomText() {
         assertTrue(
             ProviderLoginCompletionDetector.isLoginComplete(

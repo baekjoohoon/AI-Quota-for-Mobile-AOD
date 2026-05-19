@@ -332,6 +332,10 @@ class ProviderLocalUsageCollectorTest {
         assertTrue(script.contains("membershipType"))
         assertTrue(script.contains("planInfo"))
         assertTrue(script.contains("billingCycleStart"))
+        assertTrue(script.contains("cursorStructuredLimits"))
+        assertTrue(script.contains("shouldUseGenericTextLimits"))
+        assertTrue(script.contains("return PROVIDER_ID !== \"cursor\""))
+        assertTrue(script.contains("fetchCursorDashboardEndpoints"))
     }
 
     @Test

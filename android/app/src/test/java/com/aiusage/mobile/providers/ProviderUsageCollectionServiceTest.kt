@@ -53,4 +53,28 @@ class ProviderUsageCollectionServiceTest {
             )
         )
     }
+
+    @Test
+    fun waitsForCursorAuthenticatorRedirectInsteadOfAdvancingProbe() {
+        assertTrue(
+            shouldWaitForCursorAuthenticatorRedirect(
+                provider = ProviderId.CURSOR,
+                completed = false,
+                attempt = 0,
+                url = "https://authenticator.cursor.sh/"
+            )
+        )
+    }
+
+    @Test
+    fun stopsWaitingForCursorAuthenticatorAfterMaxAttempts() {
+        assertFalse(
+            shouldWaitForCursorAuthenticatorRedirect(
+                provider = ProviderId.CURSOR,
+                completed = false,
+                attempt = 8,
+                url = "https://authenticator.cursor.sh/"
+            )
+        )
+    }
 }

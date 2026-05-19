@@ -318,6 +318,11 @@ class ProviderUsageCollectionService : Service() {
             scheduleUsageEvaluation(url)
             return
         }
+        if (shouldWaitForCursorAuthenticatorRedirect(provider, completed, currentAttempt, url)) {
+            currentAttempt += 1
+            scheduleUsageEvaluation(url)
+            return
+        }
         loadNextProbeUrl()
     }
 
@@ -838,6 +843,7 @@ class ProviderUsageCollectionService : Service() {
     private fun com.aiusage.mobile.local.ProviderUsageLine.isTrustedCounterLine(): Boolean {
         if (isPlanOnlyLine()) return false
         if (isDerivedDefaultLine()) return false
+        if (providerId == ProviderId.CURSOR) return isTrustedCursorUsageLine()
         val labelText = listOf(label, unit).joinToString(" ").lowercase()
         val allText = listOf(label, unit, sourceLabel).joinToString(" ").lowercase()
         if (Regex("""\b(sitemap|completed)\b""").containsMatchIn(labelText)) return false
@@ -864,11 +870,7 @@ class ProviderUsageCollectionService : Service() {
     }
 
     private fun com.aiusage.mobile.local.ProviderUsageLine.isCursorLiveCounterLine(): Boolean {
-        if (remainingPercent != null) return true
-        if (limitAmount != null && limitAmount > 0.0) return true
-        if (!resetsAt.isNullOrBlank()) return true
-        val source = sourceLabel.orEmpty().lowercase()
-        return "usage-summary" in source || "planusage" in source || "requestusage" in source
+        return isTrustedCursorUsageLine()
     }
 
     private fun com.aiusage.mobile.local.ProviderUsageLine.isDerivedDefaultLine(): Boolean {
@@ -1097,6 +1099,16 @@ internal fun shouldWaitForClaudeDirectUsageResult(
     if (provider != ProviderId.CLAUDE || !directUsageStarted || completed) return false
     val candidateUrl = url ?: return true
     return CLAUDE_DIRECT_USAGE_API_PATH.containsMatchIn(candidateUrl)
+}
+
+internal fun shouldWaitForCursorAuthenticatorRedirect(
+    provider: ProviderId,
+    completed: Boolean,
+    attempt: Int,
+    url: String?
+): Boolean {
+    if (provider != ProviderId.CURSOR || completed || attempt >= 8) return false
+    return isCursorAuthenticatorUrl(provider, url)
 }
 
 private val CLAUDE_DIRECT_USAGE_API_PATH = Regex(

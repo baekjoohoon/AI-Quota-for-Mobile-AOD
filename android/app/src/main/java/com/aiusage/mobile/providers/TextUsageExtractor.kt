@@ -553,7 +553,10 @@ object TextUsageExtractor {
         val planLabel = structuredPlanLabel(providerId, plan, lines)
 
         if (lines.isEmpty()) {
-            if (rawLines.isNotEmpty()) {
+            val cursorPlanOnlyAfterDiscard = providerId == ProviderId.CURSOR &&
+                planLabel != null &&
+                rawLines.none { it.hasBlockedNavigationCounterText() }
+            if (rawLines.isNotEmpty() && !cursorPlanOnlyAfterDiscard) {
                 return ProviderUsageSnapshot.unavailable(
                     providerId = providerId,
                     message = response.optNullableString("m")
@@ -584,6 +587,7 @@ object TextUsageExtractor {
         providerId: ProviderId,
         normalized: NormalizedText
     ): ProviderUsageSnapshot? {
+        if (providerId == ProviderId.CURSOR) return null
         val usageMatch = USAGE_PERCENT.find(normalized.fullText) ?: return null
         val percent = usageMatch.groupValues[1].toDoubleOrNull() ?: return null
         val ratio = (percent / 100.0).coerceIn(0.0, 1.0).toFloat()
@@ -608,6 +612,7 @@ object TextUsageExtractor {
         providerId: ProviderId,
         normalized: NormalizedText
     ): ProviderUsageSnapshot? {
+        if (providerId == ProviderId.CURSOR) return null
         val usageMatch = USED_OF_LIMIT_WITH_USED.find(normalized.fullText)
             ?: USED_OF_LIMIT.find(normalized.fullText)
             ?: return null
@@ -642,6 +647,7 @@ object TextUsageExtractor {
         providerId: ProviderId,
         normalized: NormalizedText
     ): ProviderUsageSnapshot? {
+        if (providerId == ProviderId.CURSOR) return null
         val usageMatch = COUNT_REMAINING.find(normalized.fullText) ?: return null
         val remaining = usageMatch.groupValues[1].toCountOrNull() ?: return null
         val unit = usageMatch.groupValues[2].trim().ifBlank { "items" }
@@ -811,6 +817,11 @@ object TextUsageExtractor {
         return false
     }
 
+    private fun ProviderUsageLine.hasBlockedNavigationCounterText(): Boolean {
+        val text = listOf(label, unit, sourceLabel).joinToString(" ").lowercase(Locale.US)
+        return Regex("""\b(sitemap|completed)\b""").containsMatchIn(text)
+    }
+
     private fun normalizeProviderLines(
         providerId: ProviderId,
         lines: List<ProviderUsageLine>,
@@ -937,7 +948,9 @@ object TextUsageExtractor {
     }
 
     private fun normalizeCursorUsageLines(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {
-        val normalizedLines = lines.map { line ->
+        val normalizedLines = lines.filter { line ->
+            line.isTrustedCursorUsageLine()
+        }.map { line ->
             val normalized = line.label
                 .replace('_', ' ')
                 .replace('-', ' ')

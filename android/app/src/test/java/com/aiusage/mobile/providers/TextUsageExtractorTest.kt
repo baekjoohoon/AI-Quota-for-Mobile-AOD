@@ -1018,6 +1018,83 @@ class TextUsageExtractorTest {
     }
 
     @Test
+    fun extractsCursorDashboardAppStateUsageWithBillingWindow() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.CURSOR,
+            visibleText = """
+                {
+                  "s": "s",
+                  "provider": "cursor",
+                  "d": {
+                    "p": "Free",
+                    "x": [
+                      {
+                        "l": "Total usage",
+                        "u": 0,
+                        "category": "usage_window",
+                        "window": "monthly",
+                        "startsAt": "2026-05-17T06:32:31.075Z",
+                        "resetsAt": "2026-06-17T06:32:31.075Z",
+                        "source": "/dashboard",
+                        "confidence": 0.7
+                      }
+                    ]
+                  }
+                }
+            """.trimIndent()
+        )
+
+        val line = snapshot.lines.single()
+        assertEquals("Total usage", line.label)
+        assertEquals(1f, line.remainingPercent)
+        assertEquals("2026-05-17T06:32:31.075Z", line.startsAt)
+        assertEquals("2026-06-17T06:32:31.075Z", line.resetsAt)
+        assertEquals("/dashboard", line.sourceLabel)
+    }
+
+    @Test
+    fun ignoresCursorMarkdownCountFallbackFromRootPage() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.CURSOR,
+            visibleText = """
+                {
+                  "s": "s",
+                  "provider": "cursor",
+                  "d": {
+                    "p": "Free",
+                    "x": [
+                      {
+                        "l": "Md",
+                        "used": 1,
+                        "limit": 3,
+                        "remaining": 2,
+                        "unit": "md",
+                        "source": "/",
+                        "confidence": 0.85
+                      }
+                    ]
+                  }
+                }
+            """.trimIndent()
+        )
+
+        assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
+        assertEquals("Free", snapshot.planLabel)
+        assertTrue(snapshot.lines.isEmpty())
+    }
+
+    @Test
+    fun doesNotUseGenericTextFallbackForCursorUsage() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.CURSOR,
+            visibleText = "Cursor markdown docs 2 of 3 md left and 1 of 2 md left"
+        )
+
+        assertEquals(ProviderConnectionState.UNAVAILABLE, snapshot.connectionState)
+        assertTrue(snapshot.lines.isEmpty())
+    }
+
+    @Test
     fun prefersCursorTotalUsageGaugeOverRemainingOnlyFallback() {
         val snapshot = TextUsageExtractor.extract(
             providerId = ProviderId.CURSOR,
