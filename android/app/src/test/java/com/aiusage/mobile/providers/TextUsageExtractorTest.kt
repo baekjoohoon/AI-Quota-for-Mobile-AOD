@@ -1025,6 +1025,44 @@ class TextUsageExtractorTest {
     }
 
     @Test
+    fun extractsCursorFreeUsdRemainingAsTotalUsageGauge() {
+        val snapshot = TextUsageExtractor.extract(
+            providerId = ProviderId.CURSOR,
+            visibleText = """
+                {
+                  "s": "s",
+                  "provider": "cursor",
+                  "d": {
+                    "p": "Free",
+                    "x": [
+                      {
+                        "l": "Total usage",
+                        "remaining": 10,
+                        "unit": "USD",
+                        "category": "included_usage",
+                        "window": "monthly",
+                        "source": "/dashboard",
+                        "confidence": 0.84
+                      }
+                    ]
+                  }
+                }
+            """.trimIndent()
+        )
+
+        val line = snapshot.lines.single()
+        assertEquals("Free", snapshot.planLabel)
+        assertEquals("Total usage", line.label)
+        assertEquals(1f, line.remainingPercent)
+        assertEquals("10 of 10 USD left", line.remainingText)
+        assertEquals("0 used of 10", line.detailText)
+        assertEquals(0.0, line.usedAmount)
+        assertEquals(10.0, line.limitAmount)
+        assertEquals(10.0, line.remainingAmount)
+        assertEquals("included_usage", line.category)
+    }
+
+    @Test
     fun extractsCursorPlanUsageAsTotalUsage() {
         val snapshot = TextUsageExtractor.extract(
             providerId = ProviderId.CURSOR,

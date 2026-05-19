@@ -165,6 +165,7 @@ class LocalUsageRepository(context: Context) {
     }
 
     private fun ProviderUsageSnapshot.normalized(): ProviderUsageSnapshot {
+        val normalizedPlanLabel = providerId.normalizedPlanLabelForDisplay(planLabel)
         val normalizedLines = lines.map { line ->
             line.copy(
                 label = providerId.normalizedUsageLineLabelForDisplay(line.label.ifBlank { "Usage" }),
@@ -174,8 +175,8 @@ class LocalUsageRepository(context: Context) {
         }.filter { line -> providerId.isSupportedUsageLineLabel(line.label) }
         return copy(
             displayName = providerId.normalizedDisplayName(displayName),
-            planLabel = providerId.normalizedPlanLabelForDisplay(planLabel),
-            lines = providerId.deduplicateUsageLinesForStorage(normalizedLines)
+            planLabel = normalizedPlanLabel,
+            lines = providerId.normalizeUsageLinesForStorage(normalizedPlanLabel, normalizedLines)
         ).withRecoveredStaleProgress()
     }
 

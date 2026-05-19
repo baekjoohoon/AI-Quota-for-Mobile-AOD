@@ -160,6 +160,35 @@ class ProviderModelsTest {
     }
 
     @Test
+    fun cursorFreeUsdRemainingRestoresGaugeForStoredSnapshots() {
+        val lines = ProviderId.CURSOR.normalizeUsageLinesForStorage(
+            planLabel = "Free",
+            lines = listOf(
+                ProviderUsageLine(
+                    label = "Total usage",
+                    remainingPercent = null,
+                    remainingText = "10 USD left",
+                    remainingAmount = 10.0,
+                    unit = "USD",
+                    category = "included_usage",
+                    windowText = "monthly",
+                    sourceLabel = "/dashboard",
+                    confidence = 0.84f
+                )
+            )
+        )
+
+        val line = lines.single()
+        assertEquals("Total usage", line.label)
+        assertEquals(1f, line.remainingPercent)
+        assertEquals("10 of 10 USD left", line.remainingText)
+        assertEquals("0 used of 10", line.detailText)
+        assertEquals(0.0, line.usedAmount)
+        assertEquals(10.0, line.limitAmount)
+        assertEquals(10.0, line.remainingAmount)
+    }
+
+    @Test
     fun fromStorageIdMatchesCaseInsensitivelyAndRejectsUnknowns() {
         assertEquals(ProviderId.CLAUDE, ProviderId.fromStorageId("CLAUDE"))
         assertEquals(ProviderId.CODEX, ProviderId.fromStorageId("Codex"))

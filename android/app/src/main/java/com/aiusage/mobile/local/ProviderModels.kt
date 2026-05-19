@@ -1,5 +1,8 @@
 package com.aiusage.mobile.local
 
+import java.math.RoundingMode
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.time.Duration
 import java.time.Instant
 import java.util.Locale
@@ -127,6 +130,18 @@ fun ProviderId.deduplicateUsageLinesForStorage(lines: List<ProviderUsageLine>): 
     return deduped.values.toList()
 }
 
+fun ProviderId.normalizeUsageLinesForStorage(
+    planLabel: String?,
+    lines: List<ProviderUsageLine>
+): List<ProviderUsageLine> {
+    val providerNormalized = if (this == ProviderId.CURSOR && isCursorFreePlan(planLabel)) {
+        lines.map { line -> line.withCursorFreeUsdGauge() }
+    } else {
+        lines
+    }
+    return deduplicateUsageLinesForStorage(providerNormalized)
+}
+
 private fun ProviderId.usageLineDeduplicationKey(line: ProviderUsageLine): String {
     if (this == ProviderId.GEMINI) {
         return normalizedUsageLineLabelForDisplay(line.label).lowercase(Locale.US)
@@ -217,6 +232,75 @@ private fun ProviderUsageLine.storedUsageLineScore(providerId: ProviderId): Int 
     return score
 }
 
+private fun isCursorFreePlan(planLabel: String?): Boolean {
+    return planLabel.orEmpty().lowercase(Locale.US).contains("free")
+}
+
+private fun ProviderUsageLine.withCursorFreeUsdGauge(): ProviderUsageLine {
+    if (remainingPercent != null) return this
+    val remaining = remainingAmount ?: return this
+    if (!unit.equals("USD", ignoreCase = true)) return this
+    val normalizedLabel = label
+        .replace('_', ' ')
+        .replace('-', ' ')
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+        .lowercase(Locale.US)
+    val normalizedCategory = category.orEmpty().lowercase(Locale.US)
+    val isIncludedUsage = normalizedLabel == "total usage" ||
+        normalizedLabel == "included usage" ||
+        normalizedCategory == "included_usage"
+    if (!isIncludedUsage) return this
+
+    val limit = (limitAmount?.takeIf { it > 0.0 } ?: CURSOR_FREE_INCLUDED_USAGE_LIMIT)
+        .coerceAtLeast(remaining)
+    val used = (usedAmount ?: (limit - remaining)).coerceAtLeast(0.0)
+    val ratio = (remaining / limit).coerceIn(0.0, 1.0).toFloat()
+    return copy(
+        remainingPercent = ratio,
+        remainingText = remainingLimitText(remaining, limit, unit, ratio),
+        detailText = usedLimitText(used, limit),
+        severity = severityForRatio(ratio),
+        usedAmount = used,
+        limitAmount = limit,
+        remainingAmount = remaining,
+        category = category ?: "included_usage",
+        windowText = windowText ?: "monthly"
+    )
+}
+
+private fun remainingLimitText(
+    remaining: Double,
+    limit: Double,
+    unit: String?,
+    remainingRatio: Float
+): String {
+    if (limit > 0.0) {
+        val unitText = unit?.trim().orEmpty()
+        val unitSuffix = if (unitText.isNotBlank()) " $unitText" else ""
+        return "${formatUsageAmount(remaining.coerceAtLeast(0.0))} of ${formatUsageAmount(limit)}$unitSuffix left"
+    }
+    return "${formatUsageAmount(remainingRatio.toDouble() * 100.0)}% left"
+}
+
+private fun usedLimitText(used: Double, limit: Double): String {
+    return "${formatUsageAmount(used.coerceAtLeast(0.0))} used of ${formatUsageAmount(limit)}"
+}
+
+private fun severityForRatio(ratio: Float): UsageSeverity {
+    return when {
+        ratio <= DANGER_THRESHOLD -> UsageSeverity.DANGER
+        ratio <= WARNING_THRESHOLD -> UsageSeverity.WARNING
+        else -> UsageSeverity.NORMAL
+    }
+}
+
+private fun formatUsageAmount(value: Double): String {
+    return DecimalFormat("#,##0.###", DecimalFormatSymbols(Locale.US)).apply {
+        roundingMode = RoundingMode.HALF_UP
+    }.format(value)
+}
+
 data class ProviderUsageLine(
     val label: String,
     val remainingPercent: Float?,
@@ -288,3 +372,6 @@ internal fun ProviderUsageSnapshot.withRecoveredStaleProgress(
 }
 
 private const val STALE_PROVIDER_PROGRESS_MS = 5 * 60 * 1000L
+private const val CURSOR_FREE_INCLUDED_USAGE_LIMIT = 10.0
+private const val DANGER_THRESHOLD = 0.15f
+private const val WARNING_THRESHOLD = 0.35f

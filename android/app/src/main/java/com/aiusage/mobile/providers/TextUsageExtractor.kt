@@ -831,7 +831,7 @@ object TextUsageExtractor {
             ProviderId.CLAUDE -> normalizeClaudeRateLimitLabels(lines)
             ProviderId.GEMINI -> normalizeGeminiUsageLines(lines)
             ProviderId.COPILOT -> normalizeCopilotUsageLines(lines)
-            ProviderId.CURSOR -> normalizeCursorUsageLines(lines)
+            ProviderId.CURSOR -> normalizeCursorUsageLines(lines, plan)
             else -> lines
         }
         return providerNormalized
@@ -1006,7 +1006,7 @@ object TextUsageExtractor {
         }
     }
 
-    private fun normalizeCursorUsageLines(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {
+    private fun normalizeCursorUsageLines(lines: List<ProviderUsageLine>, plan: String?): List<ProviderUsageLine> {
         val normalizedLines = lines.filter { line ->
             line.isTrustedCursorUsageLine()
         }.map { line ->
@@ -1025,7 +1025,7 @@ object TextUsageExtractor {
                 "plan usage",
                 "total usage"
             ) || modelRequestLine
-            if (!totalUsageLine) {
+            val relabeled = if (!totalUsageLine) {
                 line
             } else {
                 line.copy(
@@ -1034,6 +1034,7 @@ object TextUsageExtractor {
                     windowText = line.windowText ?: "monthly"
                 )
             }
+            relabeled.withCursorFreeUsdGauge(plan)
         }
         val deduped = LinkedHashMap<String, ProviderUsageLine>()
         normalizedLines.forEach { line ->
@@ -1050,6 +1051,39 @@ object TextUsageExtractor {
         return deduped.values.toList()
     }
 
+    private fun ProviderUsageLine.withCursorFreeUsdGauge(plan: String?): ProviderUsageLine {
+        if (!isCursorFreePlan(plan)) return this
+        if (remainingPercent != null) return this
+        val remaining = remainingAmount ?: return this
+        if (!unit.equals("USD", ignoreCase = true)) return this
+        val labelText = label.lowercase(Locale.US)
+        val categoryText = category.orEmpty().lowercase(Locale.US)
+        val isIncludedUsage = labelText == "total usage" ||
+            labelText == "included usage" ||
+            categoryText == "included_usage"
+        if (!isIncludedUsage) return this
+
+        val limit = (limitAmount?.takeIf { it > 0.0 } ?: CURSOR_FREE_INCLUDED_USAGE_LIMIT)
+            .coerceAtLeast(remaining)
+        val used = (usedAmount ?: (limit - remaining)).coerceAtLeast(0.0)
+        val ratio = (remaining / limit).coerceIn(0.0, 1.0).toFloat()
+        return copy(
+            remainingPercent = ratio,
+            remainingText = remainingLimitText(remaining, limit, unit, ratio),
+            detailText = usedLimitText(used, limit, (used / limit) * 100.0),
+            severity = severityForStructured(ratio),
+            usedAmount = used,
+            limitAmount = limit,
+            remainingAmount = remaining,
+            category = category ?: "included_usage",
+            windowText = windowText ?: "monthly"
+        )
+    }
+
+    private fun isCursorFreePlan(plan: String?): Boolean {
+        return plan.orEmpty().lowercase(Locale.US).contains("free")
+    }
+
     private fun ProviderUsageLine.isBetterCursorLineThan(existing: ProviderUsageLine): Boolean {
         val score = cursorLineScore()
         val existingScore = existing.cursorLineScore()
@@ -1064,7 +1098,7 @@ object TextUsageExtractor {
         var score = 0
         if (remainingPercent != null) score += 8
         if (limitAmount != null && limitAmount > 0.0) score += 6
-        if (!resetsAt.isNullOrBlank() || !resetText.isNullOrBlank()) score += 4
+        if (!resetsAt.isNullOrBlank() || !resetText.isNullOrBlank()) score += 8
         if (remainingAmount != null) score += 1
         return score
     }
@@ -1166,4 +1200,5 @@ object TextUsageExtractor {
     private const val DANGER_THRESHOLD = 0.15f
     private const val WARNING_THRESHOLD = 0.35f
     private const val COPILOT_FREE_COMPLETIONS_LIMIT = 4000.0
+    private const val CURSOR_FREE_INCLUDED_USAGE_LIMIT = 10.0
 }
