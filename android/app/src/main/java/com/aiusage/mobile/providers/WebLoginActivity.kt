@@ -44,7 +44,7 @@ class WebLoginActivity : Activity() {
     private var codexOAuthCompletionStarted = false
     private var geminiOAuthCompletionStarted = false
     private var claudeSessionVerificationInFlight = false
-    private var cursorAuthenticatorRecoveryAttempts = 0
+    private var loginNavigationRecoveryAttempts = 0
     private val popupViews = mutableListOf<WebView>()
     private val popupContainers = mutableMapOf<WebView, FrameLayout>()
 
@@ -124,11 +124,14 @@ class WebLoginActivity : Activity() {
                         "login blocked provider=${providerId.storageId} url=" +
                             ProviderCollectionDiagnostics.safeUrl(blockedUrl)
                     )
-                    stopLoading()
                     if (finishOnBlocked) {
-                        saveErrorSnapshot(providerId, getString(R.string.provider_login_open_failed_message))
-                        finish()
+                        stopLoading()
+                        if (!maybeRecoverLoginNavigationError(providerId, this, blockedUrl, "blocked")) {
+                            saveErrorSnapshot(providerId, getString(R.string.provider_login_open_failed_message))
+                            finish()
+                        }
                     } else {
+                        stopLoading()
                         closePopupWindow(this)
                     }
                 },
@@ -155,17 +158,23 @@ class WebLoginActivity : Activity() {
                     }
                 },
                 onMainFrameError = { _, errorUrl, errorCode, description ->
-                    if (hasClaudeAuthenticatedSessionCookie(providerId)) {
+                    if (isProviderOAuthCallbackNavigation(providerId, errorUrl)) {
+                        Log.d(
+                            ProviderCollectionDiagnostics.TAG,
+                            "login oauthCallbackErrorIgnored provider=${providerId.storageId} url=" +
+                                ProviderCollectionDiagnostics.safeUrl(errorUrl)
+                        )
+                    } else if (hasClaudeAuthenticatedSessionCookie(providerId)) {
                         Log.d(
                             ProviderCollectionDiagnostics.TAG,
                             "login claudeCookieCompleteAfterError provider=${providerId.storageId} url=" +
                                 ProviderCollectionDiagnostics.safeUrl(errorUrl)
                         )
                         finishConnectedCaptureWithoutUsage(providerId)
-                    } else if (maybeRecoverCursorAuthenticatorError(providerId, this, errorUrl)) {
+                    } else if (maybeRecoverLoginNavigationError(providerId, this, errorUrl, "mainFrameError")) {
                         Log.d(
                             ProviderCollectionDiagnostics.TAG,
-                            "login cursorAuthenticatorRecover provider=${providerId.storageId} url=" +
+                            "login navigationRecover provider=${providerId.storageId} url=" +
                                 ProviderCollectionDiagnostics.safeUrl(errorUrl)
                         )
                     } else {
@@ -305,21 +314,28 @@ class WebLoginActivity : Activity() {
         window.destroy()
     }
 
-    private fun maybeRecoverCursorAuthenticatorError(
+    private fun maybeRecoverLoginNavigationError(
         providerId: ProviderId,
         target: WebView,
-        url: String?
+        url: String?,
+        reason: String
     ): Boolean {
-        if (!isCursorAuthenticatorUrl(providerId, url)) return false
-        if (cursorAuthenticatorRecoveryAttempts >= MAX_CURSOR_AUTHENTICATOR_RECOVERY_ATTEMPTS) return false
-        cursorAuthenticatorRecoveryAttempts += 1
+        if (!shouldRecoverLoginNavigationError(providerId, url, loginNavigationRecoveryAttempts)) return false
+        loginNavigationRecoveryAttempts += 1
+        val recoveryUrl = loginRecoveryUrlFor(providerId)
+        Log.d(
+            ProviderCollectionDiagnostics.TAG,
+            "login recoveryScheduled provider=${providerId.storageId} reason=$reason attempt=" +
+                "$loginNavigationRecoveryAttempts url=${ProviderCollectionDiagnostics.safeUrl(url)} " +
+                "next=${ProviderCollectionDiagnostics.safeUrl(recoveryUrl)}"
+        )
         target.postDelayed(
             {
                 if (!isFinishing && !connectionRecorded && !usageRecorded) {
-                    target.loadUrl(CURSOR_DASHBOARD_URL)
+                    target.loadUrl(recoveryUrl)
                 }
             },
-            CURSOR_AUTHENTICATOR_RECOVERY_DELAY_MS
+            LOGIN_NAVIGATION_RECOVERY_DELAY_MS
         )
         return true
     }
@@ -809,9 +825,7 @@ class WebLoginActivity : Activity() {
         private const val MAX_USAGE_CAPTURE_ATTEMPTS = 4
         private const val POPUP_CLOSE_REFRESH_DELAY_MS = 300L
         private const val WEB_LOGIN_TOP_SAFE_PADDING_DP = 12
-        private const val MAX_CURSOR_AUTHENTICATOR_RECOVERY_ATTEMPTS = 2
-        private const val CURSOR_AUTHENTICATOR_RECOVERY_DELAY_MS = 1_500L
-        private const val CURSOR_DASHBOARD_URL = "https://cursor.com/dashboard"
+        private const val LOGIN_NAVIGATION_RECOVERY_DELAY_MS = 1_500L
         fun createIntent(context: Context, providerId: ProviderId, startUrl: String): Intent {
             return Intent(context, WebLoginActivity::class.java)
                 .putExtra(EXTRA_PROVIDER_ID, providerId.storageId)

@@ -19,6 +19,7 @@ Claude 관련 코드가 꼬이면 이 문서와 `PROVIDER_USAGE_COLLECTION.md`�
 | 역할 | 파일 |
 | --- | --- |
 | 로그인 WebView 및 Claude 세션 검증 | `android/app/src/main/java/com/aiusage/mobile/providers/WebLoginActivity.kt` |
+| 로그인 transient error 복구 정책 | `android/app/src/main/java/com/aiusage/mobile/providers/ProviderLoginRecoveryPolicy.kt` |
 | Claude 로그인 URL rewrite | `android/app/src/main/java/com/aiusage/mobile/providers/ProviderLoginUrlRewriter.kt` |
 | Claude 로그인 전 세션 정리 | `android/app/src/main/java/com/aiusage/mobile/providers/ProviderLoginSessionPreparer.kt` |
 | Claude direct usage API 수집 | `android/app/src/main/java/com/aiusage/mobile/providers/ProviderUsageCollectionService.kt` |
@@ -41,6 +42,7 @@ Claude 연결 버튼
   -> Google OAuth 시작 URL 감지
   -> ProviderLoginUrlRewriter가 prompt=select_account 추가
   -> Google 계정 선택/로그인
+  -> Google OAuth main-frame transient error 발생 시 최대 2회 https://claude.ai/ 로 복구 로드
   -> Claude host로 복귀
   -> /api/organizations, /api/organizations/me 세션 검증
   -> organization id 확인
@@ -55,6 +57,7 @@ Claude 연결 버튼
 2. Claude 앱 경로(`/new` 등)로 이동했고 `lastActiveOrg` 쿠키가 있음
 3. JS payload가 `authenticatedApp=true`, `appShellConfirmed=true`, 또는 limit data를 제공함
 4. main frame error가 발생했지만 `lastActiveOrg` 쿠키가 있음
+5. Google OAuth host에서 main frame error가 발생했지만 아직 세션 검증 전이면 즉시 실패 저장하지 않고 `https://claude.ai/`로 복구함
 
 `/login` URL 자체는 완료 처리하지 않는다.
 `/logout` URL은 완료 처리하지 않는다.

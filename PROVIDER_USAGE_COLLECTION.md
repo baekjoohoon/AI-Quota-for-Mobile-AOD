@@ -31,6 +31,7 @@ Provider Login
 | 로컬 스냅샷 저장/보존 | `android/app/src/main/java/com/aiusage/mobile/local/LocalUsageRepository.kt` |
 | provider 수집 오케스트레이션 | `android/app/src/main/java/com/aiusage/mobile/providers/ProviderUsageCollectionService.kt` |
 | 로그인 WebView | `android/app/src/main/java/com/aiusage/mobile/providers/WebLoginActivity.kt` |
+| 로그인 transient error 복구 정책 | `android/app/src/main/java/com/aiusage/mobile/providers/ProviderLoginRecoveryPolicy.kt` |
 | 로그인 URL rewrite | `android/app/src/main/java/com/aiusage/mobile/providers/ProviderLoginUrlRewriter.kt` |
 | 로그인 전 세션 정리 | `android/app/src/main/java/com/aiusage/mobile/providers/ProviderLoginSessionPreparer.kt` |
 | WebView JS collector | `android/app/src/main/java/com/aiusage/mobile/providers/ProviderLocalUsageCollector.kt` |
@@ -92,6 +93,14 @@ provider 응답이 used percent만 주면 앱은 `remainingPercent = 1 - usedPer
 - `리셋 타이머 대기 중`은 provider가 아직 reset window를 시작하지 않았거나 reset 근거가 없는 line에만 표시한다.
 - Provider 탭의 사용량 분석 영역은 실제 reset 값이 있을 때만 `리셋 기준`을 표시한다.
 - Dashboard와 Provider 탭은 같은 `ProviderUsageLine.effectiveResetText()` 계열 값을 기준으로 표시해야 한다.
+
+## 공통 로그인 transient error 복구 규칙
+
+- Google/WorkOS/GitHub/OpenAI OAuth 중간 페이지에서 main-frame error가 발생해도 즉시 `ERROR` snapshot으로 저장하지 않는다.
+- Codex/Gemini의 loopback OAuth callback(`localhost`, `127.0.0.1`)은 WebView가 연결 실패를 띄울 수 있으므로 token exchange 처리가 끝나도록 error를 무시한다.
+- 복구 대상 host는 `ProviderLoginRecoveryPolicy.shouldRecoverLoginNavigationError()`에 명시된 인증 host로 제한한다.
+- 복구는 provider별 앱 URL(`claude.ai`, `chatgpt.com`, `gemini.google.com/app`, `github.com/settings/copilot`, `cursor.com/dashboard`)로 최대 2회만 재시도한다.
+- 복구 대상이 아닌 host에서 실패하면 기존처럼 로그인 실패로 처리한다.
 
 ## 자동 갱신
 

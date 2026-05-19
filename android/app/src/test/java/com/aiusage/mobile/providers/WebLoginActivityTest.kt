@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.aiusage.mobile.local.ProviderId
 
 class WebLoginActivityTest {
     @Test
@@ -71,7 +72,7 @@ class WebLoginActivityTest {
     fun detectsCursorAuthenticatorRedirectPage() {
         assertTrue(
             isCursorAuthenticatorUrl(
-                provider = com.aiusage.mobile.local.ProviderId.CURSOR,
+                provider = ProviderId.CURSOR,
                 url = "https://authenticator.cursor.sh/"
             )
         )
@@ -81,9 +82,72 @@ class WebLoginActivityTest {
     fun rejectsCursorAuthenticatorForOtherProviders() {
         assertFalse(
             isCursorAuthenticatorUrl(
-                provider = com.aiusage.mobile.local.ProviderId.CLAUDE,
+                provider = ProviderId.CLAUDE,
                 url = "https://authenticator.cursor.sh/"
             )
         )
+    }
+
+    @Test
+    fun treatsGeminiLoopbackCallbackAsRecoverableNavigation() {
+        assertTrue(
+            isProviderOAuthCallbackNavigation(
+                providerId = ProviderId.GEMINI,
+                url = "http://127.0.0.1:46417/oauth2callback?code=abc&state=xyz"
+            )
+        )
+    }
+
+    @Test
+    fun treatsCodexLoopbackCallbackAsRecoverableNavigation() {
+        assertTrue(
+            isProviderOAuthCallbackNavigation(
+                providerId = ProviderId.CODEX,
+                url = "http://localhost:1455/auth/callback?code=abc&state=xyz"
+            )
+        )
+    }
+
+    @Test
+    fun recoversGoogleAuthErrorsForProviderLogin() {
+        assertTrue(
+            shouldRecoverLoginNavigationError(
+                providerId = ProviderId.GEMINI,
+                url = "https://accounts.google.com/o/oauth2/v2/auth?client_id=abc",
+                attempt = 0
+            )
+        )
+        assertTrue(
+            shouldRecoverLoginNavigationError(
+                providerId = ProviderId.CLAUDE,
+                url = "https://accounts.google.com/signin/oauth/consent",
+                attempt = 0
+            )
+        )
+    }
+
+    @Test
+    fun rejectsLoginRecoveryAfterMaxAttemptsOrUnknownHost() {
+        assertFalse(
+            shouldRecoverLoginNavigationError(
+                providerId = ProviderId.GEMINI,
+                url = "https://accounts.google.com/o/oauth2/v2/auth?client_id=abc",
+                attempt = 2
+            )
+        )
+        assertFalse(
+            shouldRecoverLoginNavigationError(
+                providerId = ProviderId.GEMINI,
+                url = "https://example.com/login",
+                attempt = 0
+            )
+        )
+    }
+
+    @Test
+    fun usesProviderAppUrlForLoginRecovery() {
+        assertEquals("https://gemini.google.com/app", loginRecoveryUrlFor(ProviderId.GEMINI))
+        assertEquals("https://claude.ai/", loginRecoveryUrlFor(ProviderId.CLAUDE))
+        assertEquals("https://cursor.com/dashboard", loginRecoveryUrlFor(ProviderId.CURSOR))
     }
 }
