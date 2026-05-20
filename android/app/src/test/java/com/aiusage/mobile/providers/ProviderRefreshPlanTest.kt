@@ -25,7 +25,7 @@ class ProviderRefreshPlanTest {
     }
 
     @Test
-    fun oauthProvidersRefreshThroughNativeApiWithoutWebCollector() {
+    fun tokenBackedProvidersRefreshThroughNativeApiWithoutWebCollector() {
         val jobs = listOf(ProviderId.GEMINI, ProviderId.COPILOT).map(ProviderRefreshPlan::manualJobFor)
 
         assertTrue(jobs.all { it.mode == ProviderRefreshMode.NATIVE_API })

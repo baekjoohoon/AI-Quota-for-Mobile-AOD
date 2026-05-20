@@ -11,7 +11,9 @@ class ProviderWebCollectorScriptsTest {
         assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CLAUDE, "https://claude.ai/new", mapOf("lastActiveOrg" to "org_123"), ""))
         assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CODEX, "https://chatgpt.com/", emptyMap(), "ChatGPT"))
         assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.GEMINI, "https://gemini.google.com/app", emptyMap(), "Gemini"))
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.COPILOT, "about:blank", emptyMap(), ""))
         assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.COPILOT, "https://github.com/settings/copilot", emptyMap(), ""))
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.COPILOT, "https://github.com/settings/billing/premium_requests_usage", emptyMap(), ""))
         assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CURSOR, "https://cursor.com/dashboard", emptyMap(), ""))
 
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CLAUDE, "https://claude.ai/login", emptyMap(), ""))
@@ -19,6 +21,7 @@ class ProviderWebCollectorScriptsTest {
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CODEX, "https://chatgpt.com/auth/login", emptyMap(), "ChatGPT"))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.GEMINI, "https://accounts.google.com/signin", emptyMap(), ""))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.COPILOT, "https://github.com/login", emptyMap(), ""))
+        assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.COPILOT, "https://github.com/", mapOf("logged_in" to "yes"), ""))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CURSOR, "https://api.workos.com/sso/authorize", emptyMap(), ""))
     }
 
@@ -58,6 +61,35 @@ class ProviderWebCollectorScriptsTest {
         assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.CURSOR, "https://cursor.com/api/usage-summary"))
         assertTrue(ProviderWebCollectorScripts.shouldRunCollectorFromResource(ProviderId.CURSOR, "https://cursor.com/dashboard", "https://cursor.com/api/usage?user=user_123"))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollectorFromResource(ProviderId.CURSOR, "https://cursor.com/login", "https://cursor.com/api/usage?user=user_123"))
+    }
+
+    @Test
+    fun copilotCollectorCanStartFromBillingResources() {
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.COPILOT, "https://github.com/github-copilot/chat/entitlement"))
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.COPILOT, "https://github.com/github-copilot/chat/token"))
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.COPILOT, "https://github.com/settings/billing/premium_requests_usage"))
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.COPILOT, "https://github.com/settings/billing/copilot_usage_card?customer_id=abc123&period=3&query="))
+        assertTrue(
+            ProviderWebCollectorScripts.shouldRunCollectorFromResource(
+                ProviderId.COPILOT,
+                "about:blank",
+                "https://github.com/github-copilot/chat/entitlement"
+            )
+        )
+        assertTrue(
+            ProviderWebCollectorScripts.shouldRunCollectorFromResource(
+                ProviderId.COPILOT,
+                "https://github.com/settings/billing/premium_requests_usage",
+                "https://github.com/settings/billing/copilot_usage_card?customer_id=abc123&period=3&query="
+            )
+        )
+        assertFalse(
+            ProviderWebCollectorScripts.shouldRunCollectorFromResource(
+                ProviderId.COPILOT,
+                "https://github.com/login",
+                "https://github.com/settings/billing/premium_requests_usage"
+            )
+        )
     }
 
     @Test
@@ -128,6 +160,18 @@ class ProviderWebCollectorScriptsTest {
         assertFalse(gemini.contains("gemini_usage_unavailable"))
         assertTrue(gemini.contains("건너뛰기"))
         assertTrue(copilot.contains("github-copilot/chat/entitlement"))
+        assertTrue(copilot.contains("github-copilot/chat/token"))
+        assertTrue(copilot.contains("fetchCopilotJsonWithAuthorization"))
+        assertTrue(copilot.contains("GitHub-Bearer"))
+        assertTrue(copilot.contains("GitHub-Verified-Fetch"))
+        assertTrue(copilot.contains("fetch-nonce"))
+        assertTrue(copilot.contains("https://github.com/settings/copilot"))
+        assertTrue(copilot.contains("/settings/billing/copilot_usage_card"))
+        assertTrue(copilot.contains("limited_user_quotas"))
+        assertTrue(copilot.contains("monthly_quotas"))
+        assertTrue(copilot.contains("script[data-target='react-app.embeddedData']"))
+        assertTrue(copilot.contains("nativeJson(\"https://github.com/settings/billing/premium_requests_usage\")"))
+        assertTrue(copilot.contains("premium_billing"))
         assertTrue(copilot.contains("amountLimit !== null && amountLimit > 0"))
         assertFalse(copilot.contains("line.remaining = remaining"))
         assertTrue(cursor.contains("/api/auth/stripe"))
@@ -147,6 +191,8 @@ class ProviderWebCollectorScriptsTest {
         assertFalse(cursor.contains("cursor_usage_unavailable"))
         listOf(claude, codex, gemini, copilot, cursor).forEach { script ->
             assertTrue(script.contains("__AIUsageStartProviderCollector"))
+            assertFalse(script.contains("__AIUsageCollectorRunning"))
+            assertFalse(script.contains("__AIUsageProviderCollectorRunning_"))
             assertTrue(script.contains("credentials: \"include\""))
             assertTrue(script.contains("AIUsageCollectorBridge.postUsagePayload"))
         }

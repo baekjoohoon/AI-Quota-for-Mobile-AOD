@@ -7,6 +7,7 @@ import org.json.JSONObject
 
 object ProviderWebCollectorScripts {
     fun shouldRunCollector(providerId: ProviderId, url: String, cookies: Map<String, String>, pageText: String): Boolean {
+        if (providerId == ProviderId.COPILOT && url == "about:blank") return true
         val uri = runCatching { URI(url) }.getOrNull() ?: return false
         val host = uri.host.orEmpty().lowercase(Locale.US)
         val path = uri.path.orEmpty().lowercase(Locale.US)
@@ -24,7 +25,16 @@ object ProviderWebCollectorScripts {
                 host == "gemini.google.com" &&
                     (path == "/" || path.startsWith("/app"))
             ProviderId.COPILOT ->
-                host == "github.com" && path.startsWith("/settings/copilot")
+                host == "github.com" &&
+                    !path.startsWith("/login") &&
+                    !path.startsWith("/sessions") &&
+                    !path.startsWith("/session") &&
+                    !path.contains("two-factor") &&
+                    (
+                        path.startsWith("/settings/copilot") ||
+                            path.startsWith("/settings/billing/premium_requests_usage") ||
+                            path.startsWith("/github-copilot")
+                        )
             ProviderId.CURSOR ->
                 (host == "cursor.com" || host == "www.cursor.com") &&
                     (path.contains("dashboard") || path.contains("settings") || path.contains("account") || path.contains("billing"))
@@ -59,6 +69,13 @@ object ProviderWebCollectorScripts {
             ProviderId.GEMINI ->
                 (host == "cloudcode-pa.googleapis.com" && path.contains("v1internal")) ||
                     (host == "gemini.google.com" && path.startsWith("/app"))
+            ProviderId.COPILOT ->
+                (host == "github.com" &&
+                    (path == "/github-copilot/chat/entitlement" ||
+                        path == "/github-copilot/chat/token" ||
+                        path == "/settings/billing/premium_requests_usage" ||
+                        path == "/settings/billing/copilot_usage_card")) ||
+                    (host == "api.github.com" && path == "/copilot_internal/user")
             else -> false
         }
     }
@@ -69,6 +86,7 @@ object ProviderWebCollectorScripts {
     }
 
     fun shouldAcceptCollectorPayload(providerId: ProviderId, pageUrl: String): Boolean {
+        if (providerId == ProviderId.COPILOT && pageUrl == "about:blank") return true
         val uri = runCatching { URI(pageUrl) }.getOrNull() ?: return false
         val host = uri.host.orEmpty().lowercase(Locale.US)
         val path = uri.path.orEmpty().lowercase(Locale.US)
@@ -105,14 +123,9 @@ object ProviderWebCollectorScripts {
             (function(){
               if (!window.__AIUsageStartProviderCollector) {
                 window.__AIUsageStartProviderCollector = function(provider) {
-                  var key = "__AIUsageProviderCollectorRunning_" + provider;
-                  if (window[key]) return false;
-                  window[key] = true;
                   return true;
                 };
               }
-              if (window.__AIUsageCollectorRunning) return;
-              window.__AIUsageCollectorRunning = true;
               window.__AIUsageCollector = {
                 provider: "${providerId.storageId}",
                 cookies: $cookieJson,
@@ -134,7 +147,7 @@ object ProviderWebCollectorScripts {
                 fetchJson: function(url) {
                   return fetch(url, {
                     credentials: "include",
-                    headers: { "accept": "application/json" }
+                    headers: { "accept": "application/json, text/html" }
                   }).then(function(response) {
                     return response.text().then(function(text) {
                       var json = {};
@@ -732,6 +745,7 @@ object ProviderWebCollectorScripts {
               if (!window.__AIUsageStartProviderCollector || !window.__AIUsageStartProviderCollector("copilot")) return;
               var c = window.__AIUsageCollector;
               if (!c) return;
+              try { console.log("AIUsageCopilot collector_start href=" + String(location && location.href || "")); } catch (logError) {}
               function first() {
                 for (var i = 0; i < arguments.length; i += 1) {
                   var value = arguments[i];
@@ -739,11 +753,16 @@ object ProviderWebCollectorScripts {
                 }
                 return null;
               }
-              function nativeJson(url) {
+              function nativeJson(url, authorizationHeader) {
                 try {
                   if (window.AIUsageCollectorBridge && window.AIUsageCollectorBridge.fetchCopilotJson) {
-                    var nativeResult = JSON.parse(window.AIUsageCollectorBridge.fetchCopilotJson(url));
+                    var nativeResult = JSON.parse(
+                      authorizationHeader && window.AIUsageCollectorBridge.fetchCopilotJsonWithAuthorization
+                        ? window.AIUsageCollectorBridge.fetchCopilotJsonWithAuthorization(url, authorizationHeader)
+                        : window.AIUsageCollectorBridge.fetchCopilotJson(url)
+                    );
                     if (nativeResult && nativeResult.ok) return Promise.resolve(nativeResult);
+                    if (authorizationHeader || url.indexOf("/github-copilot/chat/token") >= 0) return Promise.resolve(nativeResult);
                     return c.fetchJson(url).catch(function() { return nativeResult; });
                   }
                 } catch (error) {
@@ -755,16 +774,232 @@ object ProviderWebCollectorScripts {
                   return { ok: false, url: url, error: String(error && error.message || error) };
                 });
               }
+              function githubMeta(name) {
+                var node = document.querySelector("meta[name='" + name + "']");
+                return node && node.content ? node.content : "";
+              }
+              function githubVerifiedHeaders() {
+                var headers = {
+                  "Accept": "application/json",
+                  "Content-Type": "application/json",
+                  "GitHub-Verified-Fetch": "true",
+                  "X-Requested-With": "XMLHttpRequest"
+                };
+                var nonce = githubMeta("fetch-nonce");
+                if (nonce) headers["X-Fetch-Nonce"] = nonce;
+                var release = githubMeta("release");
+                if (release) headers["X-GitHub-Client-Version"] = release;
+                return headers;
+              }
+              function githubPostJson(url) {
+                return fetch(url, {
+                  method: "POST",
+                  credentials: "same-origin",
+                  cache: "no-cache",
+                  headers: githubVerifiedHeaders()
+                }).then(function(response) {
+                  return response.text().then(function(text) {
+                    var parsed = {};
+                    try { parsed = text ? JSON.parse(text) : {}; } catch (error) { parsed = { rawText: text || "" }; }
+                    return { ok: response.ok, status: response.status, url: url, json: parsed };
+                  });
+                }).catch(function(error) {
+                  return { ok: false, url: url, error: String(error && error.message || error) };
+                });
+              }
               function quotaSnapshots(raw) {
                 return raw && (raw.quota_snapshots || raw.quotaSnapshots);
               }
-              function buildPayload(entitlementRaw, internalRaw) {
+              function copilotAuthorizationHeader(tokenRaw) {
+                if (!tokenRaw || typeof tokenRaw !== "object") return null;
+                var direct = first(tokenRaw.authorizationHeaderValue, tokenRaw.authorization_header_value, tokenRaw.authorizationHeader);
+                if (direct) return direct;
+                var token = first(tokenRaw.token, tokenRaw.value, tokenRaw.accessToken, tokenRaw.access_token);
+                return token ? ("GitHub-Bearer " + token) : null;
+              }
+              function copilotUsageFromToken(tokenRaw) {
+                if (!tokenRaw || typeof tokenRaw !== "object") return null;
+                var usage = {};
+                [
+                  "limited_user_quotas",
+                  "limitedUserQuotas",
+                  "monthly_quotas",
+                  "monthlyQuotas",
+                  "quota_snapshots",
+                  "quotaSnapshots",
+                  "quota_reset_date",
+                  "quota_reset_date_utc",
+                  "limited_user_reset_date",
+                  "copilot_plan",
+                  "plan",
+                  "sku"
+                ].forEach(function(key) {
+                  if (tokenRaw[key] !== undefined && tokenRaw[key] !== null) usage[key] = tokenRaw[key];
+                });
+                return Object.keys(usage).length > 0 ? usage : null;
+              }
+              function githubApiAuthorizationHeader(value) {
+                if (!value || typeof value !== "string") return null;
+                var trimmed = value.trim();
+                return trimmed.indexOf("Bearer ") === 0 || trimmed.indexOf("token ") === 0 ? trimmed : null;
+              }
+              function quotaEnvelope(value, depth) {
+                if (!value || typeof value !== "object" || depth > 8) return null;
+                if (value.limited_user_quotas || value.limitedUserQuotas ||
+                    value.monthly_quotas || value.monthlyQuotas ||
+                    value.quota_snapshots || value.quotaSnapshots) {
+                  return value;
+                }
+                if (Array.isArray(value)) {
+                  for (var i = 0; i < value.length; i += 1) {
+                    var arrayMatch = quotaEnvelope(value[i], depth + 1);
+                    if (arrayMatch) return arrayMatch;
+                  }
+                  return null;
+                }
+                var keys = Object.keys(value);
+                for (var j = 0; j < keys.length; j += 1) {
+                  var match = quotaEnvelope(value[keys[j]], depth + 1);
+                  if (match) return match;
+                }
+                return null;
+              }
+              function copyQuotaObjects(source, target) {
+                if (!source || !target) return;
+                var limited = source.limited_user_quotas || source.limitedUserQuotas ||
+                  (source.quotas && (source.quotas.limited_user_quotas || source.quotas.limitedUserQuotas));
+                var monthly = source.monthly_quotas || source.monthlyQuotas ||
+                  (source.quotas && (source.quotas.monthly_quotas || source.quotas.monthlyQuotas));
+                if (limited && !target.limited_user_quotas && !target.limitedUserQuotas) target.limited_user_quotas = limited;
+                if (monthly && !target.monthly_quotas && !target.monthlyQuotas) target.monthly_quotas = monthly;
+              }
+              function htmlDecode(value) {
+                var textarea = document.createElement("textarea");
+                textarea.innerHTML = value || "";
+                return textarea.value;
+              }
+              function parseEmbeddedBillingData(rawText) {
+                if (!rawText) return null;
+                var markerIndex = rawText.indexOf("react-app.embeddedData");
+                var scriptText = null;
+                if (markerIndex >= 0) {
+                  var openEnd = rawText.indexOf(">", markerIndex);
+                  var closeStart = openEnd >= 0 ? rawText.indexOf("</script>", openEnd) : -1;
+                  if (openEnd >= 0 && closeStart > openEnd) scriptText = rawText.slice(openEnd + 1, closeStart);
+                }
+                if (!scriptText) {
+                  var match = rawText.match(/<script[^>]+data-target=["']react-app\.embeddedData["'][^>]*>([\s\S]*?)<\/script>/i);
+                  if (match) scriptText = match[1];
+                }
+                if (!scriptText) return null;
+                try {
+                  return JSON.parse(htmlDecode(scriptText).trim());
+                } catch (error) {
+                  return null;
+                }
+              }
+              function copilotSettingsUsage(settingsRaw) {
+                if (!settingsRaw) return null;
+                var direct = quotaEnvelope(settingsRaw, 0);
+                if (direct) return direct;
+                var rawText = settingsRaw.rawText || "";
+                if (!rawText) return null;
+                var scripts = [];
+                var embedded = rawText.match(/<script[^>]+data-target=["']react-app\.embeddedData["'][^>]*>([\s\S]*?)<\/script>/ig) || [];
+                embedded.forEach(function(block) {
+                  var content = block.replace(/^[\s\S]*?>/, "").replace(/<\/script>[\s\S]*$/i, "");
+                  scripts.push(content);
+                });
+                var jsonScripts = rawText.match(/<script[^>]+type=["']application\/json["'][^>]*>([\s\S]*?)<\/script>/ig) || [];
+                jsonScripts.forEach(function(block) {
+                  var content = block.replace(/^[\s\S]*?>/, "").replace(/<\/script>[\s\S]*$/i, "");
+                  scripts.push(content);
+                });
+                for (var i = 0; i < scripts.length; i += 1) {
+                  try {
+                    var parsed = JSON.parse(htmlDecode(scripts[i]).trim());
+                    var envelope = quotaEnvelope(parsed, 0);
+                    if (envelope) return envelope;
+                  } catch (error) {}
+                }
+                return null;
+              }
+              function premiumBillingInputFromEmbedded(embedded) {
+                var payload = embedded && (embedded.payload || embedded);
+                if (!payload) return null;
+                var customer = payload.customer || {};
+                var customerSelections = payload.customer_selections || payload.customerSelections || [];
+                var firstCustomer = customerSelections && customerSelections.length ? customerSelections[0] : {};
+                var periods = payload.period_selections || payload.periodSelections || [];
+                var selectedPeriod = null;
+                for (var i = 0; i < periods.length; i += 1) {
+                  var periodOption = periods[i] || {};
+                  if (periodOption.selected || periodOption.default || periodOption.type === 3) {
+                    selectedPeriod = first(periodOption.type, periodOption.id, periodOption.value);
+                    break;
+                  }
+                }
+                return {
+                  customerId: first(customer.customerId, customer.id, payload.customer_id, firstCustomer.id),
+                  account: first(customer.displayId, customer.slug, customer.name, firstCustomer.displayId, firstCustomer.name),
+                  period: selectedPeriod || 3
+                };
+              }
+              function premiumBillingInput(billingPageRaw) {
+                var rawText = billingPageRaw && billingPageRaw.rawText;
+                try {
+                  console.log("AIUsageCopilot billing_raw len=" + (rawText ? rawText.length : 0) +
+                    " embedded=" + (rawText ? rawText.indexOf("react-app.embeddedData") : -1) +
+                    " customer=" + (rawText ? rawText.indexOf("customer") : -1) +
+                    " card=" + (rawText ? rawText.indexOf("copilot_usage_card") : -1));
+                } catch (logError) {}
+                return premiumBillingInputFromEmbedded(parseEmbeddedBillingData(rawText));
+              }
+              function currentPagePremiumBillingInput() {
+                try {
+                  var node = document.querySelector("script[data-target='react-app.embeddedData']");
+                  var raw = node && (node.textContent || node.innerHTML || "");
+                  var input = raw ? premiumBillingInputFromEmbedded(JSON.parse(htmlDecode(raw).trim())) : null;
+                  console.log("AIUsageCopilot billing_dom embedded=" + !!raw + " input=" + !!input);
+                  return input;
+                } catch (error) {
+                  try { console.log("AIUsageCopilot billing_dom_error " + String(error && error.message || error)); } catch (logError) {}
+                  return null;
+                }
+              }
+              function premiumBillingCardUrl(input) {
+                if (!input || !input.customerId) return null;
+                return "https://github.com/settings/billing/copilot_usage_card?customer_id=" +
+                  encodeURIComponent(input.customerId) + "&period=" + encodeURIComponent(input.period || 3) + "&query=";
+              }
+              function normalizePremiumBilling(cardRaw) {
+                if (!cardRaw || typeof cardRaw !== "object") return null;
+                var raw = cardRaw.payload || cardRaw.data || cardRaw;
+                var hasUsage = raw.discountQuantity !== undefined ||
+                  raw.userPremiumRequestEntitlement !== undefined ||
+                  raw.filteredUserPremiumRequestEntitlement !== undefined ||
+                  raw.netQuantity !== undefined;
+                if (!hasUsage) return null;
+                return {
+                  discountQuantity: raw.discountQuantity,
+                  userPremiumRequestEntitlement: raw.userPremiumRequestEntitlement,
+                  filteredUserPremiumRequestEntitlement: raw.filteredUserPremiumRequestEntitlement,
+                  netQuantity: raw.netQuantity,
+                  netBilledAmount: raw.netBilledAmount
+                };
+              }
+              function buildPayload(entitlementRaw, internalRaw, settingsRaw, premiumBillingRaw, billingInput) {
                 var raw = entitlementRaw || {};
                 var quotas = raw.quotas || raw.quota || raw.usage || {};
                 var snapshots = quotaSnapshots(internalRaw) || quotaSnapshots(raw);
                 if (snapshots && !quotas.quota_snapshots) quotas.quota_snapshots = snapshots;
+                copyQuotaObjects(internalRaw, quotas);
+                copyQuotaObjects(copilotSettingsUsage(settingsRaw), quotas);
+                var premiumBilling = normalizePremiumBilling(premiumBillingRaw);
+                if (premiumBilling) quotas.premium_billing = premiumBilling;
                 var resetDate = first(
                   internalRaw && (internalRaw.quota_reset_date || internalRaw.resetDate),
+                  settingsRaw && (settingsRaw.quota_reset_date || settingsRaw.resetDate || settingsRaw.limited_user_reset_date),
                   raw.quota_reset_date,
                   raw.resetDate,
                   quotas.quota_reset_date,
@@ -778,8 +1013,8 @@ object ProviderWebCollectorScripts {
                 }
                 return {
                   provider: "copilot",
-                  plan: first(raw.plan, raw.sku, raw.copilot_plan, raw.license, raw.licenseType, raw.license_type, internalRaw && (internalRaw.plan || internalRaw.sku || internalRaw.licenseType || internalRaw.license_type)),
-                  account: first(raw.account, raw.login, raw.user_login, raw.user && (raw.user.login || raw.user.name), internalRaw && (internalRaw.account || internalRaw.login || internalRaw.user_login)),
+                  plan: first(raw.plan, raw.sku, raw.copilot_plan, raw.license, raw.licenseType, raw.license_type, internalRaw && (internalRaw.plan || internalRaw.sku || internalRaw.licenseType || internalRaw.license_type), settingsRaw && (settingsRaw.plan || settingsRaw.sku || settingsRaw.licenseType || settingsRaw.license_type)),
+                  account: first(raw.account, raw.login, raw.user_login, raw.user && (raw.user.login || raw.user.name), internalRaw && (internalRaw.account || internalRaw.login || internalRaw.user_login), settingsRaw && (settingsRaw.account || settingsRaw.login || settingsRaw.user_login), billingInput && billingInput.account),
                   quotas: quotas
                 };
               }
@@ -793,25 +1028,90 @@ object ProviderWebCollectorScripts {
                   quotas.remaining.premiumInteractions !== undefined ||
                   quotas.remaining.premium_interactions !== undefined
                 )) return true;
-                return !!(quotas.premium_requests || quotas.premiumRequests || quotas.chat || quotas.completions);
+                return !!(quotas.premium_billing || quotas.premiumBilling || quotas.premium_requests || quotas.premiumRequests || quotas.chat || quotas.completions);
               }
-              setTimeout(function(){
+              function collectEntitlementFallback(billingInput) {
                 Promise.all([
                   nativeJson("https://github.com/github-copilot/chat/entitlement"),
-                  nativeJson("https://api.github.com/copilot_internal/user")
+                  githubPostJson("https://github.com/github-copilot/chat/token"),
+                  nativeJson("https://github.com/settings/copilot"),
+                  nativeJson("https://github.com/settings/billing/premium_requests_usage")
                 ]).then(function(results) {
                   var entitlement = results[0] || {};
-                  var internal = results[1] || {};
-                  if (!entitlement.ok && !internal.ok) {
+                  var token = results[1] || {};
+                  var settingsPage = results[2] || {};
+                  var billingPage = results[3] || {};
+                  var authHeader = copilotAuthorizationHeader(token.json || {});
+                  var tokenUsage = copilotUsageFromToken(token.json || {});
+                  var apiAuthHeader = githubApiAuthorizationHeader(authHeader);
+                  var internalPromise = apiAuthHeader
+                    ? nativeJson("https://api.github.com/copilot_internal/user", apiAuthHeader)
+                    : Promise.resolve({ ok: false, error: "github_api_token_unavailable" });
+                  internalPromise.then(function(internal) {
+                  var internalUsage = internal.ok
+                    ? Object.assign({}, tokenUsage || {}, internal.json || {})
+                    : tokenUsage;
+                  billingInput = billingInput || currentPagePremiumBillingInput() || premiumBillingInput(billingPage.json || {});
+                  var cardUrl = premiumBillingCardUrl(billingInput);
+                  try { console.log("AIUsageCopilot billing_page input=" + !!billingInput + " card=" + !!cardUrl); } catch (logError) {}
+                  if (!cardUrl && !entitlement.ok && !internal.ok) {
                     throw new Error("entitlement_http_" + (entitlement.status || entitlement.error || "failed") + "_internal_http_" + (internal.status || internal.error || "failed"));
                   }
-                  var payload = buildPayload(entitlement.json || {}, internal.ok ? (internal.json || {}) : null);
-                  if (!hasCopilotUsage(payload)) throw new Error("copilot_usage_payload_missing");
-                  c.post(payload);
+                  var premiumPromise = cardUrl ? nativeJson(cardUrl) : Promise.resolve({ ok: false });
+                  premiumPromise.then(function(premiumResult) {
+                    try { console.log("AIUsageCopilot billing_card status=" + (premiumResult && premiumResult.status) + " ok=" + !!(premiumResult && premiumResult.ok)); } catch (logError) {}
+                    var payload = buildPayload(
+                      entitlement.json || {},
+                      internalUsage,
+                      settingsPage.ok ? (settingsPage.json || {}) : null,
+                      premiumResult && premiumResult.ok ? (premiumResult.json || {}) : null,
+                      billingInput
+                    );
+                     if (!hasCopilotUsage(payload)) throw new Error("copilot_usage_payload_missing");
+                     c.post(payload);
+                   }).catch(function(error) {
+                     var payload = buildPayload(entitlement.json || {}, internalUsage, settingsPage.ok ? (settingsPage.json || {}) : null, null, billingInput);
+                     if (!hasCopilotUsage(payload)) throw error;
+                     c.post(payload);
+                   });
+                  }).catch(function(error) {
+                    throw error;
+                  });
                 }).catch(function(error) {
                   c.fail("copilot_entitlement_unavailable", String(error && error.message || error));
                 });
-              }, 1200);
+              }
+              function collectPremiumBilling(attempt) {
+                var billingInput = currentPagePremiumBillingInput();
+                var cardUrl = premiumBillingCardUrl(billingInput);
+                try { console.log("AIUsageCopilot billing_page input=" + !!billingInput + " card=" + !!cardUrl + " attempt=" + attempt); } catch (logError) {}
+                if (!cardUrl) {
+                  if (attempt < 3) {
+                    setTimeout(function(){ collectPremiumBilling(attempt + 1); }, 500);
+                  } else {
+                    collectEntitlementFallback(billingInput);
+                  }
+                  return;
+                }
+                nativeJson(cardUrl).then(function(premiumResult) {
+                  try { console.log("AIUsageCopilot billing_card status=" + (premiumResult && premiumResult.status) + " ok=" + !!(premiumResult && premiumResult.ok)); } catch (logError) {}
+                  var payload = buildPayload(
+                    {},
+                    null,
+                    null,
+                    premiumResult && premiumResult.ok ? (premiumResult.json || {}) : null,
+                    billingInput
+                  );
+                  if (!hasCopilotUsage(payload)) {
+                    collectEntitlementFallback(billingInput);
+                    return;
+                  }
+                  c.post(payload);
+                }).catch(function() {
+                  collectEntitlementFallback(billingInput);
+                });
+              }
+              setTimeout(function(){ collectPremiumBilling(0); }, 800);
             })();
         """.trimIndent()
     }

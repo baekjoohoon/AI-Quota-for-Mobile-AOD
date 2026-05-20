@@ -34,10 +34,10 @@ class WebLoginActivity : Activity() {
     private lateinit var providerId: ProviderId
     private lateinit var webView: WebView
     private lateinit var rootContainer: FrameLayout
+    @Volatile
     private var finished = false
     private var firstPageLogged = false
     private var observedCodexAccountId: String? = null
-    private var copilotPolling = false
     private val popupViews = mutableSetOf<WebView>()
     private val collectorInjectionKeys = mutableSetOf<String>()
     private val startedAtMs = SystemClock.elapsedRealtime()
@@ -59,7 +59,7 @@ class WebLoginActivity : Activity() {
         LocalUsageRepository(applicationContext).markConnecting(providerId)
 
         val title = TextView(this).apply {
-            text = "Sign in to ${providerId.displayName}"
+            text = loginTitleText()
             textSize = 18f
             setTextColor(Color.WHITE)
             setBackgroundColor(Color.rgb(15, 23, 42))
@@ -74,14 +74,10 @@ class WebLoginActivity : Activity() {
         webView = createConfiguredWebView(cookieManager, capabilities)
         rootContainer = FrameLayout(this).apply {
             addView(webView, loginWebViewLayoutParams())
-            addView(title, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 96))
+            addView(title, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, loginTitleHeight()))
         }
         setContentView(rootContainer)
-        if (providerId == ProviderId.COPILOT) {
-            beginCopilotDeviceAuthorization()
-        } else {
-            webView.loadUrl(intent.getStringExtra(EXTRA_START_URL) ?: definition.loginStartUrl)
-        }
+        webView.loadUrl(intent.getStringExtra(EXTRA_START_URL) ?: definition.loginStartUrl)
     }
 
     override fun onDestroy() {
@@ -115,8 +111,14 @@ class WebLoginActivity : Activity() {
 
     private fun loginWebViewLayoutParams(): FrameLayout.LayoutParams {
         return FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT).apply {
-            topMargin = 96
+            topMargin = loginTitleHeight()
         }
+    }
+
+    private fun loginTitleHeight(): Int = 96
+
+    private fun loginTitleText(): String {
+        return "Sign in to ${providerId.displayName}"
     }
 
     private fun destroyPopupWindow(window: WebView) {
@@ -197,9 +199,6 @@ class WebLoginActivity : Activity() {
 
         override fun onPageFinished(view: WebView, url: String) {
             logFirstPageFinished(url)
-            if (providerId == ProviderId.COPILOT) {
-                injectCopilotDeviceCode(view)
-            }
             view.evaluateJavascript(PAGE_CAPTURE_SCRIPT) { encoded ->
                 val pageText = decodeJsString(encoded)
                 if (ProviderLoginStrategy.isLoginComplete(providerId, url, cookiesFor(url), pageText)) {
@@ -223,83 +222,6 @@ class WebLoginActivity : Activity() {
                 failKeepingPrevious("Provider login returned HTTP ${errorResponse.statusCode}.", "main_frame_http_${errorResponse.statusCode}")
             }
         }
-    }
-
-    private fun beginCopilotDeviceAuthorization() {
-        Thread {
-            val result = CopilotOAuthRepository(applicationContext).beginDeviceAuthorization()
-            runOnUiThread {
-                if (finished) return@runOnUiThread
-                result.fold(
-                    onSuccess = { authorization ->
-                        webView.loadUrl(authorization.verificationUri)
-                        scheduleCopilotDevicePoll(authorization.intervalMillis)
-                    },
-                    onFailure = {
-                        failKeepingPrevious("Copilot authorization could not start.", "copilot_device_init_failed")
-                    }
-                )
-            }
-        }.start()
-    }
-
-    private fun injectCopilotDeviceCode(view: WebView) {
-        val userCode = CopilotOAuthRepository(applicationContext).currentUserCode() ?: return
-        val quotedCode = JSONObject.quote(userCode)
-        view.evaluateJavascript(
-            """
-            (function(){
-              var code = $quotedCode;
-              var input = document.querySelector('input[name="user_code"], input[id="user_code"], input[type="text"]');
-              if (!input) return;
-              input.focus();
-              input.value = code;
-              input.dispatchEvent(new Event('input', { bubbles: true }));
-              input.dispatchEvent(new Event('change', { bubbles: true }));
-              if (window.__AIUsageCopilotDeviceSubmitted) return;
-              window.__AIUsageCopilotDeviceSubmitted = true;
-              var form = input.form || input.closest('form');
-              var submit = form && form.querySelector('button[type="submit"], input[type="submit"]');
-              if (submit) submit.click();
-            })();
-            """.trimIndent(),
-            null
-        )
-    }
-
-    private fun scheduleCopilotDevicePoll(delayMillis: Long) {
-        if (copilotPolling || finished) return
-        copilotPolling = true
-        webView.postDelayed({
-            Thread {
-                val repository = CopilotOAuthRepository(applicationContext)
-                val pollResult = repository.pollDeviceAuthorization()
-                val payload = if (pollResult is CopilotOAuthRepository.CopilotDevicePollResult.Authorized) {
-                    repository.fetchUsagePayload()
-                } else {
-                    null
-                }
-                runOnUiThread {
-                    copilotPolling = false
-                    if (finished) return@runOnUiThread
-                    when (pollResult) {
-                        is CopilotOAuthRepository.CopilotDevicePollResult.Authorized -> {
-                            if (payload != null) {
-                                finishSuccessfulLogin(payload)
-                            } else {
-                                failKeepingPrevious("Copilot premium usage payload was not available.", "copilot_usage_unavailable")
-                            }
-                        }
-                        is CopilotOAuthRepository.CopilotDevicePollResult.Pending -> {
-                            scheduleCopilotDevicePoll(pollResult.delayMillis)
-                        }
-                        is CopilotOAuthRepository.CopilotDevicePollResult.Failed -> {
-                            failKeepingPrevious("Copilot authorization failed.", pollResult.reason)
-                        }
-                    }
-                }
-            }.start()
-        }, delayMillis.coerceAtLeast(1_000L))
     }
 
     private inner class UsageBridge {
@@ -350,6 +272,19 @@ class WebLoginActivity : Activity() {
             val status = parsed?.optInt("status", 0) ?: 0
             val endpoint = parsed?.optString("endpoint").orEmpty()
             Log.d("AIUsageCollector", "provider=copilot nativeFetch endpoint=$endpoint status=$status")
+            return result
+        }
+
+        @JavascriptInterface
+        fun fetchCopilotJsonWithAuthorization(url: String, authorizationHeader: String): String {
+            if (providerId != ProviderId.COPILOT) {
+                return JSONObject().put("ok", false).put("error", "provider_mismatch").toString()
+            }
+            val result = CopilotNativeUsageFetcher.fetchJsonWithAuthorization(url, authorizationHeader)
+            val parsed = runCatching { JSONObject(result) }.getOrNull()
+            val status = parsed?.optInt("status", 0) ?: 0
+            val endpoint = parsed?.optString("endpoint").orEmpty()
+            Log.d("AIUsageCollector", "provider=copilot nativeFetchAuth endpoint=$endpoint status=$status")
             return result
         }
     }

@@ -59,12 +59,14 @@ import com.aiusage.mobile.R
 import com.aiusage.mobile.local.ProviderConnectionState
 import com.aiusage.mobile.local.ProviderId
 import com.aiusage.mobile.local.ProviderPreferencesCodec
+import com.aiusage.mobile.local.ProviderRefreshState
 import com.aiusage.mobile.local.ProviderUsageLine
 import com.aiusage.mobile.local.ProviderUsageSnapshot
 import com.aiusage.mobile.local.displayRemainingText
 import com.aiusage.mobile.local.displayResetTextForLocale
 import com.aiusage.mobile.local.displayUsageLabel
 import com.aiusage.mobile.local.effectiveResetText
+import com.aiusage.mobile.local.shouldShowDashboardConnectAction
 import com.aiusage.mobile.ui.AIUsageColors
 import com.aiusage.mobile.ui.AIUsageTheme
 import com.aiusage.mobile.ui.AppLayoutMetrics
@@ -536,7 +538,7 @@ private fun ProviderUsageCard(
                             verticalArrangement = Arrangement.spacedBy(usageColumnSpacing)
                         ) {
                             Text(
-                                text = snapshot.connectionState.label(),
+                                text = snapshot.statusLabel(),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = if (colors.theme == com.aiusage.mobile.local.AppTheme.MACOS) colors.titleText else colors.textPrimary,
                                 maxLines = 1
@@ -555,7 +557,7 @@ private fun ProviderUsageCard(
                         }
                     }
 
-                    if (snapshot.connectionState != ProviderConnectionState.CONNECTED) {
+                    if (snapshot.shouldShowDashboardConnectAction()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End,
@@ -832,12 +834,18 @@ private fun UsageLinePreview(
 }
 
 @Composable
-private fun ProviderConnectionState.label(): String {
-    return when (this) {
+private fun ProviderUsageSnapshot.statusLabel(): String {
+    if (connectionState == ProviderConnectionState.CONNECTING) {
+        return stringResource(R.string.provider_status_connecting)
+    }
+    if (connectionState == ProviderConnectionState.COLLECTING || refreshState == ProviderRefreshState.REFRESHING) {
+        return stringResource(R.string.provider_status_collecting)
+    }
+    return when (connectionState) {
         ProviderConnectionState.DISCONNECTED -> stringResource(R.string.provider_status_disconnected)
         ProviderConnectionState.CONNECTING -> stringResource(R.string.provider_status_connecting)
         ProviderConnectionState.CONNECTED -> stringResource(R.string.provider_status_connected)
-        ProviderConnectionState.COLLECTING -> stringResource(R.string.provider_status_connecting)
+        ProviderConnectionState.COLLECTING -> stringResource(R.string.provider_status_collecting)
         ProviderConnectionState.STALE -> stringResource(R.string.provider_status_connected)
         ProviderConnectionState.UNAVAILABLE -> stringResource(R.string.provider_unavailable)
         ProviderConnectionState.ERROR -> stringResource(R.string.provider_status_error)

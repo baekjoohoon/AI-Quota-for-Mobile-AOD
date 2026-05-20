@@ -43,7 +43,7 @@ fun displayUsageLabel(
         "weekly", "weekly limit" -> "주간 한도"
         "credits" -> "크레딧"
         "chat" -> "채팅"
-        "completions", "code completions" -> "자동완성"
+        "completions", "code completions", "inline suggestions" -> "인라인 제안"
         "total usage" -> "전체 사용량"
         "auto usage" -> "자동 사용량"
         "api usage" -> "API 사용량"

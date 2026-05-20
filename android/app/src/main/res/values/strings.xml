@@ -66,6 +66,7 @@
     <string name="provider_status_working">Working</string>
     <string name="provider_status_disconnected">Disconnected</string>
     <string name="provider_status_connecting">Connecting</string>
+    <string name="provider_status_collecting">Collecting usage</string>
     <string name="provider_status_connected">Connected</string>
     <string name="provider_status_error">Error</string>
     <string name="provider_login_unavailable_message">Local web login is unavailable for %1$s.</string>

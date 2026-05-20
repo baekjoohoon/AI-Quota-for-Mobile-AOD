@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
@@ -161,13 +162,28 @@ private class BackgroundCollectorWebViewClient(
         val job = currentJob() ?: return
         val pageUrl = view.url ?: url
         if (!ProviderWebCollectorScripts.shouldRunCollectorFromResource(job.job.providerId, pageUrl, url)) return
+        val requestId = job.requestId
+        val providerId = job.job.providerId
         view.evaluateJavascript(PAGE_CAPTURE_SCRIPT) { encoded ->
+            val activeJob = currentJob() ?: return@evaluateJavascript
+            if (activeJob.requestId != requestId || activeJob.job.providerId != providerId) return@evaluateJavascript
+            if (!isSameDocument(view.url, pageUrl)) return@evaluateJavascript
             injectCollectorIfReady(view, pageUrl, decodeJsString(encoded))
         }
     }
 
     override fun onPageFinished(view: WebView, url: String) {
+        val job = currentJob() ?: return
+        val requestId = job.requestId
+        val providerId = job.job.providerId
+        Log.d(
+            "AIUsageBgCollector",
+            "pageFinished provider=${providerId.storageId} url=${hostOf(url)}${pathOf(url)}"
+        )
         view.evaluateJavascript(PAGE_CAPTURE_SCRIPT) { encoded ->
+            val activeJob = currentJob() ?: return@evaluateJavascript
+            if (activeJob.requestId != requestId || activeJob.job.providerId != providerId) return@evaluateJavascript
+            if (!isSameDocument(view.url, url)) return@evaluateJavascript
             injectCollectorIfReady(view, url, decodeJsString(encoded))
         }
     }
@@ -190,9 +206,19 @@ private class BackgroundCollectorWebViewClient(
         val job = currentJob() ?: return
         val providerId = job.job.providerId
         val cookies = cookiesFor(url)
-        if (!ProviderWebCollectorScripts.shouldRunCollector(providerId, url, cookies, pageText)) return
+        if (!ProviderWebCollectorScripts.shouldRunCollector(providerId, url, cookies, pageText)) {
+            Log.d(
+                "AIUsageBgCollector",
+                "skipInject provider=${providerId.storageId} url=${hostOf(url)}${pathOf(url)}"
+            )
+            return
+        }
         val injectionKey = "${job.requestId}:${providerId.storageId}:${hostOf(url)}:${pathOf(url)}"
         if (!collectorInjectionKeys.add(injectionKey)) return
+        Log.d(
+            "AIUsageBgCollector",
+            "inject provider=${providerId.storageId} url=${hostOf(url)}${pathOf(url)}"
+        )
         val script = ProviderWebCollectorScripts.build(
             providerId = providerId,
             cookies = cookies,
@@ -232,6 +258,10 @@ private class BackgroundUsageBridge(
         mainHandler.post {
             val job = currentJob() ?: return@post
             if (!ProviderWebCollectorScripts.shouldAcceptCollectorPayload(job.job.providerId, job.job.startUrl)) return@post
+            Log.d(
+                "AIUsageBgCollector",
+                "payload provider=${job.job.providerId.storageId} length=${rawPayload.length}"
+            )
             onPayload(job, rawPayload)
             onFinished(job.requestId)
         }
@@ -241,8 +271,12 @@ private class BackgroundUsageBridge(
     fun postCollectorError(rawError: String) {
         mainHandler.post {
             val job = currentJob() ?: return@post
-            val errorKind = runCatching { JSONObject(rawError).optString("errorKind", "collector_error") }
-                .getOrDefault("collector_error")
+            val errorJson = runCatching { JSONObject(rawError) }.getOrNull()
+            val errorKind = errorJson?.optString("errorKind", "collector_error") ?: "collector_error"
+            Log.d(
+                "AIUsageBgCollector",
+                "error provider=${job.job.providerId.storageId} kind=$errorKind message=${errorJson?.optString("message").orEmpty()}"
+            )
             onError(job, "Background collector failed: $errorKind")
             onFinished(job.requestId)
         }
@@ -263,7 +297,28 @@ private class BackgroundUsageBridge(
         if (job.job.providerId != ProviderId.COPILOT) {
             return JSONObject().put("ok", false).put("error", "provider_mismatch").toString()
         }
-        return CopilotNativeUsageFetcher.fetchJson(url)
+        val result = CopilotNativeUsageFetcher.fetchJson(url)
+        val parsed = runCatching { JSONObject(result) }.getOrNull()
+        Log.d(
+            "AIUsageBgCollector",
+            "provider=copilot nativeFetch endpoint=${parsed?.optString("endpoint")} status=${parsed?.optInt("status", -1)}"
+        )
+        return result
+    }
+
+    @JavascriptInterface
+    fun fetchCopilotJsonWithAuthorization(url: String, authorizationHeader: String): String {
+        val job = currentJob() ?: return JSONObject().put("ok", false).put("error", "no_active_job").toString()
+        if (job.job.providerId != ProviderId.COPILOT) {
+            return JSONObject().put("ok", false).put("error", "provider_mismatch").toString()
+        }
+        val result = CopilotNativeUsageFetcher.fetchJsonWithAuthorization(url, authorizationHeader)
+        val parsed = runCatching { JSONObject(result) }.getOrNull()
+        Log.d(
+            "AIUsageBgCollector",
+            "provider=copilot nativeFetchAuth endpoint=${parsed?.optString("endpoint")} status=${parsed?.optInt("status", -1)}"
+        )
+        return result
     }
 }
 
@@ -284,6 +339,11 @@ private fun hostOf(url: String): String {
 
 private fun pathOf(url: String): String {
     return runCatching { URI(url).path.orEmpty() }.getOrDefault("")
+}
+
+private fun isSameDocument(currentUrl: String?, expectedUrl: String): Boolean {
+    if (currentUrl.isNullOrBlank()) return false
+    return hostOf(currentUrl) == hostOf(expectedUrl) && pathOf(currentUrl) == pathOf(expectedUrl)
 }
 
 private fun decodeJsString(value: String?): String {

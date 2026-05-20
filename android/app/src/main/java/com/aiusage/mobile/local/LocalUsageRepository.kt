@@ -17,7 +17,11 @@ class LocalUsageRepository(context: Context) {
     private fun clearStaleRefreshing(snapshot: ProviderUsageSnapshot): ProviderUsageSnapshot {
         if (snapshot.refreshState != ProviderRefreshState.REFRESHING) return snapshot
         val updatedAt = runCatching { Instant.parse(snapshot.updatedAt) }.getOrNull() ?: return snapshot
-        if (Duration.between(updatedAt, Instant.now()) < STALE_REFRESH_TIMEOUT) return snapshot
+        val staleTimeout = when (snapshot.connectionState) {
+            ProviderConnectionState.CONNECTING -> STALE_CONNECTING_TIMEOUT
+            else -> STALE_REFRESH_TIMEOUT
+        }
+        if (Duration.between(updatedAt, Instant.now()) < staleTimeout) return snapshot
         val nextConnectionState = when (snapshot.connectionState) {
             ProviderConnectionState.CONNECTING,
             ProviderConnectionState.COLLECTING -> if (snapshot.lines.isEmpty()) {
@@ -112,6 +116,7 @@ class LocalUsageRepository(context: Context) {
     private companion object {
         const val PREFERENCES_NAME = "ai_usage_local_usage"
         const val KEY_SNAPSHOTS = "provider_snapshots"
+        val STALE_CONNECTING_TIMEOUT: Duration = Duration.ofSeconds(3)
         val STALE_REFRESH_TIMEOUT: Duration = Duration.ofSeconds(45)
     }
 }

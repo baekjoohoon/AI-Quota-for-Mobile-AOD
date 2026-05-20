@@ -36,11 +36,35 @@ enum class ProviderRefreshState {
     REFRESHING
 }
 
+enum class ProviderConnectionAction {
+    CONNECT,
+    DISCONNECT,
+    NONE
+}
+
 enum class UsageSeverity {
     NORMAL,
     WARNING,
     DANGER,
     UNKNOWN
+}
+
+fun ProviderUsageSnapshot.primaryConnectionAction(): ProviderConnectionAction {
+    if (refreshState == ProviderRefreshState.REFRESHING) return ProviderConnectionAction.NONE
+    return when (connectionState) {
+        ProviderConnectionState.DISCONNECTED,
+        ProviderConnectionState.NOT_CONNECTED,
+        ProviderConnectionState.UNAVAILABLE,
+        ProviderConnectionState.ERROR -> ProviderConnectionAction.CONNECT
+        ProviderConnectionState.CONNECTED,
+        ProviderConnectionState.STALE -> ProviderConnectionAction.DISCONNECT
+        ProviderConnectionState.CONNECTING,
+        ProviderConnectionState.COLLECTING -> ProviderConnectionAction.NONE
+    }
+}
+
+fun ProviderUsageSnapshot.shouldShowDashboardConnectAction(): Boolean {
+    return primaryConnectionAction() == ProviderConnectionAction.CONNECT
 }
 
 data class ProviderUsageLine(

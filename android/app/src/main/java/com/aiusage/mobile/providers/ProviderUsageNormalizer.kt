@@ -140,15 +140,16 @@ object ProviderUsageNormalizer {
 
     private fun normalizeCopilot(json: JSONObject, source: ProviderPayloadSource, fetchedAt: String): ProviderUsageSnapshot? {
         val quotas = json.optObject("quotas") ?: json.optObject("usage") ?: json
+        val resetDate = quotas.optionalString("quota_reset_date")
+            ?: json.optionalString("quota_reset_date")
+            ?: quotas.optionalString("resetDate")
+            ?: json.optionalString("resetDate")
         val snapshotLines = copilotQuotaSnapshotLines(
             snapshots = quotas.optObject("quota_snapshots")
                 ?: quotas.optObject("quotaSnapshots")
                 ?: json.optObject("quota_snapshots")
                 ?: json.optObject("quotaSnapshots"),
-            resetDate = quotas.optionalString("quota_reset_date")
-                ?: json.optionalString("quota_reset_date")
-                ?: quotas.optionalString("resetDate")
-                ?: json.optionalString("resetDate"),
+            resetDate = resetDate,
             source = source
         )
         val limitedLines = copilotLimitedQuotaLines(
@@ -160,18 +161,28 @@ object ProviderUsageNormalizer {
                 ?: json.optionalString("quota_reset_date"),
             source = source
         )
+        val premiumBillingLines = listOfNotNull(
+            copilotPremiumBillingLine(
+                billing = quotas.optObject("premium_billing")
+                    ?: quotas.optObject("premiumBilling")
+                    ?: json.optObject("premium_billing")
+                    ?: json.optObject("premiumBilling"),
+                resetDate = resetDate,
+                source = source
+            )
+        )
         val legacyNestedLines = listOfNotNull(
             quotas.toCopilotQuotaLine("chat", "copilot:chat", "Chat", source),
-            quotas.toCopilotQuotaLine("completions", "copilot:completions", "Completions", source),
+            quotas.toCopilotQuotaLine("completions", "copilot:completions", "Inline suggestions", source),
             quotas.toCopilotQuotaLine("premiumInteractions", "copilot:premium_requests", "Premium requests", source)
         )
         val explicitLines = listOfNotNull(
             quotas.optObject("chat")?.toLine("copilot:chat", "Chat", source),
-            quotas.optObject("completions")?.toLine("copilot:completions", "Completions", source),
+            quotas.optObject("completions")?.toLine("copilot:completions", "Inline suggestions", source),
             quotas.optObject("premium_requests")?.toLine("copilot:premium_requests", "Premium requests", source),
             quotas.optObject("premiumRequests")?.toLine("copilot:premium_requests", "Premium requests", source)
         )
-        val lines = mergeCopilotLines(snapshotLines, limitedLines, legacyNestedLines, explicitLines)
+        val lines = mergeCopilotLines(premiumBillingLines, snapshotLines, limitedLines, legacyNestedLines, explicitLines)
         val plan = json.optionalString("plan")
             ?: json.optionalString("sku")
             ?: json.optionalString("copilot_plan")
@@ -204,7 +215,7 @@ object ProviderUsageNormalizer {
         if (snapshots == null) return emptyList()
         return listOfNotNull(
             snapshots.optObject("chat")?.toCopilotSnapshotLine("copilot:chat", "Chat", resetDate, source),
-            snapshots.optObject("completions")?.toCopilotSnapshotLine("copilot:completions", "Completions", resetDate, source),
+            snapshots.optObject("completions")?.toCopilotSnapshotLine("copilot:completions", "Inline suggestions", resetDate, source),
             (snapshots.optObject("premium_interactions")
                 ?: snapshots.optObject("premiumInteractions")
                 ?: snapshots.optObject("premium_requests")
@@ -226,7 +237,7 @@ object ProviderUsageNormalizer {
         if (remaining == null || limits == null) return emptyList()
         return listOfNotNull(
             copilotAmountLine(remaining, limits, "chat", "copilot:chat", "Chat", resetDate, source),
-            copilotAmountLine(remaining, limits, "completions", "copilot:completions", "Completions", resetDate, source)
+            copilotAmountLine(remaining, limits, "completions", "copilot:completions", "Inline suggestions", resetDate, source)
         )
     }
 
@@ -245,6 +256,49 @@ object ProviderUsageNormalizer {
         val line = JSONObject().put("remaining_percent", (remainingValue / limitValue) * 100.0)
         resetDate?.let { line.put("resetAt", it) }
         return line.toLine(key, label, source)
+    }
+
+    private fun copilotPremiumBillingLine(
+        billing: JSONObject?,
+        resetDate: String?,
+        source: ProviderPayloadSource
+    ): ProviderUsageLine? {
+        if (billing == null) return null
+        val used = billing.optionalNumber("discountQuantity")
+            ?: billing.optionalNumber("includedPremiumRequestsConsumed")
+            ?: billing.optionalNumber("used")
+            ?: billing.optionalNumber("usage")
+            ?: return null
+        val entitlement = billing.optionalNumber("filteredUserPremiumRequestEntitlement")
+            ?: billing.optionalNumber("userPremiumRequestEntitlement")
+            ?: billing.optionalNumber("entitlement")
+            ?: billing.optionalNumber("limit")
+            ?: 0.0
+        val remaining = (entitlement - used).coerceAtLeast(0.0)
+        val remainingPercent = if (entitlement > 0.0) (remaining / entitlement).toFloat().coerceIn(0f, 1f) else null
+        return ProviderUsageLine(
+            key = "copilot:premium_requests",
+            label = "Premium requests",
+            remainingPercent = remainingPercent,
+            remainingText = remainingPercent?.let { "${(it.coerceIn(0f, 1f) * 100f).roundToInt()}% left" }
+                ?: "${formatAmount(used)} used",
+            resetsAt = billing.optionalString("resetAt")
+                ?: billing.optionalString("resetsAt")
+                ?: billing.optionalString("resetDate")
+                ?: resetDate,
+            detailText = if (entitlement > 0.0) {
+                "${formatAmount(used)} / ${formatAmount(entitlement)} included"
+            } else {
+                "${formatAmount(used)} included used"
+            },
+            usedAmount = used,
+            limitAmount = entitlement,
+            remainingAmount = if (entitlement > 0.0) remaining else null,
+            unit = "requests",
+            category = "premium_requests",
+            sourceLabel = source.label,
+            confidence = source.confidence
+        )
     }
 
     private fun mergeCopilotLines(vararg groups: List<ProviderUsageLine>): List<ProviderUsageLine> {
@@ -491,6 +545,7 @@ object ProviderUsageNormalizer {
         val remaining = optObject("remaining") ?: return null
         val remainingValue = remaining.optionalNumber(quotaKey) ?: return null
         val limitValue = optObject("limits")?.optionalNumber(quotaKey)
+        if (quotaKey == "premiumInteractions" && limitValue != null && limitValue <= 0.0 && remainingValue <= 0.0) return null
         val remainingPercent = remaining.optionalNumber("${quotaKey}Percentage")
             ?: if (limitValue != null && limitValue > 0.0) (remainingValue / limitValue) * 100.0 else return null
         val line = JSONObject().put("remaining_percent", remainingPercent)
@@ -549,6 +604,15 @@ object ProviderUsageNormalizer {
     private fun JSONObject.optionalString(key: String): String? {
         if (!has(key) || isNull(key)) return null
         return opt(key)?.toString()?.takeIf { it.isNotBlank() && it != "null" }
+    }
+
+    private fun formatAmount(value: Double): String {
+        val rounded = value.roundToInt()
+        return if (kotlin.math.abs(value - rounded) < 0.001) {
+            rounded.toString()
+        } else {
+            String.format(Locale.US, "%.1f", value)
+        }
     }
 
     private fun JSONObject.optionalBoolean(key: String): Boolean? {

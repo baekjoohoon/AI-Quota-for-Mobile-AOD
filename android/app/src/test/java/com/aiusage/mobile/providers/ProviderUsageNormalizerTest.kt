@@ -533,7 +533,7 @@ class ProviderUsageNormalizerTest {
         )!!
 
         assertEquals("Copilot Pro", snapshot.plan)
-        assertEquals(listOf("Chat", "Completions", "Premium requests"), snapshot.lines.map { it.label })
+        assertEquals(listOf("Chat", "Inline suggestions", "Premium requests"), snapshot.lines.map { it.label })
         assertEquals(0.92f, snapshot.lines.single { it.label == "Premium requests" }.remainingPercent ?: 0f, 0.001f)
         assertEquals("2026-06-01T00:00:00Z", snapshot.lines.single { it.label == "Premium requests" }.resetsAt)
     }
@@ -609,6 +609,119 @@ class ProviderUsageNormalizerTest {
     }
 
     @Test
+    fun copilotBillingPremiumRequestsWinOverLegacyZeroPremiumRequests() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.COPILOT,
+            """
+            {
+              "plan": "copilot_pro",
+              "quotas": {
+                "remaining": {
+                  "chat": 88,
+                  "premiumInteractions": 0,
+                  "premiumInteractionsPercentage": 0
+                },
+                "limits": {
+                  "chat": 100,
+                  "premiumInteractions": 0
+                },
+                "premium_billing": {
+                  "discountQuantity": 27,
+                  "userPremiumRequestEntitlement": 300,
+                  "filteredUserPremiumRequestEntitlement": 300,
+                  "netQuantity": 0,
+                  "netBilledAmount": 0
+                }
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.STRUCTURED_SCRIPT
+        )!!
+
+        assertEquals(listOf("Chat", "Premium requests"), snapshot.lines.map { it.label })
+        assertEquals(0.88f, snapshot.lines.single { it.label == "Chat" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.91f, snapshot.lines.single { it.label == "Premium requests" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(27.0, snapshot.lines.single { it.label == "Premium requests" }.usedAmount ?: 0.0, 0.001)
+        assertEquals(300.0, snapshot.lines.single { it.label == "Premium requests" }.limitAmount ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun copilotBillingPremiumRequestsWinOverZeroQuotaSnapshot() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.COPILOT,
+            """
+            {
+              "plan": "copilot_pro",
+              "quotas": {
+                "quota_snapshots": {
+                  "chat": {
+                    "percent_remaining": 88,
+                    "reset_date": "2026-06-15"
+                  },
+                  "premium_interactions": {
+                    "entitlement": 0,
+                    "remaining": 0,
+                    "percent_remaining": 0,
+                    "reset_date": "2026-06-15"
+                  }
+                },
+                "premium_billing": {
+                  "discountQuantity": 27,
+                  "userPremiumRequestEntitlement": 300,
+                  "filteredUserPremiumRequestEntitlement": 300,
+                  "netQuantity": 0,
+                  "netBilledAmount": 0
+                }
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.STRUCTURED_SCRIPT
+        )!!
+
+        assertEquals(listOf("Chat", "Premium requests"), snapshot.lines.map { it.label })
+        assertEquals(0.91f, snapshot.lines.single { it.label == "Premium requests" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(27.0, snapshot.lines.single { it.label == "Premium requests" }.usedAmount ?: 0.0, 0.001)
+        assertEquals(300.0, snapshot.lines.single { it.label == "Premium requests" }.limitAmount ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun copilotBillingZeroEntitlementDoesNotCreateFakeZeroPercentGauge() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.COPILOT,
+            """
+            {
+              "plan": "free",
+              "quotas": {
+                "remaining": {
+                  "chat": 88,
+                  "premiumInteractions": 0,
+                  "premiumInteractionsPercentage": 0
+                },
+                "limits": {
+                  "chat": 100,
+                  "premiumInteractions": 0
+                },
+                "premium_billing": {
+                  "discountQuantity": 0,
+                  "userPremiumRequestEntitlement": 0,
+                  "filteredUserPremiumRequestEntitlement": 0,
+                  "netQuantity": 0,
+                  "netBilledAmount": 0
+                }
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.STRUCTURED_SCRIPT
+        )!!
+
+        val premium = snapshot.lines.single { it.label == "Premium requests" }
+        assertNull(premium.remainingPercent)
+        assertEquals("0 used", premium.remainingText)
+        assertEquals(0.0, premium.usedAmount ?: 0.0, 0.001)
+        assertEquals(0.0, premium.limitAmount ?: 0.0, 0.001)
+    }
+
+    @Test
     fun copilotLimitedUserQuotasNormalizeFreeTierChatAndCompletions() {
         val snapshot = ProviderUsageNormalizer.normalize(
             ProviderId.COPILOT,
@@ -631,10 +744,33 @@ class ProviderUsageNormalizerTest {
         )!!
 
         assertEquals("individual", snapshot.plan)
-        assertEquals(listOf("Chat", "Completions"), snapshot.lines.map { it.label })
+        assertEquals(listOf("Chat", "Inline suggestions"), snapshot.lines.map { it.label })
         assertEquals(0.82f, snapshot.lines.single { it.label == "Chat" }.remainingPercent ?: 0f, 0.001f)
-        assertEquals(0.75f, snapshot.lines.single { it.label == "Completions" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.75f, snapshot.lines.single { it.label == "Inline suggestions" }.remainingPercent ?: 0f, 0.001f)
         assertEquals("2026-06-15", snapshot.lines.first().resetsAt)
+    }
+
+    @Test
+    fun copilotMissingCompletionQuotaDoesNotCreateZeroCompletionLine() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.COPILOT,
+            """
+            {
+              "copilot_plan": "individual",
+              "limited_user_quotas": {
+                "chat": 410
+              },
+              "monthly_quotas": {
+                "chat": 500
+              },
+              "limited_user_reset_date": "2026-06-15"
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.PROVIDER_API
+        )!!
+
+        assertEquals(listOf("Chat"), snapshot.lines.map { it.label })
+        assertFalse(snapshot.lines.any { it.label == "Completions" })
     }
 
     @Test
