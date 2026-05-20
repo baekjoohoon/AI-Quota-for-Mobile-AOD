@@ -11,6 +11,9 @@
   function normalizePlan(value) {
     var key = compact(value);
     if (!key) return null;
+    if (key === "standardtier" || key === "paid") return "Paid";
+    if (key === "legacytier" || key === "legacy") return "Legacy";
+    if (key === "freetier" || key === "workspace") return "Free";
     if (key === "pro" || key === "aipro" || key === "googleaipro" || key === "geminipro") {
       return "GEMINI_PRO";
     }
@@ -23,7 +26,7 @@
     if (key === "free" || key === "googleaifree" || key === "geminifree") {
       return "GEMINI_FREE";
     }
-    if (key === "geminiunknown" || key === "unknown") return "GEMINI_UNKNOWN";
+    if (key === "geminiunknown" || key === "unknown") return null;
     return null;
   }
 
@@ -57,9 +60,11 @@
     var label = safeText(value);
     var key = compact(label);
     if (key.indexOf("deepresearch") >= 0) return "Gemini Deep Research";
-    if (key.indexOf("flash") >= 0) return "Gemini Flash";
-    if (key.indexOf("pro") >= 0) return "Gemini Pro";
-    return label || null;
+    if (key.indexOf("gemini") >= 0 && key.indexOf("flash") >= 0) return "Gemini Flash";
+    if (key.indexOf("gemini") >= 0 && key.indexOf("pro") >= 0) return "Gemini Pro";
+    if (key === "flash" || key.indexOf("flash") >= 0) return "Gemini Flash";
+    if (key === "pro" || key.indexOf("pro") >= 0) return "Gemini Pro";
+    return null;
   }
 
   function resetValue(limit) {
@@ -92,6 +97,11 @@
       if (isNumber(used)) return Math.max(0, Math.min(1, used / cap));
     }
     var rawRate = parseNumber(firstValue(limit, ["u", "usage", "usageRate", "usedRate", "usedPercent"]));
+    var remainingFraction = parseNumber(firstValue(limit, ["remainingFraction", "remaining_fraction", "remainingPercent", "remaining_percent"]));
+    if (isNumber(remainingFraction)) {
+      var remainingRate = remainingFraction <= 1 ? remainingFraction : remainingFraction / 100;
+      return Math.max(0, Math.min(1, 1 - remainingRate));
+    }
     if (!isNumber(rawRate)) return null;
     return Math.max(0, Math.min(1, rawRate <= 1 ? rawRate : rawRate / 100));
   }
@@ -144,7 +154,11 @@
       }
       var score = lineScore(line);
       var existingScore = lineScore(existing);
-      if (score > existingScore || (score === existingScore && (line.confidence || 0) >= (existing.confidence || 0))) {
+      if (
+        score > existingScore ||
+        (score === existingScore && parseNumber(line.u) > parseNumber(existing.u)) ||
+        (score === existingScore && parseNumber(line.u) === parseNumber(existing.u) && (line.confidence || 0) >= (existing.confidence || 0))
+      ) {
         byLabel[line.l] = line;
       }
     });
@@ -158,18 +172,30 @@
       });
   }
 
+  function extractJsonCandidates(value) {
+    var text = safeText(value);
+    var candidates = [];
+    var objectStart = text.indexOf("{");
+    var objectEnd = text.lastIndexOf("}");
+    if (objectStart >= 0 && objectEnd > objectStart) candidates.push(text.slice(objectStart, objectEnd + 1));
+    var arrayStart = text.indexOf("[");
+    var arrayEnd = text.lastIndexOf("]");
+    if (arrayStart >= 0 && arrayEnd > arrayStart) candidates.push(text.slice(arrayStart, arrayEnd + 1));
+    return candidates;
+  }
+
   function collectJsonQuotaRows(rows, limits) {
     (rows || []).forEach(function(row) {
-      var candidate = extractJsonCandidate(row);
-      if (!candidate) return;
-      try {
-        scanGeminiQuotaResponse(
-          JSON.parse(candidate),
-          ["gemini_collector_asset"],
-          "gemini_collector.js",
-          limits
-        );
-      } catch (error) {}
+      extractJsonCandidates(row).forEach(function(candidate) {
+        try {
+          scanGeminiQuotaResponse(
+            JSON.parse(candidate),
+            ["gemini_collector_asset"],
+            "gemini_collector.js",
+            limits
+          );
+        } catch (error) {}
+      });
     });
   }
 
@@ -179,19 +205,20 @@
     collectJsonQuotaRows(rows, limits);
 
     var combinedText = safeText(context.combinedText || rows.join("\n"));
-    var plan = normalizePlan(context.plan) || detectPlanFromText(combinedText) || "GEMINI_UNKNOWN";
-    var account = { p: plan };
+    var plan = normalizePlan(context.plan) || detectPlanFromText(combinedText);
+    var account = {};
+    if (plan) account.p = plan;
     var email = detectEmail(combinedText);
     if (email) account.e = email;
 
     var usageLines = dedupeLines(limits.map(lineFromLimit).filter(Boolean));
-    if (usageLines.length > 0 || context.authenticatedApp || context.providerPage) {
+    if (usageLines.length > 0) {
       return {
         s: "s",
         provider: "gemini",
         account: account,
         usage: { x: usageLines },
-        m: usageLines.length > 0 ? null : "Gemini usage is not exposed in the current page state."
+        m: null
       };
     }
     if (context.login) {

@@ -5,938 +5,554 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
-import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Message
+import android.os.SystemClock
 import android.util.Log
 import android.view.ViewGroup
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
 import android.webkit.WebResourceError
-import android.webkit.WebSettings
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
-import com.aiusage.mobile.R
-import com.aiusage.mobile.localization.withAppLanguageForDeviceLanguage
+import android.widget.TextView
 import com.aiusage.mobile.local.LocalUsageRepository
-import com.aiusage.mobile.local.ProviderConnectionState
 import com.aiusage.mobile.local.ProviderId
-import com.aiusage.mobile.local.ProviderRefreshState
-import com.aiusage.mobile.local.ProviderUsageSnapshot
-import java.io.ByteArrayInputStream
+import java.net.HttpURLConnection
 import java.net.URI
-import java.time.Instant
-import kotlin.math.roundToInt
-import org.json.JSONArray
+import java.net.URL
+import java.nio.charset.StandardCharsets
 import org.json.JSONObject
 
 class WebLoginActivity : Activity() {
-    private var webView: WebView? = null
-    private var activeProviderId: ProviderId? = null
-    private var connectionRecorded = false
-    private var usageRecorded = false
-    private var loginCompletionRecorded = false
-    private var cancellationRecorded = false
-    private var codexOAuthCompletionStarted = false
-    private var geminiOAuthCompletionStarted = false
-    private var claudeSessionVerificationInFlight = false
-    private var loginNavigationRecoveryAttempts = 0
-    private val popupViews = mutableListOf<WebView>()
-    private val popupContainers = mutableMapOf<WebView, FrameLayout>()
-
-    override fun attachBaseContext(newBase: Context) {
-        super.attachBaseContext(newBase.withAppLanguageForDeviceLanguage())
+    private lateinit var providerId: ProviderId
+    private lateinit var webView: WebView
+    private lateinit var rootContainer: FrameLayout
+    private var finished = false
+    private var firstPageLogged = false
+    private var observedCodexAccountId: String? = null
+    private var copilotPolling = false
+    private val popupViews = mutableSetOf<WebView>()
+    private val collectorInjectionKeys = mutableSetOf<String>()
+    private val startedAtMs = SystemClock.elapsedRealtime()
+    private val geminiCollectorAsset by lazy {
+        runCatching {
+            assets.open("gemini_collector.js").bufferedReader().use { it.readText() }
+        }.getOrDefault("")
     }
 
+    @Suppress("DEPRECATION")
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val providerId = intent.getStringExtra(EXTRA_PROVIDER_ID)
-            ?.let(ProviderId::fromStorageId)
-        val startUrl = intent.getStringExtra(EXTRA_START_URL).orEmpty()
-
-        if (providerId == null || !isAllowedHttps(providerId, startUrl)) {
+        providerId = ProviderId.fromStorageId(intent.getStringExtra(EXTRA_PROVIDER_ID)) ?: run {
             finish()
             return
         }
+        val definition = ProviderDefinitionRegistry.definitionFor(providerId)
+        LocalUsageRepository(applicationContext).markConnecting(providerId)
 
-        activeProviderId = providerId
-        Log.d(
-            ProviderCollectionDiagnostics.TAG,
-            "login open provider=${providerId.storageId} url=${ProviderCollectionDiagnostics.safeUrl(startUrl)}"
-        )
-        val loginView = createLoginView(providerId, finishOnBlocked = true)
-        webView = loginView
-        setContentView(createLoginContainer(loginView))
-        ProviderLoginSessionPreparer.prepare(providerId) {
-            if (!isFinishing) {
-                loginView.loadUrl(startUrl)
-            }
+        val title = TextView(this).apply {
+            text = "Sign in to ${providerId.displayName}"
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.rgb(15, 23, 42))
+            setPadding(32, 24, 32, 24)
         }
-    }
-
-    override fun onPause() {
-        if (isFinishing) {
-            saveCancelledSnapshotIfNeeded()
+        val cookieManager = CookieManager.getInstance()
+        val capabilities = ProviderLoginWebViewPolicy.capabilities()
+        cookieManager.setAcceptCookie(true)
+        if (capabilities.webContentsDebuggingEnabled) {
+            WebView.setWebContentsDebuggingEnabled(true)
         }
-        CookieManager.getInstance().flush()
-        super.onPause()
+        webView = createConfiguredWebView(cookieManager, capabilities)
+        rootContainer = FrameLayout(this).apply {
+            addView(webView, loginWebViewLayoutParams())
+            addView(title, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 96))
+        }
+        setContentView(rootContainer)
+        if (providerId == ProviderId.COPILOT) {
+            beginCopilotDeviceAuthorization()
+        } else {
+            webView.loadUrl(intent.getStringExtra(EXTRA_START_URL) ?: definition.loginStartUrl)
+        }
     }
 
     override fun onDestroy() {
-        CookieManager.getInstance().flush()
-        saveCancelledSnapshotIfNeeded()
-        popupViews.toList().forEach(::closePopupWindow)
-        webView?.destroy()
-        webView = null
+        popupViews.toList().forEach(::destroyPopupWindow)
+        if (::webView.isInitialized) {
+            webView.destroy()
+        }
         super.onDestroy()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun createLoginView(providerId: ProviderId, finishOnBlocked: Boolean): WebView {
+    private fun createConfiguredWebView(
+        cookieManager: CookieManager,
+        capabilities: ProviderLoginWebViewCapabilities
+    ): WebView {
         return WebView(this).apply {
-            setBackgroundColor(Color.WHITE)
             settings.javaScriptEnabled = true
-            settings.javaScriptCanOpenWindowsAutomatically = true
-            settings.setSupportMultipleWindows(true)
             settings.domStorageEnabled = true
-            settings.databaseEnabled = true
-            settings.allowFileAccess = true
-            settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-            settings.userAgentString = ProviderWebViewUserAgent.mobileChrome(this@WebLoginActivity)
-            CookieManager.getInstance().setAcceptCookie(true)
-            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-            addJavascriptInterface(UsageBridge(this@WebLoginActivity, providerId, this), USAGE_BRIDGE_NAME)
-            webChromeClient = UsageWebChromeClient(providerId, this@WebLoginActivity)
-            webViewClient = AllowlistedWebViewClient(
-                providerId = providerId,
-                onProviderOAuthCallback = { callbackUrl ->
-                    handleProviderOAuthCallback(callbackUrl)
-                },
-                onBlockedMainFrame = { blockedUrl ->
-                    Log.w(
-                        ProviderCollectionDiagnostics.TAG,
-                        "login blocked provider=${providerId.storageId} url=" +
-                            ProviderCollectionDiagnostics.safeUrl(blockedUrl)
-                    )
-                    if (finishOnBlocked) {
-                        stopLoading()
-                        if (!maybeRecoverLoginNavigationError(providerId, this, blockedUrl, "blocked")) {
-                            saveErrorSnapshot(providerId, getString(R.string.provider_login_open_failed_message))
-                            finish()
-                        }
-                    } else {
-                        stopLoading()
-                        closePopupWindow(this)
-                    }
-                },
-                onAllowedPageStarted = { view, startedUrl ->
-                    Log.d(
-                        ProviderCollectionDiagnostics.TAG,
-                        "login pageStarted provider=${providerId.storageId} url=" +
-                            ProviderCollectionDiagnostics.safeUrl(startedUrl)
-                    )
-                    maybeVerifyClaudeSessionWithApi(providerId, view, startedUrl)
-                    if (!maybeFinishClaudeAuthenticatedFromNavigation(providerId, startedUrl)) {
-                        installProviderUsageHooks(providerId, view)
-                    }
-                },
-                onAllowedPageFinished = { view, finishedUrl ->
-                    Log.d(
-                        ProviderCollectionDiagnostics.TAG,
-                        "login pageFinished provider=${providerId.storageId} url=" +
-                            ProviderCollectionDiagnostics.safeUrl(finishedUrl)
-                    )
-                    maybeVerifyClaudeSessionWithApi(providerId, view, finishedUrl)
-                    if (!maybeFinishClaudeAuthenticatedFromNavigation(providerId, finishedUrl)) {
-                        collectProviderUsage(providerId, finishedUrl, view)
-                    }
-                },
-                onMainFrameError = { _, errorUrl, errorCode, description ->
-                    if (isProviderOAuthCallbackNavigation(providerId, errorUrl)) {
-                        Log.d(
-                            ProviderCollectionDiagnostics.TAG,
-                            "login oauthCallbackErrorIgnored provider=${providerId.storageId} url=" +
-                                ProviderCollectionDiagnostics.safeUrl(errorUrl)
-                        )
-                    } else if (hasClaudeAuthenticatedSessionCookie(providerId)) {
-                        Log.d(
-                            ProviderCollectionDiagnostics.TAG,
-                            "login claudeCookieCompleteAfterError provider=${providerId.storageId} url=" +
-                                ProviderCollectionDiagnostics.safeUrl(errorUrl)
-                        )
-                        finishConnectedCaptureWithoutUsage(providerId)
-                    } else if (maybeRecoverLoginNavigationError(providerId, this, errorUrl, "mainFrameError")) {
-                        Log.d(
-                            ProviderCollectionDiagnostics.TAG,
-                            "login navigationRecover provider=${providerId.storageId} url=" +
-                                ProviderCollectionDiagnostics.safeUrl(errorUrl)
-                        )
-                    } else {
-                        Log.w(
-                            ProviderCollectionDiagnostics.TAG,
-                            "login mainFrameError provider=${providerId.storageId} url=" +
-                                "${ProviderCollectionDiagnostics.safeUrl(errorUrl)} " +
-                                ProviderCollectionDiagnostics.webError(errorCode, description)
-                        )
-                        saveErrorSnapshot(providerId, getString(R.string.provider_login_open_failed_message))
-                        finish()
-                    }
-                }
-            )
-        }
-    }
-
-    private fun handleCodexOAuthCallback(callbackUrl: String) {
-        val providerId = activeProviderId ?: return
-        if (providerId != ProviderId.CODEX || codexOAuthCompletionStarted) return
-        codexOAuthCompletionStarted = true
-        Log.d(
-            ProviderCollectionDiagnostics.TAG,
-            "login codexOAuthCallback provider=${providerId.storageId}"
-        )
-        Thread {
-            val result = CodexOAuthRepository(applicationContext).completeAuthorization(callbackUrl)
-            runOnUiThread {
-                if (result.isSuccess) {
-                    connectionRecorded = true
-                    saveConnectedSnapshot(
-                        providerId = providerId,
-                        message = getString(R.string.provider_refresh_started_message),
-                        keepExistingLines = true
-                    )
-                    startBackgroundUsageCollection(providerId)
-                    finishAfterProviderCapture()
-                } else {
-                    Log.w(
-                        ProviderCollectionDiagnostics.TAG,
-                        "login codexOAuthFailed provider=${providerId.storageId} " +
-                            result.exceptionOrNull()?.javaClass?.simpleName.orEmpty()
-                    )
-                    saveErrorSnapshot(providerId, getString(R.string.provider_login_open_failed_message))
-                    finish()
-                }
+            settings.databaseEnabled = capabilities.databaseEnabled
+            settings.javaScriptCanOpenWindowsAutomatically = capabilities.javaScriptCanOpenWindowsAutomatically
+            settings.setSupportMultipleWindows(capabilities.supportMultipleWindows)
+            settings.userAgentString = ProviderWebViewUserAgent.loginUserAgent()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                cookieManager.setAcceptThirdPartyCookies(this, capabilities.acceptThirdPartyCookies)
             }
-        }.start()
-    }
-
-    private fun handleGeminiOAuthCallback(callbackUrl: String) {
-        val providerId = activeProviderId ?: return
-        if (providerId != ProviderId.GEMINI || geminiOAuthCompletionStarted) return
-        geminiOAuthCompletionStarted = true
-        Log.d(
-            ProviderCollectionDiagnostics.TAG,
-            "login geminiOAuthCallback provider=${providerId.storageId}"
-        )
-        Thread {
-            val result = GeminiCliOAuthRepository(applicationContext).completeAuthorization(callbackUrl)
-            runOnUiThread {
-                if (result.isSuccess) {
-                    connectionRecorded = true
-                    saveConnectedSnapshot(
-                        providerId = providerId,
-                        message = getString(R.string.provider_refresh_started_message),
-                        keepExistingLines = true
-                    )
-                    startBackgroundUsageCollection(providerId)
-                    finishAfterProviderCapture()
-                } else {
-                    Log.w(
-                        ProviderCollectionDiagnostics.TAG,
-                        "login geminiOAuthFailed provider=${providerId.storageId} " +
-                            result.exceptionOrNull()?.javaClass?.simpleName.orEmpty()
-                    )
-                    saveErrorSnapshot(providerId, getString(R.string.provider_login_open_failed_message))
-                    finish()
-                }
-            }
-        }.start()
-    }
-
-    private fun handleProviderOAuthCallback(callbackUrl: String) {
-        when (activeProviderId) {
-            ProviderId.CODEX -> handleCodexOAuthCallback(callbackUrl)
-            ProviderId.GEMINI -> handleGeminiOAuthCallback(callbackUrl)
-            else -> Unit
+            addJavascriptInterface(UsageBridge(), BRIDGE_NAME)
+            webChromeClient = LoginWebChromeClient()
+            webViewClient = LoginWebViewClient()
         }
     }
 
-    private fun installProviderUsageHooks(providerId: ProviderId, target: WebView) {
-        if (usageRecorded) return
-        target.evaluateJavascript(
-            ProviderLocalUsageCollector.hookScriptFor(
-                providerId,
-                ProviderCollectorAssets.scriptFor(this, providerId)
-            ),
-            null
-        )
-    }
-
-    private fun createPopupWindow(providerId: ProviderId): WebView {
-        val popup = createLoginView(providerId, finishOnBlocked = false)
-        popupViews.add(popup)
-        return popup
-    }
-
-    private fun createLoginContainer(loginView: WebView): FrameLayout {
-        return FrameLayout(this).apply {
-            setBackgroundColor(Color.WHITE)
-            setPadding(
-                0,
-                systemBarDimensionPx("status_bar_height") + WEB_LOGIN_TOP_SAFE_PADDING_DP.dpToPx(),
-                0,
-                systemBarDimensionPx("navigation_bar_height")
-            )
-            addView(
-                loginView,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT
-                )
-            )
+    private fun loginWebViewLayoutParams(): FrameLayout.LayoutParams {
+        return FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT).apply {
+            topMargin = 96
         }
     }
 
-    private fun closePopupWindow(window: WebView) {
-        window.stopLoading()
-        val popupContainer = popupContainers.remove(window)
-        if (popupContainer != null) {
-            (popupContainer.parent as? ViewGroup)?.removeView(popupContainer)
-        } else {
-            (window.parent as? ViewGroup)?.removeView(window)
+    private fun destroyPopupWindow(window: WebView) {
+        if (!popupViews.remove(window)) return
+        if (::rootContainer.isInitialized) {
+            rootContainer.removeView(window)
         }
-        popupViews.remove(window)
         window.destroy()
+        Log.d("AIUsageLogin", "provider=${providerId.storageId} popupWindowClosed=true")
     }
 
-    private fun maybeRecoverLoginNavigationError(
-        providerId: ProviderId,
-        target: WebView,
-        url: String?,
-        reason: String
-    ): Boolean {
-        if (!shouldRecoverLoginNavigationError(providerId, url, loginNavigationRecoveryAttempts)) return false
-        loginNavigationRecoveryAttempts += 1
-        val recoveryUrl = loginRecoveryUrlFor(providerId)
-        Log.d(
-            ProviderCollectionDiagnostics.TAG,
-            "login recoveryScheduled provider=${providerId.storageId} reason=$reason attempt=" +
-                "$loginNavigationRecoveryAttempts url=${ProviderCollectionDiagnostics.safeUrl(url)} " +
-                "next=${ProviderCollectionDiagnostics.safeUrl(recoveryUrl)}"
-        )
-        target.postDelayed(
-            {
-                if (!isFinishing && !connectionRecorded && !usageRecorded) {
-                    target.loadUrl(recoveryUrl)
-                }
-            },
-            LOGIN_NAVIGATION_RECOVERY_DELAY_MS
-        )
-        return true
-    }
-
-    private fun systemBarDimensionPx(name: String): Int {
-        val resourceId = resources.getIdentifier(name, "dimen", "android")
-        return if (resourceId > 0) resources.getDimensionPixelSize(resourceId) else 0
-    }
-
-    private fun Int.dpToPx(): Int {
-        return (this * resources.displayMetrics.density).roundToInt()
-    }
-
-    private fun collectProviderUsage(providerId: ProviderId, url: String, target: WebView, attempt: Int = 0) {
-        if (usageRecorded) return
-        target.postDelayed(
-            {
-                if (usageRecorded) return@postDelayed
-                target.evaluateJavascript(
-                    ProviderLocalUsageCollector.scriptFor(
-                        providerId,
-                        ProviderCollectorAssets.scriptFor(this, providerId)
-                    )
-                ) { rawValue ->
-                    val localUsagePayload = ProviderLocalUsageCollector.decodeJavascriptString(rawValue)
-                    val currentUrl = target.url ?: url
-                    handleLocalUsagePayload(
-                        providerId = providerId,
-                        url = currentUrl,
-                        localUsagePayload = localUsagePayload,
-                        finishWhenNoUsage = attempt >= MAX_USAGE_CAPTURE_ATTEMPTS
-                    )
-                    if (
-                        !usageRecorded &&
-                        !connectionRecorded &&
-                        attempt < MAX_USAGE_CAPTURE_ATTEMPTS
-                    ) {
-                        retryProviderUsageCollection(
-                            providerId = providerId,
-                            url = currentUrl,
-                            target = target,
-                            nextAttempt = attempt + 1
-                        )
-                    } else if (
-                        !usageRecorded &&
-                        !connectionRecorded &&
-                        loginCompletionRecorded
-                    ) {
-                        finishConnectedCaptureWithoutUsage(providerId)
-                    }
-                }
-            },
-            PAGE_TEXT_CAPTURE_DELAY_MS
-        )
-    }
-
-    private fun handleLocalUsagePayload(
-        providerId: ProviderId,
-        url: String,
-        localUsagePayload: String,
-        finishWhenNoUsage: Boolean = false
-    ) {
-        if (usageRecorded) return
-        Log.d(
-            ProviderCollectionDiagnostics.TAG,
-            "login payload ${ProviderCollectionDiagnostics.payloadSummary(providerId, localUsagePayload)} " +
-                "url=${ProviderCollectionDiagnostics.safeUrl(url)}"
-        )
-        val extractedSnapshot = TextUsageExtractor.extract(providerId, localUsagePayload)
-        if (
-            extractedSnapshot.connectionState == ProviderConnectionState.CONNECTED &&
-            extractedSnapshot.lines.isNotEmpty()
-        ) {
-            usageRecorded = true
-            connectionRecorded = true
-            saveUsageSnapshot(extractedSnapshot)
-            finishAfterProviderCapture()
-            return
-        }
-        val loginComplete = ProviderLoginCompletionDetector.isLoginComplete(providerId, url, localUsagePayload) ||
-            hasClaudeAuthenticatedSessionCookie(providerId)
-        if (!loginComplete) {
-            if (!loginCompletionRecorded) return
-        } else {
-            loginCompletionRecorded = true
-        }
-        if (providerId == ProviderId.CLAUDE) {
-            finishConnectedCaptureWithoutUsage(providerId)
-            return
-        }
-        if (!finishWhenNoUsage) return
-        finishConnectedCaptureWithoutUsage(providerId)
-    }
-
-    private fun finishConnectedCaptureWithoutUsage(providerId: ProviderId) {
-        if (connectionRecorded || usageRecorded) return
-        if (!connectionRecorded) {
-            connectionRecorded = true
-            saveConnectedSnapshot(providerId, getString(R.string.provider_refresh_started_message))
-        }
-        startBackgroundUsageCollection(providerId)
-        finishAfterProviderCapture()
-    }
-
-    private fun hasClaudeAuthenticatedSessionCookie(providerId: ProviderId): Boolean {
-        if (providerId != ProviderId.CLAUDE) return false
-        val cookies = CookieManager.getInstance().getCookie("https://claude.ai/").orEmpty()
-        return claudeCookieIndicatesAuthenticatedSession(cookies)
-    }
-
-    private fun maybeFinishClaudeAuthenticatedFromNavigation(providerId: ProviderId, url: String?): Boolean {
-        if (providerId != ProviderId.CLAUDE || connectionRecorded || usageRecorded) return false
-        if (!isClaudeAuthenticatedAppNavigation(url)) return false
-        if (!hasClaudeAuthenticatedSessionCookie(providerId)) return false
-        Log.d(
-            ProviderCollectionDiagnostics.TAG,
-            "login claudeCookieCompleteAfterNavigation provider=${providerId.storageId} url=" +
-                ProviderCollectionDiagnostics.safeUrl(url)
-        )
-        finishConnectedCaptureWithoutUsage(providerId)
-        return true
-    }
-
-    private fun maybeVerifyClaudeSessionWithApi(providerId: ProviderId, target: WebView, url: String?) {
-        if (providerId != ProviderId.CLAUDE || connectionRecorded || usageRecorded) return
-        if (claudeSessionVerificationInFlight) return
-        if (!isClaudeHostNavigation(url)) return
-        claudeSessionVerificationInFlight = true
-        target.evaluateJavascript(claudeSessionVerificationScript()) { rawValue ->
-            claudeSessionVerificationInFlight = false
-            if (connectionRecorded || usageRecorded) return@evaluateJavascript
-            val organizationId = claudeOrganizationIdFromVerificationPayload(rawValue) ?: return@evaluateJavascript
-            rememberClaudeOrganizationCookie(organizationId)
+    private inner class LoginWebChromeClient : WebChromeClient() {
+        override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
             Log.d(
-                ProviderCollectionDiagnostics.TAG,
-                "login claudeApiSessionVerified provider=${providerId.storageId} org=$organizationId"
+                "AIUsageLoginConsole",
+                "provider=${providerId.storageId} ${consoleMessage.message()} @ ${consoleMessage.sourceId()}:${consoleMessage.lineNumber()}"
             )
-            finishConnectedCaptureWithoutUsage(providerId)
-        }
-    }
-
-    private fun rememberClaudeOrganizationCookie(organizationId: String) {
-        val cookie = "lastActiveOrg=$organizationId; Path=/; Secure; SameSite=Lax"
-        CookieManager.getInstance().setCookie("https://claude.ai/", cookie)
-        CookieManager.getInstance().flush()
-        Log.d(ProviderCollectionDiagnostics.TAG, "login claudeOrgStored provider=${ProviderId.CLAUDE.storageId}")
-    }
-
-    private fun retryProviderUsageCollection(
-        providerId: ProviderId,
-        url: String,
-        target: WebView,
-        nextAttempt: Int
-    ) {
-        target.postDelayed(
-            {
-                if (!usageRecorded) {
-                    collectProviderUsage(providerId, target.url ?: url, target, nextAttempt)
-                }
-            },
-            USAGE_CAPTURE_RETRY_DELAY_MS
-        )
-    }
-
-    private fun saveUsageSnapshot(snapshot: ProviderUsageSnapshot) {
-        LocalUsageRepository(applicationContext).saveSnapshot(
-            snapshot.copy(
-                refreshState = ProviderRefreshState.IDLE,
-                updatedAt = Instant.now().toString(),
-                message = getString(R.string.provider_usage_updated_message)
-            )
-        )
-    }
-
-    private fun saveCancelledSnapshotIfNeeded() {
-        if (isChangingConfigurations || connectionRecorded || usageRecorded || cancellationRecorded) return
-        val providerId = activeProviderId ?: return
-        cancellationRecorded = true
-        Log.d(
-            ProviderCollectionDiagnostics.TAG,
-            "login cancelled provider=${providerId.storageId}"
-        )
-        val repository = LocalUsageRepository(applicationContext)
-        val currentSnapshot = repository.readSnapshots().firstOrNull { it.providerId == providerId }
-        val snapshot = if (currentSnapshot?.connectionState == ProviderConnectionState.CONNECTED) {
-            currentSnapshot
-        } else {
-            ProviderUsageSnapshot.disconnected(providerId)
-        }
-        repository.saveSnapshot(
-            snapshot.copy(
-                refreshState = ProviderRefreshState.IDLE,
-                updatedAt = Instant.now().toString(),
-                message = getString(R.string.provider_login_cancelled_message)
-            )
-        )
-    }
-
-    private fun saveErrorSnapshot(providerId: ProviderId, message: String) {
-        if (connectionRecorded || usageRecorded || cancellationRecorded) return
-        cancellationRecorded = true
-        LocalUsageRepository(applicationContext).saveSnapshot(
-            ProviderUsageSnapshot(
-                providerId = providerId,
-                connectionState = ProviderConnectionState.ERROR,
-                refreshState = ProviderRefreshState.IDLE,
-                updatedAt = Instant.now().toString(),
-                message = message
-            )
-        )
-    }
-
-    private fun saveConnectedSnapshot(
-        providerId: ProviderId,
-        message: String,
-        keepExistingLines: Boolean = false
-    ) {
-        val repository = LocalUsageRepository(applicationContext)
-        val currentSnapshot = repository.readSnapshots().firstOrNull { snapshot ->
-            snapshot.providerId == providerId
-        }
-        repository.saveSnapshot(
-            ProviderUsageSnapshot(
-                providerId = providerId,
-                connectionState = ProviderConnectionState.CONNECTED,
-                refreshState = ProviderRefreshState.IDLE,
-                updatedAt = Instant.now().toString(),
-                lines = if (keepExistingLines) currentSnapshot?.lines.orEmpty() else emptyList(),
-                message = message
-            )
-        )
-    }
-
-    private fun finishAfterProviderCapture() {
-        CookieManager.getInstance().flush()
-        setResult(RESULT_OK)
-        finish()
-    }
-
-    private fun startBackgroundUsageCollection(providerId: ProviderId) {
-        ProviderUsageCollectionService.start(
-            context = applicationContext,
-            providerId = providerId,
-            source = ProviderUsageCollectionService.SOURCE_LOGIN
-        )
-    }
-
-    private class AllowlistedWebViewClient(
-        private val providerId: ProviderId,
-        private val onProviderOAuthCallback: WebView.(String) -> Unit,
-        private val onBlockedMainFrame: WebView.(String) -> Unit,
-        private val onAllowedPageStarted: (WebView, String) -> Unit,
-        private val onAllowedPageFinished: (WebView, String) -> Unit,
-        private val onMainFrameError: (WebView, String, Int, CharSequence?) -> Unit
-    ) : WebViewClient() {
-        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-            if (request.isForMainFrame) {
-                ProviderLoginUrlRewriter.rewriteMainFrameUrl(providerId, request.url.toString())?.let { rewrittenUrl ->
-                    Log.d(
-                        ProviderCollectionDiagnostics.TAG,
-                        "login rewrite provider=${providerId.storageId} url=" +
-                            ProviderCollectionDiagnostics.safeUrl(rewrittenUrl)
-                    )
-                    view.loadUrl(rewrittenUrl)
-                    return true
-                }
-            }
-            if (isProviderOAuthCallback(providerId, request.url.toString())) {
-                view.onProviderOAuthCallback(request.url.toString())
-                return true
-            }
-            if (shouldIgnoreNonWebNavigation(request.url.toString())) {
-                return true
-            }
-            if (request.isForMainFrame && shouldBlock(request.url.toString())) {
-                view.onBlockedMainFrame(request.url.toString())
-                return true
-            }
-            return false
+            return true
         }
 
-        @Deprecated("Deprecated in Java")
-        override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-            ProviderLoginUrlRewriter.rewriteMainFrameUrl(providerId, url)?.let { rewrittenUrl ->
-                Log.d(
-                    ProviderCollectionDiagnostics.TAG,
-                    "login rewrite provider=${providerId.storageId} url=" +
-                        ProviderCollectionDiagnostics.safeUrl(rewrittenUrl)
-                )
-                view.loadUrl(rewrittenUrl)
-                return true
+        override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
+            if (!::rootContainer.isInitialized) return false
+            val popup = createConfiguredWebView(CookieManager.getInstance(), ProviderLoginWebViewPolicy.capabilities()).apply {
+                setBackgroundColor(Color.WHITE)
             }
-            if (isProviderOAuthCallback(providerId, url)) {
-                view.onProviderOAuthCallback(url)
-                return true
-            }
-            if (shouldIgnoreNonWebNavigation(url)) {
-                return true
-            }
-            if (shouldBlock(url)) {
-                view.onBlockedMainFrame(url)
-                return true
-            }
-            return false
-        }
-
-        override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
-            if (isProviderOAuthCallback(providerId, url)) {
-                view.onProviderOAuthCallback(url.orEmpty())
-                return
-            }
-            if (shouldIgnoreNonWebNavigation(url)) {
-                return
-            }
-            if (url == null || shouldBlock(url)) {
-                view.onBlockedMainFrame(url.orEmpty())
-                return
-            }
-            super.onPageStarted(view, url, favicon)
-            onAllowedPageStarted(view, url)
-        }
-
-        override fun onPageCommitVisible(view: WebView, url: String?) {
-            if (url != null && !shouldBlock(url)) {
-                onAllowedPageStarted(view, url)
-                onAllowedPageFinished(view, url)
-            }
-            super.onPageCommitVisible(view, url)
-        }
-
-        override fun onPageFinished(view: WebView, url: String?) {
-            if (isProviderOAuthCallback(providerId, url)) {
-                return
-            }
-            if (url == null || shouldBlock(url)) {
-                return
-            }
-            super.onPageFinished(view, url)
-            onAllowedPageFinished(view, url)
-        }
-
-        override fun shouldInterceptRequest(
-            view: WebView,
-            request: WebResourceRequest
-        ): WebResourceResponse? {
-            if (isProviderOAuthCallback(providerId, request.url.toString())) {
-                return emptyResponse()
-            }
-            if (shouldIgnoreNonWebNavigation(request.url.toString())) {
-                return emptyResponse()
-            }
-            if (request.isForMainFrame && shouldBlock(request.url.toString())) {
-                return emptyResponse()
-            }
-            return super.shouldInterceptRequest(view, request)
-        }
-
-        override fun onReceivedError(
-            view: WebView,
-            request: WebResourceRequest,
-            error: WebResourceError
-        ) {
-            if (request.isForMainFrame) {
-                onMainFrameError(
-                    view,
-                    request.url.toString(),
-                    error.errorCode,
-                    error.description
-                )
-            }
-            super.onReceivedError(view, request, error)
-        }
-
-        @Deprecated("Deprecated in Java")
-        override fun onReceivedError(
-            view: WebView,
-            errorCode: Int,
-            description: String?,
-            failingUrl: String?
-        ) {
-            onMainFrameError(view, failingUrl.orEmpty(), errorCode, description)
-            super.onReceivedError(view, errorCode, description, failingUrl)
-        }
-
-        private fun shouldBlock(url: String): Boolean {
-            return !isAllowedHttps(providerId, url)
-        }
-
-        private fun shouldIgnoreNonWebNavigation(url: String?): Boolean {
-            val scheme = Uri.parse(url.orEmpty()).scheme?.lowercase().orEmpty()
-            return scheme.isNotBlank() && scheme != "http" && scheme != "https"
-        }
-
-        private fun isProviderOAuthCallback(providerId: ProviderId, url: String?): Boolean {
-            return when (providerId) {
-                ProviderId.CODEX -> CodexOAuthRepository.isCallbackUrl(url)
-                ProviderId.GEMINI -> GeminiCliOAuthRepository.isCallbackUrl(url)
-                else -> false
-            }
-        }
-
-        private fun emptyResponse(): WebResourceResponse {
-            return WebResourceResponse(
-                "text/plain",
-                "UTF-8",
-                ByteArrayInputStream(ByteArray(0))
-            )
-        }
-    }
-
-    private class UsageBridge(
-        private val activity: WebLoginActivity,
-        private val providerId: ProviderId,
-        private val target: WebView
-    ) {
-        @JavascriptInterface
-        fun onUsagePayload(payload: String?) {
-            activity.runOnUiThread {
-                activity.handleLocalUsagePayload(
-                    providerId = providerId,
-                    url = target.url.orEmpty(),
-                    localUsagePayload = payload.orEmpty(),
-                    finishWhenNoUsage = false
-                )
-            }
-        }
-
-        @JavascriptInterface
-        fun providerCookies(url: String?): String {
-            if (providerId != ProviderId.CURSOR) return ""
-            val candidateUrl = url?.trim().orEmpty()
-            if (!ProviderHostAllowlist.isAllowed(providerId, candidateUrl)) return ""
-            return CookieManager.getInstance().getCookie(candidateUrl).orEmpty()
-        }
-    }
-
-    private class UsageWebChromeClient(
-        private val providerId: ProviderId,
-        private val activity: WebLoginActivity
-    ) : WebChromeClient() {
-        override fun onCreateWindow(
-            view: WebView,
-            isDialog: Boolean,
-            isUserGesture: Boolean,
-            resultMsg: Message
-        ): Boolean {
-            val popup = activity.createPopupWindow(providerId)
-            val popupContainer = activity.createLoginContainer(popup)
-            activity.popupContainers[popup] = popupContainer
-            activity.addContentView(
-                popupContainer,
-                ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-            )
+            popupViews.add(popup)
+            rootContainer.addView(popup, loginWebViewLayoutParams())
             val transport = resultMsg.obj as WebView.WebViewTransport
             transport.webView = popup
             resultMsg.sendToTarget()
+            Log.d("AIUsageLogin", "provider=${providerId.storageId} popupWindowCreated=true")
             return true
         }
 
         override fun onCloseWindow(window: WebView) {
-            activity.closePopupWindow(window)
-            activity.webView?.postDelayed(
-                {
-                    activity.webView?.reload()
-                    activity.webView?.let { rootView ->
-                        activity.collectProviderUsage(
-                            providerId = providerId,
-                            url = rootView.url.orEmpty(),
-                            target = rootView
-                        )
-                    }
-                },
-                POPUP_CLOSE_REFRESH_DELAY_MS
-            )
+            destroyPopupWindow(window)
         }
     }
 
+    private inner class LoginWebViewClient : WebViewClient() {
+        override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+            injectCollectorIfReady(view, url, "")
+        }
+
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            val url = request.url.toString()
+            Log.d("AIUsageLogin", "provider=${providerId.storageId} navigate=$url")
+            if (ProviderLoginStrategy.isLoginComplete(providerId, url, cookiesFor(url), "")) {
+                Log.i("AIUsageLogin", "provider=${providerId.storageId} oauthCallback=true host=${hostOf(url)}")
+                handleOAuthCallback(url)
+                return true
+            }
+            val shouldOverride = ProviderLoginWebViewPolicy.shouldOverrideNavigation(providerId, url)
+            if (shouldOverride) {
+                Log.w("AIUsageLogin", "provider=${providerId.storageId} blockedNavigation host=${hostOf(url)}")
+            }
+            return shouldOverride
+        }
+
+        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+            val url = request.url.toString()
+            captureCodexAccountId(url)
+            Log.d("AIUsageLogin", "provider=${providerId.storageId} resource=$url")
+            return if (ProviderLoginWebViewPolicy.shouldInterceptRequest(providerId, url)) {
+                super.shouldInterceptRequest(view, request)
+            } else {
+                null
+            }
+        }
+
+        override fun onLoadResource(view: WebView, url: String) {
+            val pageUrl = view.url ?: url
+            if (!ProviderWebCollectorScripts.shouldRunCollectorFromResource(providerId, pageUrl, url)) return
+            view.evaluateJavascript(PAGE_CAPTURE_SCRIPT) { encoded ->
+                injectCollectorIfReady(view, pageUrl, decodeJsString(encoded))
+            }
+        }
+
+        override fun onPageFinished(view: WebView, url: String) {
+            logFirstPageFinished(url)
+            if (providerId == ProviderId.COPILOT) {
+                injectCopilotDeviceCode(view)
+            }
+            view.evaluateJavascript(PAGE_CAPTURE_SCRIPT) { encoded ->
+                val pageText = decodeJsString(encoded)
+                if (ProviderLoginStrategy.isLoginComplete(providerId, url, cookiesFor(url), pageText)) {
+                    injectCollectorIfReady(view, url, pageText)
+                } else {
+                    injectCollectorIfReady(view, url, pageText)
+                }
+            }
+        }
+
+        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+            Log.e("AIUsageLogin", "provider=${providerId.storageId} error url=${request.url} description=${error.description}")
+            if (request.isForMainFrame && !ProviderLoginStrategy.isTransientNavigationError(request.url.toString(), error.errorCode)) {
+                failKeepingPrevious("Provider login page failed to load.", "main_frame_load_failed")
+            }
+        }
+
+        override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: WebResourceResponse) {
+            Log.e("AIUsageLogin", "provider=${providerId.storageId} http status=${errorResponse.statusCode} url=${request.url}")
+            if (request.isForMainFrame && ProviderLoginStrategy.isBlockingHttpError(request.url.toString(), errorResponse.statusCode)) {
+                failKeepingPrevious("Provider login returned HTTP ${errorResponse.statusCode}.", "main_frame_http_${errorResponse.statusCode}")
+            }
+        }
+    }
+
+    private fun beginCopilotDeviceAuthorization() {
+        Thread {
+            val result = CopilotOAuthRepository(applicationContext).beginDeviceAuthorization()
+            runOnUiThread {
+                if (finished) return@runOnUiThread
+                result.fold(
+                    onSuccess = { authorization ->
+                        webView.loadUrl(authorization.verificationUri)
+                        scheduleCopilotDevicePoll(authorization.intervalMillis)
+                    },
+                    onFailure = {
+                        failKeepingPrevious("Copilot authorization could not start.", "copilot_device_init_failed")
+                    }
+                )
+            }
+        }.start()
+    }
+
+    private fun injectCopilotDeviceCode(view: WebView) {
+        val userCode = CopilotOAuthRepository(applicationContext).currentUserCode() ?: return
+        val quotedCode = JSONObject.quote(userCode)
+        view.evaluateJavascript(
+            """
+            (function(){
+              var code = $quotedCode;
+              var input = document.querySelector('input[name="user_code"], input[id="user_code"], input[type="text"]');
+              if (!input) return;
+              input.focus();
+              input.value = code;
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+              if (window.__AIUsageCopilotDeviceSubmitted) return;
+              window.__AIUsageCopilotDeviceSubmitted = true;
+              var form = input.form || input.closest('form');
+              var submit = form && form.querySelector('button[type="submit"], input[type="submit"]');
+              if (submit) submit.click();
+            })();
+            """.trimIndent(),
+            null
+        )
+    }
+
+    private fun scheduleCopilotDevicePoll(delayMillis: Long) {
+        if (copilotPolling || finished) return
+        copilotPolling = true
+        webView.postDelayed({
+            Thread {
+                val repository = CopilotOAuthRepository(applicationContext)
+                val pollResult = repository.pollDeviceAuthorization()
+                val payload = if (pollResult is CopilotOAuthRepository.CopilotDevicePollResult.Authorized) {
+                    repository.fetchUsagePayload()
+                } else {
+                    null
+                }
+                runOnUiThread {
+                    copilotPolling = false
+                    if (finished) return@runOnUiThread
+                    when (pollResult) {
+                        is CopilotOAuthRepository.CopilotDevicePollResult.Authorized -> {
+                            if (payload != null) {
+                                finishSuccessfulLogin(payload)
+                            } else {
+                                failKeepingPrevious("Copilot premium usage payload was not available.", "copilot_usage_unavailable")
+                            }
+                        }
+                        is CopilotOAuthRepository.CopilotDevicePollResult.Pending -> {
+                            scheduleCopilotDevicePoll(pollResult.delayMillis)
+                        }
+                        is CopilotOAuthRepository.CopilotDevicePollResult.Failed -> {
+                            failKeepingPrevious("Copilot authorization failed.", pollResult.reason)
+                        }
+                    }
+                }
+            }.start()
+        }, delayMillis.coerceAtLeast(1_000L))
+    }
+
+    private inner class UsageBridge {
+        @JavascriptInterface
+        fun postUsagePayload(rawPayload: String) {
+            runOnUiThread {
+                val pageUrl = webView.url.orEmpty()
+                if (!ProviderWebCollectorScripts.shouldAcceptCollectorPayload(providerId, pageUrl)) {
+                    Log.w("AIUsageCollector", "provider=${providerId.storageId} collectorMode=webview-js ignoredPayload page=${pathOf(pageUrl)}")
+                    return@runOnUiThread
+                }
+                Log.i("AIUsageCollector", "provider=${providerId.storageId} collectorMode=webview-js rawPayloadPresent=${rawPayload.isNotBlank()}")
+                finishSuccessfulLogin(rawPayload)
+            }
+        }
+
+        @JavascriptInterface
+        fun postCollectorError(rawError: String) {
+            runOnUiThread {
+                val errorKind = runCatching { JSONObject(rawError).optString("errorKind", "collector_error") }
+                    .getOrDefault("collector_error")
+                Log.w("AIUsageCollector", "provider=${providerId.storageId} collectorMode=webview-js errorKind=$errorKind keptPreviousSnapshot=true")
+                finishConnectedWithoutUsage("Provider session reached, but trusted usage payload was not available yet.", errorKind)
+            }
+        }
+
+        @JavascriptInterface
+        fun fetchCursorJson(url: String, body: String?): String {
+            if (providerId != ProviderId.CURSOR) {
+                return JSONObject().put("ok", false).put("error", "provider_mismatch").toString()
+            }
+            val endpoint = cursorEndpoint(url)
+                ?: return JSONObject().put("ok", false).put("error", "blocked_cursor_endpoint").toString()
+            val result = CursorNativeUsageFetcher.fetchJson(url, body)
+            val parsed = runCatching { JSONObject(result).optJSONObject("json") }.getOrNull()
+            val status = runCatching { JSONObject(result).optInt("status", 0) }.getOrDefault(0)
+            Log.d("AIUsageCollector", "provider=cursor nativeFetch endpoint=$endpoint status=$status summary=${cursorFetchSummary(parsed)}")
+            return result
+        }
+
+        @JavascriptInterface
+        fun fetchCopilotJson(url: String): String {
+            if (providerId != ProviderId.COPILOT) {
+                return JSONObject().put("ok", false).put("error", "provider_mismatch").toString()
+            }
+            val result = CopilotNativeUsageFetcher.fetchJson(url)
+            val parsed = runCatching { JSONObject(result) }.getOrNull()
+            val status = parsed?.optInt("status", 0) ?: 0
+            val endpoint = parsed?.optString("endpoint").orEmpty()
+            Log.d("AIUsageCollector", "provider=copilot nativeFetch endpoint=$endpoint status=$status")
+            return result
+        }
+    }
+
+    private fun cursorEndpoint(url: String): String? {
+        val uri = runCatching { URI(url) }.getOrNull() ?: return null
+        val host = uri.host.orEmpty().lowercase()
+        val path = uri.path.orEmpty()
+        val allowed = when (host) {
+            "cursor.com", "www.cursor.com" -> path in setOf(
+                "/api/auth/stripe",
+                "/api/usage",
+                "/api/auth/usage",
+                "/api/usage-summary",
+                "/api/dashboard/get-credit-grants-balance"
+            )
+            "api2.cursor.sh" -> path in setOf(
+                "/aiserver.v1.DashboardService/GetCurrentPeriodUsage",
+                "/aiserver.v1.DashboardService/GetPlanInfo",
+                "/aiserver.v1.DashboardService/GetCreditGrantsBalance",
+                "/auth/usage"
+            )
+            else -> false
+        }
+        return if (allowed) path else null
+    }
+
+    private fun cursorFetchSummary(json: JSONObject?): String {
+        if (json == null) return "invalid_json"
+        fun keysOf(obj: JSONObject?): String {
+            if (obj == null) return "none"
+            return obj.keys().asSequence()
+                .filterNot { it.contains("token", ignoreCase = true) || it.contains("cookie", ignoreCase = true) }
+                .take(10)
+                .joinToString("|")
+                .ifBlank { "empty" }
+        }
+        val individualUsage = json.optJSONObject("individualUsage")
+        return listOf(
+            "root=${keysOf(json)}",
+            "planUsage=${keysOf(json.optJSONObject("planUsage"))}",
+            "individualUsage=${keysOf(individualUsage)}",
+            "individualPlan=${keysOf(individualUsage?.optJSONObject("plan"))}",
+            "usage=${keysOf(json.optJSONObject("usage"))}",
+            "credit=${json.has("hasCreditGrants") || json.has("totalCents") || json.has("usedCents")}"
+        ).joinToString(",")
+    }
+
+    private fun injectCollectorIfReady(view: WebView, url: String, pageText: String) {
+        if (finished) return
+        val cookies = cookiesFor(url)
+        if (!ProviderWebCollectorScripts.shouldRunCollector(providerId, url, cookies, pageText)) return
+        val injectionKey = "${providerId.storageId}:${hostOf(url)}:${pathOf(url)}"
+        if (collectorInjectionKeys.add(injectionKey)) {
+            Log.i("AIUsageCollector", "provider=${providerId.storageId} collectorMode=webview-js inject host=${hostOf(url)}")
+        }
+        val script = ProviderWebCollectorScripts.build(providerId, cookies, geminiCollectorAsset, observedCodexAccountId, pageText)
+        view.evaluateJavascript(script, null)
+    }
+
+    private fun captureCodexAccountId(url: String) {
+        if (providerId != ProviderId.CODEX) return
+        val accountId = runCatching {
+            val uri = URI(url)
+            if (uri.path != "/backend-api/subscriptions") return@runCatching null
+            uri.query
+                ?.split("&")
+                ?.firstOrNull { it.startsWith("account_id=") }
+                ?.substringAfter("=")
+                ?.takeIf { it.isNotBlank() }
+        }.getOrNull() ?: return
+        if (observedCodexAccountId != accountId) {
+            observedCodexAccountId = accountId
+            Log.i("AIUsageLogin", "provider=codex observedAccountId=true")
+        }
+    }
+
+    private fun finishSuccessfulLogin(
+        rawPayload: String?,
+        source: String = ProviderUsageCollectionService.SOURCE_LOGIN
+    ) {
+        if (finished) return
+        finished = true
+        ProviderUsageCollectionService.start(
+            context = applicationContext,
+            providerId = providerId,
+            source = source,
+            rawPayload = rawPayload
+        )
+        finish()
+    }
+
+    private fun handleOAuthCallback(url: String) {
+        if (finished) return
+        Thread {
+            val result: Result<Unit>
+            val payload: String?
+            val unavailableMessage: String
+            val unavailableKind: String
+            val failedMessage: String
+            val failedKind: String
+            when (providerId) {
+                ProviderId.GEMINI -> {
+                    val repository = GeminiCliOAuthRepository(applicationContext)
+                    result = repository.completeAuthorization(url)
+                    payload = result.getOrNull()?.let { repository.fetchUsagePayload() }
+                    unavailableMessage = "Gemini authorization succeeded, but quota payload was not available."
+                    unavailableKind = "gemini_quota_unavailable"
+                    failedMessage = "Gemini authorization failed."
+                    failedKind = "gemini_oauth_failed"
+                }
+                ProviderId.CODEX -> {
+                    val repository = CodexOAuthRepository(applicationContext)
+                    result = repository.completeAuthorization(url)
+                    payload = result.getOrNull()?.let { repository.fetchUsagePayload() }
+                    unavailableMessage = "Codex authorization succeeded, but usage payload was not available."
+                    unavailableKind = "codex_usage_unavailable"
+                    failedMessage = "Codex authorization failed."
+                    failedKind = "codex_oauth_failed"
+                }
+                else -> return@Thread
+            }
+            runOnUiThread {
+                if (result.isFailure) {
+                    failKeepingPrevious(failedMessage, failedKind)
+                } else if (payload.isNullOrBlank()) {
+                    finishConnectedWithoutUsage(unavailableMessage, unavailableKind)
+                } else {
+                    finishSuccessfulLogin(payload, ProviderUsageCollectionService.SOURCE_PAYLOAD)
+                }
+            }
+        }.start()
+    }
+
+    private fun finishConnectedWithoutUsage(message: String, errorKind: String) {
+        if (finished) return
+        finished = true
+        val repository = LocalUsageRepository(applicationContext)
+        repository.markConnectedWithoutUsage(providerId, message)
+        Log.w("AIUsageLogin", "provider=${providerId.storageId} errorKind=$errorKind usageUnavailable=true")
+        UsageSurfaceRefresher.refresh(applicationContext, repository)
+        finish()
+    }
+
+    private fun failKeepingPrevious(message: String, errorKind: String) {
+        if (finished) return
+        finished = true
+        val repository = LocalUsageRepository(applicationContext)
+        repository.failKeepingPrevious(providerId, message)
+        Log.w("AIUsageLogin", "provider=${providerId.storageId} errorKind=$errorKind keptPreviousSnapshot=true")
+        UsageSurfaceRefresher.refresh(applicationContext, repository)
+        finish()
+    }
+
+    private fun logFirstPageFinished(url: String) {
+        if (firstPageLogged) return
+        firstPageLogged = true
+        val host = runCatching { URI(url).host.orEmpty() }.getOrDefault("")
+        val elapsedMs = SystemClock.elapsedRealtime() - startedAtMs
+        Log.i("AIUsageLoginTiming", "${providerId.storageId} pageFinished=${elapsedMs}ms host=$host")
+    }
+
+    private fun cookiesFor(url: String): Map<String, String> {
+        return CookieManager.getInstance().getCookie(url)
+            ?.split(";")
+            ?.mapNotNull { cookie ->
+                val parts = cookie.trim().split("=", limit = 2)
+                if (parts.size == 2) parts[0] to parts[1] else null
+            }
+            ?.toMap()
+            .orEmpty()
+    }
+
+    private fun hostOf(url: String): String {
+        return runCatching { URI(url).host.orEmpty() }.getOrDefault("")
+    }
+
+    private fun pathOf(url: String): String {
+        return runCatching { URI(url).path.orEmpty() }.getOrDefault("")
+    }
+
+    private fun decodeJsString(value: String?): String {
+        if (value.isNullOrBlank() || value == "null") return ""
+        return runCatching { JSONObject("""{"value":$value}""").optString("value") }.getOrDefault("")
+    }
+
     companion object {
-        const val EXTRA_PROVIDER_ID = "com.aiusage.mobile.providers.extra.PROVIDER_ID"
-        const val EXTRA_START_URL = "com.aiusage.mobile.providers.extra.START_URL"
-        private const val USAGE_BRIDGE_NAME = "AIUsageLocalCollector"
-        private const val PAGE_TEXT_CAPTURE_DELAY_MS = 700L
-        private const val USAGE_CAPTURE_RETRY_DELAY_MS = 1_200L
-        private const val MAX_USAGE_CAPTURE_ATTEMPTS = 4
-        private const val POPUP_CLOSE_REFRESH_DELAY_MS = 300L
-        private const val WEB_LOGIN_TOP_SAFE_PADDING_DP = 12
-        private const val LOGIN_NAVIGATION_RECOVERY_DELAY_MS = 1_500L
+        private const val EXTRA_PROVIDER_ID = "providerId"
+        private const val EXTRA_START_URL = "startUrl"
+        private const val BRIDGE_NAME = "AIUsageCollectorBridge"
+        private const val CURSOR_NATIVE_FETCH_TIMEOUT_MS = 20_000
+        private const val PAGE_CAPTURE_SCRIPT =
+            "(function(){return (document.documentElement.innerText||document.title||'').slice(0,12000);})()"
+
+        fun createIntent(context: Context, providerId: ProviderId): Intent {
+            val definition = ProviderDefinitionRegistry.definitionFor(providerId)
+            return createIntent(context, providerId, definition.loginStartUrl)
+        }
+
         fun createIntent(context: Context, providerId: ProviderId, startUrl: String): Intent {
             return Intent(context, WebLoginActivity::class.java)
                 .putExtra(EXTRA_PROVIDER_ID, providerId.storageId)
                 .putExtra(EXTRA_START_URL, startUrl)
         }
-
-        private fun isAllowedHttps(providerId: ProviderId, url: String?): Boolean {
-            val candidateUrl = url?.trim().orEmpty()
-            if (candidateUrl.isBlank()) return false
-
-            val isHttps = Uri.parse(candidateUrl)
-                .scheme
-                ?.equals("https", ignoreCase = true) == true
-            return isHttps && ProviderHostAllowlist.isAllowed(providerId, candidateUrl)
-        }
     }
 }
-
-internal fun claudeCookieIndicatesAuthenticatedSession(cookieHeader: String): Boolean {
-    return CLAUDE_AUTHENTICATED_ORG_COOKIE.containsMatchIn(cookieHeader)
-}
-
-internal fun isClaudeAuthenticatedAppNavigation(url: String?): Boolean {
-    val uri = runCatching { URI(url.orEmpty().trim()) }.getOrNull() ?: return false
-    if (!uri.scheme.equals("https", ignoreCase = true)) return false
-    val host = uri.host.orEmpty().lowercase()
-    if (host != "claude.ai" && !host.endsWith(".claude.ai")) return false
-    val path = uri.path.orEmpty().lowercase()
-    if (path == "/login" || path.startsWith("/login/")) return false
-    if (path == "/logout" || path.startsWith("/logout/")) return false
-    return true
-}
-
-internal fun isClaudeHostNavigation(url: String?): Boolean {
-    val uri = runCatching { URI(url.orEmpty().trim()) }.getOrNull() ?: return false
-    if (!uri.scheme.equals("https", ignoreCase = true)) return false
-    val host = uri.host.orEmpty().lowercase()
-    return host == "claude.ai" || host.endsWith(".claude.ai")
-}
-
-internal fun claudeSessionVerificationScript(): String {
-    return """
-        (async () => {
-          const endpoints = ["/api/organizations", "/api/organizations/me"];
-          for (const endpoint of endpoints) {
-            try {
-              const response = await fetch(endpoint, {
-                credentials: "include",
-                headers: { "Accept": "application/json" }
-              });
-              const text = await response.text();
-              let body = text;
-              try { body = JSON.parse(text); } catch (_) {}
-              if (response.ok) {
-                return JSON.stringify({ ok: true, endpoint, status: response.status, body });
-              }
-            } catch (error) {}
-          }
-          return JSON.stringify({ ok: false });
-        })();
-    """.trimIndent()
-}
-
-internal fun claudeVerificationPayloadHasOrganization(payload: String): Boolean {
-    return claudeOrganizationIdFromVerificationPayload(payload) != null
-}
-
-internal fun claudeOrganizationIdFromVerificationPayload(payload: String): String? {
-    val decoded = ProviderLocalUsageCollector.decodeJavascriptString(payload).trim()
-    val root = runCatching { JSONObject(decoded) }.getOrNull() ?: return null
-    if (!root.optBoolean("ok", false)) return null
-    return findClaudeOrganizationId(root.opt("body"))
-}
-
-private fun findClaudeOrganizationId(value: Any?): String? {
-    return when (value) {
-        null, JSONObject.NULL -> null
-        is String -> CLAUDE_ORGANIZATION_ID.find(value)?.value
-        is JSONArray -> {
-            for (index in 0 until value.length()) {
-                findClaudeOrganizationId(value.opt(index))?.let { return it }
-            }
-            null
-        }
-        is JSONObject -> {
-            CLAUDE_ORGANIZATION_ID_KEYS.forEach { key ->
-                findClaudeOrganizationId(value.opt(key))?.let { return it }
-            }
-            val keys = value.keys()
-            while (keys.hasNext()) {
-                findClaudeOrganizationId(value.opt(keys.next()))?.let { return it }
-            }
-            null
-        }
-        else -> null
-    }
-}
-
-private val CLAUDE_AUTHENTICATED_ORG_COOKIE = Regex(
-    pattern = """(?:^|;\s*)lastActiveOrg=([0-9a-fA-F-]{16,})""",
-    option = RegexOption.IGNORE_CASE
-)
-
-private val CLAUDE_ORGANIZATION_ID = Regex(
-    pattern = """[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"""
-)
-
-private val CLAUDE_ORGANIZATION_ID_KEYS = listOf(
-    "uuid",
-    "id",
-    "organization_uuid",
-    "organizationId",
-    "organization_id"
-)

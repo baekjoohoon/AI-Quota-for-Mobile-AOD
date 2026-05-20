@@ -85,4 +85,19 @@ class AppLayoutMetricsTest {
         assertTrue(expanded.cardSpacingDp > compact.cardSpacingDp)
         assertTrue(expanded.navChipVerticalPaddingDp > compact.navChipVerticalPaddingDp)
     }
+
+    @Test
+    fun dashboardProviderCardHeightKeepsThreeProvidersVisibleOnCompactDashboard() {
+        val metrics = appLayoutMetrics(screenWidthDp = 393, screenHeightDp = 852)
+
+        val cardHeight = dashboardProviderCardHeightDp(
+            viewportHeightDp = 590,
+            layoutMetrics = metrics
+        )
+
+        assertTrue(
+            "Dashboard card height must keep three provider cards visible on compact phones.",
+            cardHeight <= 187
+        )
+    }
 }

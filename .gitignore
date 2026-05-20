@@ -25,3 +25,5 @@ screenshot/
 artifacts/
 store-assets/
 icons/
+.codegraph/
+data/

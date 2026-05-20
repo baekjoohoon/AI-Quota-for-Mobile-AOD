@@ -30,6 +30,19 @@
 - Layout spacing: PASS (content starts below the settings top bar; bottom navigation has 30dp extra bottom clearance and no clipping)
 - Evidence: `artifacts/mobile-dashboard-explorer.png`, `artifacts/mobile-provider-detail-explorer.png`, `/sdcard/mobile-dashboard-explorer.png`, `/sdcard/mobile-provider-detail-explorer.png`
 
+## Pixel 5 Provider Login Timing - 2026-05-19
+
+- Device: `emulator-5554`, AVD `Pixel_5`, 1080x2340
+- Debug APK install: PASS
+- Unified dashboard first launch: PASS (`Dashboard`, `Claude`, `Codex`, `Gemini`, `Copilot`, `Cursor`, and disconnected connect actions visible)
+- Measurement method: app data cleared per provider, app launched, provider tab opened, `연결` tapped, then time measured until `WebLoginActivity` showed an `android.webkit.WebView` with provider login-page markers. Login input was not performed.
+- Claude: PASS, `5351 ms` to login page marker (`Sign in - Claude`, Google/email login controls)
+- Codex: PASS, `7753 ms` to login page marker (OpenAI/ChatGPT auth markers)
+- Gemini: PASS, `5195 ms` to login page marker (Google/Gemini auth markers)
+- Copilot: PASS, `2616 ms` to login page marker (GitHub/Copilot auth markers)
+- Cursor: PASS, `10495 ms` to login page marker (Cursor/WorkOS/email auth markers)
+- Manual-login boundary: PASS. Test stopped at provider login page; credential entry and authenticated usage collection remain manual-check scope.
+
 ## Tablet Emulator
 
 - Device: `emulator-5556`, AVD `Pixel_Tablet`, 2560x1600

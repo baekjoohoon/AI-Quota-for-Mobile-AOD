@@ -67,10 +67,16 @@ import com.aiusage.mobile.local.ProviderUsageSnapshot
 import com.aiusage.mobile.local.ThemePreferencesRepository
 import com.aiusage.mobile.notification.UsageLimitNotificationController
 import com.aiusage.mobile.providers.CodexOAuthRepository
+import com.aiusage.mobile.providers.CopilotOAuthRepository
 import com.aiusage.mobile.providers.GeminiCliOAuthRepository
+import com.aiusage.mobile.providers.ProviderPayloadSource
 import com.aiusage.mobile.providers.ProviderConnectorRegistry
 import com.aiusage.mobile.providers.ProviderHostAllowlist
-import com.aiusage.mobile.providers.ProviderUsageCollectionService
+import com.aiusage.mobile.providers.ProviderRefreshMode
+import com.aiusage.mobile.providers.ProviderRefreshJob
+import com.aiusage.mobile.providers.ProviderRefreshPlan
+import com.aiusage.mobile.providers.ProviderUsageNormalizer
+import com.aiusage.mobile.providers.UsageSurfaceRefresher
 import com.aiusage.mobile.providers.WebLoginActivity
 import com.aiusage.mobile.sync.ForegroundRefreshController
 import com.aiusage.mobile.sync.ForegroundRefreshPolicy
@@ -79,6 +85,7 @@ import com.aiusage.mobile.ui.dashboard.UnifiedDashboardScreen
 import com.aiusage.mobile.ui.provider.ProviderDetailScreen
 import com.aiusage.mobile.ui.provider.ProviderIconImage
 import com.aiusage.mobile.ui.settings.SettingsPanel
+import com.aiusage.mobile.widget.AIUsageCircularWidgetProvider
 import com.aiusage.mobile.widget.AIUsageUnifiedGlanceWidget
 import com.aiusage.mobile.widget.ProviderUsageGlanceWidget
 import com.aiusage.mobile.widget.WidgetSnapshotCache
@@ -86,7 +93,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun AIUsageAppShell(
@@ -108,6 +118,11 @@ fun AIUsageAppShell(
     val connectorRegistry = remember { ProviderConnectorRegistry.default() }
     val widgetSnapshotCache = remember(appContext) { WidgetSnapshotCache(appContext) }
     val foregroundRefreshController = remember(appContext) { ForegroundRefreshController(appContext) }
+    val geminiCollectorAsset = remember(appContext) {
+        runCatching {
+            appContext.assets.open("gemini_collector.js").bufferedReader().use { it.readText() }
+        }.getOrDefault("")
+    }
     val coroutineScope = rememberCoroutineScope()
     val layoutMetrics = rememberAppLayoutMetrics()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -118,6 +133,9 @@ fun AIUsageAppShell(
     var hiddenProviders by remember { mutableStateOf(providerPreferencesRepository.hiddenProviders()) }
     var snapshots by remember { mutableStateOf(localUsageRepository.readSnapshots()) }
     var busyProvider by remember { mutableStateOf<ProviderId?>(null) }
+    var queuedWebRefreshJobs by remember { mutableStateOf<List<QueuedProviderRefreshJob>>(emptyList()) }
+    var nextBackgroundRefreshRequestId by remember { mutableStateOf(0L) }
+    var geminiRecoveryRefreshRequested by remember { mutableStateOf(false) }
     var canPostNotifications by remember {
         mutableStateOf(UsageLimitNotificationController.canPostNotifications(launchContext))
     }
@@ -169,6 +187,7 @@ fun AIUsageAppShell(
         val loginStartUrl = when (providerId) {
             ProviderId.CODEX -> CodexOAuthRepository(appContext).beginAuthorizationUrl()
             ProviderId.GEMINI -> GeminiCliOAuthRepository(appContext).beginAuthorizationUrl()
+            ProviderId.COPILOT -> CopilotOAuthRepository.DEFAULT_LOGIN_START_URL
             else -> connector.startUrl
         }
         val now = Instant.now().toString()
@@ -224,12 +243,66 @@ fun AIUsageAppShell(
         nextSnapshot?.let(::saveProviderSnapshot)
     }
 
+    fun finishProviderRefreshSurfaces() {
+        UsageSurfaceRefresher.refresh(appContext, localUsageRepository)
+        refreshSnapshots()
+    }
+
+    fun collectNativeProviderUsage(job: ProviderRefreshJob) {
+        busyProvider = job.providerId
+        coroutineScope.launch {
+            val payload = withContext(Dispatchers.IO) {
+                when (job.providerId) {
+                    ProviderId.GEMINI -> GeminiCliOAuthRepository(appContext).fetchUsagePayload()
+                    ProviderId.COPILOT -> CopilotOAuthRepository(appContext).fetchUsagePayload()
+                    else -> null
+                }
+            }
+            val snapshot = payload?.let {
+                ProviderUsageNormalizer.normalize(job.providerId, it, ProviderPayloadSource.PROVIDER_API)
+            }
+            if (snapshot != null) {
+                localUsageRepository.saveSnapshot(snapshot)
+            } else {
+                localUsageRepository.failKeepingPrevious(
+                    job.providerId,
+                    "${job.providerId.displayName} usage payload was not available."
+                )
+            }
+            finishProviderRefreshSurfaces()
+            if (busyProvider == job.providerId) busyProvider = null
+        }
+    }
+
+    fun enqueueHiddenWebRefreshJobs(jobs: List<ProviderRefreshJob>) {
+        if (jobs.isEmpty()) return
+        val queuedJobs = jobs.map { job ->
+            nextBackgroundRefreshRequestId += 1
+            QueuedProviderRefreshJob(
+                requestId = nextBackgroundRefreshRequestId,
+                job = job
+            )
+        }
+        queuedWebRefreshJobs = queuedWebRefreshJobs + queuedJobs
+    }
+
+    fun requestProviderRefreshJobs(jobs: List<ProviderRefreshJob>) {
+        val refreshJobs = jobs.distinctBy { it.providerId }
+        if (refreshJobs.isEmpty()) return
+        refreshJobs.forEach { localUsageRepository.markCollecting(it.providerId) }
+        refreshSnapshots()
+
+        refreshJobs
+            .filter { it.mode == ProviderRefreshMode.NATIVE_API }
+            .forEach(::collectNativeProviderUsage)
+        enqueueHiddenWebRefreshJobs(refreshJobs.filter { it.mode == ProviderRefreshMode.HIDDEN_WEB_COLLECTOR })
+    }
+
     fun refreshProvider(providerId: ProviderId) {
         val now = Instant.now().toString()
         val currentSnapshot = snapshots
             .firstOrNull { it.providerId == providerId }
             ?: ProviderUsageSnapshot.disconnected(providerId)
-        route = AppRoute.ProviderDetail(providerId)
 
         saveProviderSnapshot(
             currentSnapshot.copy(
@@ -238,24 +311,7 @@ fun AIUsageAppShell(
                 message = launchContext.getString(R.string.provider_refresh_started_message)
             )
         )
-
-        val launchResult = runCatching {
-            ProviderUsageCollectionService.start(
-                context = appContext,
-                providerId = providerId,
-                source = ProviderUsageCollectionService.SOURCE_REFRESH
-            )
-        }
-        if (launchResult.isFailure) {
-            saveProviderSnapshot(
-                currentSnapshot.copy(
-                    connectionState = ProviderConnectionState.ERROR,
-                    refreshState = ProviderRefreshState.IDLE,
-                    updatedAt = now,
-                    message = launchContext.getString(R.string.provider_login_open_failed_message)
-                )
-            )
-        }
+        requestProviderRefreshJobs(listOf(ProviderRefreshPlan.manualJobFor(providerId)))
     }
 
     fun disconnectProvider(providerId: ProviderId) {
@@ -310,7 +366,10 @@ fun AIUsageAppShell(
     fun applyTheme(theme: AppTheme) {
         themePreferencesRepository.saveTheme(theme)
         currentTheme = themePreferencesRepository.currentTheme()
+        AIUsageCircularWidgetProvider.updateAll(appContext)
         coroutineScope.launch {
+            AIUsageUnifiedGlanceWidget().updateAll(appContext)
+            ProviderUsageGlanceWidget().updateAll(appContext)
             snackbarHostState.showSnackbar(
                 message = launchContext.getString(
                     R.string.settings_theme_applied,
@@ -347,7 +406,7 @@ fun AIUsageAppShell(
         }
     }
 
-    LaunchedEffect(providerOrder, hiddenProviders, snapshots) {
+    LaunchedEffect(providerOrder, hiddenProviders, snapshots, currentTheme) {
         val updatedAt = Instant.now().toString()
         val displayOnlyJson = localUsageRepository.exportDisplayOnlyCache(
             order = providerOrder,
@@ -356,15 +415,36 @@ fun AIUsageAppShell(
         )
         widgetSnapshotCache.writeLocalDisplaySnapshot(displayOnlyJson, updatedAt)
         UsageLimitNotificationController.updateFromCache(appContext)
+        AIUsageCircularWidgetProvider.updateAll(appContext)
         AIUsageUnifiedGlanceWidget().updateAll(appContext)
         ProviderUsageGlanceWidget().updateAll(appContext)
     }
 
     LaunchedEffect(snapshots) {
+        val geminiSnapshot = snapshots.firstOrNull { it.providerId == ProviderId.GEMINI }
+        val geminiNeedsTrustedRefresh = geminiSnapshot?.connectionState == ProviderConnectionState.CONNECTED &&
+            geminiSnapshot.refreshState != ProviderRefreshState.REFRESHING &&
+            (
+                geminiSnapshot.lines.isEmpty() ||
+                    geminiSnapshot.planLabel.orEmpty().contains("UNKNOWN", ignoreCase = true)
+                )
+        if (!geminiRecoveryRefreshRequested && geminiNeedsTrustedRefresh) {
+            geminiRecoveryRefreshRequested = true
+            refreshProvider(ProviderId.GEMINI)
+        }
         if (ForegroundRefreshPolicy.connectedProviders(snapshots).isNotEmpty()) {
             runCatching { foregroundRefreshController.startPreciseRefresh() }
         } else {
             foregroundRefreshController.stopPreciseRefresh()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(ProviderRefreshPlan.AUTO_REFRESH_INTERVAL_MILLIS)
+            requestProviderRefreshJobs(
+                ProviderRefreshPlan.automaticJobsFor(localUsageRepository.readSnapshots())
+            )
         }
     }
 
@@ -432,11 +512,39 @@ fun AIUsageAppShell(
                             currentTheme = currentTheme,
                             onThemeSelected = ::applyTheme,
                             modifier = Modifier.fillMaxSize()
-                        )
+                            )
+                        }
                     }
+                    BackgroundProviderWebCollector(
+                        currentJob = queuedWebRefreshJobs.firstOrNull(),
+                        geminiCollectorAsset = geminiCollectorAsset,
+                        onPayload = { queuedJob, rawPayload ->
+                            val providerId = queuedJob.job.providerId
+                            val snapshot = ProviderUsageNormalizer.normalize(
+                                providerId,
+                                rawPayload,
+                                ProviderPayloadSource.STRUCTURED_SCRIPT
+                            )
+                            if (snapshot != null) {
+                                localUsageRepository.saveSnapshot(snapshot)
+                            } else {
+                                localUsageRepository.failKeepingPrevious(
+                                    providerId,
+                                    "Background collector ran. No trusted usage payload found."
+                                )
+                            }
+                            finishProviderRefreshSurfaces()
+                        },
+                        onError = { queuedJob, message ->
+                            localUsageRepository.failKeepingPrevious(queuedJob.job.providerId, message)
+                            finishProviderRefreshSurfaces()
+                        },
+                        onFinished = { requestId ->
+                            queuedWebRefreshJobs = queuedWebRefreshJobs.filterNot { it.requestId == requestId }
+                        }
+                    )
                 }
             }
-        }
     }
 }
 

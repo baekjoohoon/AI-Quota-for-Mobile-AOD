@@ -1,8 +1,7 @@
 package com.aiusage.mobile.local
 
-import java.time.Duration
 import java.time.Instant
-import java.util.Locale
+import kotlin.math.roundToInt
 
 enum class ProviderId(val storageId: String, val displayName: String) {
     CLAUDE("claude", "Claude"),
@@ -12,13 +11,10 @@ enum class ProviderId(val storageId: String, val displayName: String) {
     CURSOR("cursor", "Cursor");
 
     companion object {
-        fun defaultOrder(): List<ProviderId> {
-            return listOf(CLAUDE, CODEX, GEMINI, COPILOT, CURSOR)
-        }
+        fun defaultOrder(): List<ProviderId> = listOf(CLAUDE, CODEX, GEMINI, COPILOT, CURSOR)
 
-        fun fromStorageId(value: String): ProviderId? {
-            val normalized = value.trim()
-            if (normalized.isEmpty()) return null
+        fun fromStorageId(value: String?): ProviderId? {
+            val normalized = value?.trim().orEmpty()
             return entries.firstOrNull { it.storageId.equals(normalized, ignoreCase = true) }
         }
     }
@@ -26,8 +22,11 @@ enum class ProviderId(val storageId: String, val displayName: String) {
 
 enum class ProviderConnectionState {
     DISCONNECTED,
+    NOT_CONNECTED,
     CONNECTING,
     CONNECTED,
+    COLLECTING,
+    STALE,
     UNAVAILABLE,
     ERROR
 }
@@ -44,273 +43,86 @@ enum class UsageSeverity {
     UNKNOWN
 }
 
-fun ProviderId.normalizedPlanLabelForDisplay(planLabel: String?): String? {
-    val value = planLabel?.trim()?.takeIf { it.isNotBlank() } ?: return null
-    val compact = value.lowercase(Locale.US)
-        .replace(Regex("""[^a-z0-9]+"""), "")
-    return when (this) {
-        ProviderId.CODEX -> when (compact) {
-            "prolite" -> "Pro 5x"
-            "pro" -> "Pro 20x"
-            else -> value.replaceFirstChar { char ->
-                if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
-            }
-        }
-        ProviderId.GEMINI -> when (compact) {
-            "basic", "geminibasic" -> "Basic"
-            "plus", "aiplus", "googleaiplus", "googleoneaiplus", "geminiplus" -> "Gemini Plus"
-            "pro", "aipro", "googleaipro", "googleoneaipro", "geminipro",
-            "g1protier", "geminicodeassistingoogleoneaipro" -> "Gemini Pro"
-            "ultra", "aiultra", "googleaiultra", "googleoneaiultra", "geminiultra",
-            "g1ultratier", "geminicodeassistingoogleoneaiultra" -> "Gemini Ultra"
-            "advanced", "geminiadvanced" -> "Gemini Advanced"
-            "aipremium", "googleoneaipremium" -> "Google One AI Premium"
-            "free", "geminifree", "googleaifree" -> "Gemini Free"
-            "unknown", "geminiunknown" -> "Gemini Unknown"
-            else -> value
-        }
-        ProviderId.CLAUDE -> value
-        ProviderId.COPILOT,
-        ProviderId.CURSOR -> value.replaceFirstChar { char ->
-            if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString()
-        }
-    }
-}
-
-fun ProviderId.normalizedUsageLineLabelForDisplay(label: String): String {
-    val value = label.trim().takeIf { it.isNotBlank() } ?: return "Usage"
-    if (this != ProviderId.GEMINI) return value
-    val compact = value.lowercase(Locale.US)
-        .replace(Regex("""[^a-z0-9]+"""), "")
-    return when {
-        compact == "pro" || compact == "geminipro" -> "Gemini Pro"
-        compact == "flash" || compact == "geminiflash" -> "Gemini Flash"
-        compact == "deepresearch" || compact == "geminideepresearch" -> "Gemini Deep Research"
-        else -> value
-    }
-}
-
-fun ProviderId.isSupportedUsageLineLabel(label: String): Boolean {
-    if (this != ProviderId.GEMINI) return true
-    return when (normalizedUsageLineLabelForDisplay(label).lowercase(Locale.US)) {
-        "gemini pro",
-        "gemini flash",
-        "gemini deep research" -> true
-        else -> false
-    }
-}
-
-fun ProviderUsageLine.hasStartOnMessageReset(): Boolean {
-    val value = resetText?.trim()?.takeIf { it.isNotBlank() } ?: return false
-    val normalized = value.lowercase(Locale.US)
-    val isStartOnMessage = normalized == "starts when a message is sent" ||
-        ("message" in normalized && "sent" in normalized && "start" in normalized) ||
-        (value.contains("메시지") && value.contains("시작")) ||
-        (value.contains("메세지") && value.contains("시작"))
-    return isStartOnMessage && (remainingPercent == null || remainingPercent >= 0.995f)
-}
-
-fun ProviderId.isUnsupportedUsageLine(line: ProviderUsageLine): Boolean {
-    if (this != ProviderId.CURSOR) return false
-    val source = line.sourceLabel.orEmpty().lowercase(Locale.US)
-    if (
-        line.remainingPercent != null &&
-        line.usedAmount == null &&
-        line.limitAmount == null &&
-        line.remainingAmount == null &&
-        source == "/dashboard"
-    ) {
-        return true
-    }
-    val label = line.label
-        .replace('_', ' ')
-        .replace('-', ' ')
-        .replace(Regex("""\s+"""), " ")
-        .trim()
-        .lowercase(Locale.US)
-    val category = line.category.orEmpty().lowercase(Locale.US)
-    val isIncludedUsage = label in setOf("total usage", "included usage", "plan usage", "planusage") ||
-        category == "included_usage"
-    if (!isIncludedUsage) return false
-    val hasNoAmountEvidence = line.usedAmount == null &&
-        line.limitAmount == null &&
-        line.remainingAmount == null
-    if (
-        source.contains("/api/usage-summary") &&
-        hasNoAmountEvidence &&
-        (line.remainingPercent == null || line.remainingPercent >= 0.995f)
-    ) {
-        return true
-    }
-    if (line.remainingAmount == null) return false
-    if (!line.unit.equals("USD", ignoreCase = true)) return false
-    if (
-        line.limitAmount == 0.0 &&
-        line.remainingAmount == 0.0 &&
-        (line.usedAmount == null || line.usedAmount == 0.0)
-    ) {
-        return true
-    }
-    if (line.remainingPercent == null && line.usedAmount == null && line.limitAmount == null) return true
-    val isLegacyDashboardGauge = source == "/dashboard" &&
-        line.resetText.isNullOrBlank() &&
-        line.startsAt.isNullOrBlank() &&
-        line.resetsAt.isNullOrBlank() &&
-        (line.confidence ?: 1f) <= 0.85f &&
-        line.remainingPercent == 1f &&
-        line.usedAmount == 0.0 &&
-        line.limitAmount == 10.0 &&
-        line.remainingAmount == 10.0
-    return isLegacyDashboardGauge
-}
-
-fun ProviderId.deduplicateUsageLinesForStorage(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {
-    val deduped = LinkedHashMap<String, ProviderUsageLine>()
-    lines.forEach { line ->
-        val normalizedLine = if (this == ProviderId.GEMINI) {
-            line.copy(label = normalizedUsageLineLabelForDisplay(line.label))
-        } else {
-            line
-        }
-        if (isUnsupportedUsageLine(normalizedLine)) return@forEach
-        val key = usageLineDeduplicationKey(normalizedLine)
-        val existing = deduped[key]
-        if (existing == null || normalizedLine.isBetterStoredUsageLineThan(existing, this)) {
-            deduped[key] = normalizedLine
-        }
-    }
-    return deduped.values.toList()
-}
-
-private fun ProviderId.usageLineDeduplicationKey(line: ProviderUsageLine): String {
-    if (this == ProviderId.GEMINI) {
-        return normalizedUsageLineLabelForDisplay(line.label).lowercase(Locale.US)
-    }
-    if (this == ProviderId.CLAUDE) {
-        claudeUsageWindowKey(line)?.let { return it }
-    }
-    if (this == ProviderId.COPILOT) {
-        copilotUsageQuotaKey(line)?.let { return it }
-    }
-    return listOf(
-        line.label,
-        line.windowText.orEmpty(),
-        line.category.orEmpty(),
-        line.unit.orEmpty(),
-        normalizedUsageSource(line.sourceLabel)
-    ).joinToString("|").lowercase(Locale.US)
-}
-
-private fun claudeUsageWindowKey(line: ProviderUsageLine): String? {
-    val label = line.label
-        .replace('_', ' ')
-        .replace('-', ' ')
-        .replace(Regex("""\s+"""), " ")
-        .trim()
-        .lowercase(Locale.US)
-    val compact = label.replace(Regex("""[^a-z0-9가-힣]+"""), "")
-    val window = line.windowText.orEmpty().lowercase(Locale.US)
-    return when {
-        "omelette" in compact || "claudedesign" in compact || "design" in label -> "claude:seven_day_omelette"
-        "fivehour" in compact || "5hour" in compact || "5시간" in compact || "5 hour" in window -> {
-            "claude:five_hour"
-        }
-        "sevenday" in compact || "weekly" in compact || "주간" in compact || "7 day" in window -> {
-            "claude:seven_day"
-        }
-        else -> null
-    }
-}
-
-private fun copilotUsageQuotaKey(line: ProviderUsageLine): String? {
-    val label = line.label
-        .replace('_', ' ')
-        .replace('-', ' ')
-        .replace(Regex("""\s+"""), " ")
-        .trim()
-        .lowercase(Locale.US)
-    val category = line.category.orEmpty().lowercase(Locale.US)
-    return when {
-        category == "messages" || label == "chat" -> "copilot:chat"
-        category == "completions" || "completion" in label -> "copilot:completions"
-        category == "premium_requests" || "premium" in label -> "copilot:premium_requests"
-        else -> null
-    }
-}
-
-private fun normalizedUsageSource(sourceLabel: String?): String {
-    return sourceLabel.orEmpty()
-        .replace(Regex("""[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}"""), ":id")
-        .replace(Regex("""[A-Za-z0-9_-]{18,}"""), ":id")
-}
-
-private fun ProviderUsageLine.isBetterStoredUsageLineThan(
-    existing: ProviderUsageLine,
-    providerId: ProviderId
-): Boolean {
-    val score = storedUsageLineScore(providerId)
-    val existingScore = existing.storedUsageLineScore(providerId)
-    return when {
-        score != existingScore -> score > existingScore
-        (confidence ?: 0f) != (existing.confidence ?: 0f) -> (confidence ?: 0f) > (existing.confidence ?: 0f)
-        else -> false
-    }
-}
-
-private fun ProviderUsageLine.storedUsageLineScore(providerId: ProviderId): Int {
-    var score = 0
-    val source = sourceLabel.orEmpty().lowercase(Locale.US)
-    if (providerId == ProviderId.CLAUDE && source.contains(Regex("""/api/organizations/[^/?#]+/usage(?:[?#]|$)"""))) {
-        score += 64
-    }
-    if ((remainingPercent ?: 1f) < 0.995f) score += 32
-    if (remainingPercent != null) score += 16
-    if (!resetsAt.isNullOrBlank()) score += 8
-    if (!resetText.isNullOrBlank()) score += 4
-    if (!sourceLabel.isNullOrBlank()) score += 2
-    if (hasStartOnMessageReset()) score -= 16
-    return score
-}
-
 data class ProviderUsageLine(
     val label: String,
-    val remainingPercent: Float?,
-    val remainingText: String,
+    val remainingPercent: Float? = null,
+    val remainingText: String = remainingPercent?.let { "${(it.coerceIn(0f, 1f) * 100f).roundToInt()}% left" }.orEmpty(),
     val resetText: String? = null,
     val detailText: String? = null,
     val severity: UsageSeverity = UsageSeverity.UNKNOWN,
     val usedAmount: Double? = null,
     val limitAmount: Double? = null,
     val remainingAmount: Double? = null,
-    val unit: String? = null,
+    val unit: String? = "percent",
     val category: String? = null,
     val windowText: String? = null,
     val startsAt: String? = null,
     val resetsAt: String? = null,
     val sourceLabel: String? = null,
-    val confidence: Float? = null
-)
+    val confidence: Float? = null,
+    val key: String = label.lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_')
+) {
+    val usedPercent: Int?
+        get() = remainingPercent?.let { (100f - it.coerceIn(0f, 1f) * 100f).roundToInt().coerceIn(0, 100) }
+
+    val source: String
+        get() = sourceLabel.orEmpty()
+}
 
 data class ProviderUsageSnapshot(
     val providerId: ProviderId,
     val displayName: String = providerId.displayName,
     val connectionState: ProviderConnectionState,
-    val refreshState: ProviderRefreshState,
+    val refreshState: ProviderRefreshState = ProviderRefreshState.IDLE,
     val planLabel: String? = null,
-    val updatedAt: String = "",
-    val lines: List<ProviderUsageLine> = emptyList(),
-    val message: String? = null
+    val account: String? = null,
+    val updatedAt: String = Instant.now().toString(),
+    val message: String? = null,
+    val lines: List<ProviderUsageLine> = emptyList()
 ) {
+    val plan: String?
+        get() = planLabel
+
+    val fetchedAt: String
+        get() = updatedAt
+
     companion object {
         fun disconnected(providerId: ProviderId): ProviderUsageSnapshot {
             return ProviderUsageSnapshot(
                 providerId = providerId,
                 connectionState = ProviderConnectionState.DISCONNECTED,
-                refreshState = ProviderRefreshState.IDLE
+                message = "Sign in required"
             )
         }
 
+        fun notConnected(providerId: ProviderId): ProviderUsageSnapshot = disconnected(providerId)
+
         fun unavailable(providerId: ProviderId, message: String): ProviderUsageSnapshot {
+            return ProviderUsageSnapshot(
+                providerId = providerId,
+                connectionState = ProviderConnectionState.UNAVAILABLE,
+                message = message
+            )
+        }
+
+        fun connecting(providerId: ProviderId): ProviderUsageSnapshot {
+            return disconnected(providerId).copy(
+                connectionState = ProviderConnectionState.CONNECTING,
+                refreshState = ProviderRefreshState.REFRESHING,
+                message = "Opening provider login"
+            )
+        }
+
+        fun collecting(previous: ProviderUsageSnapshot): ProviderUsageSnapshot {
+            return previous.copy(
+                connectionState = ProviderConnectionState.COLLECTING,
+                refreshState = ProviderRefreshState.REFRESHING,
+                updatedAt = Instant.now().toString(),
+                message = "Collecting usage"
+            )
+        }
+
+        fun connectedWithoutUsage(providerId: ProviderId, message: String): ProviderUsageSnapshot {
             return ProviderUsageSnapshot(
                 providerId = providerId,
                 connectionState = ProviderConnectionState.UNAVAILABLE,
@@ -318,28 +130,27 @@ data class ProviderUsageSnapshot(
                 message = message
             )
         }
+
+        fun connectedWithoutUsage(providerId: ProviderId, previous: ProviderUsageSnapshot?, message: String): ProviderUsageSnapshot {
+            return previous?.copy(
+                connectionState = if (previous.lines.isNotEmpty()) ProviderConnectionState.STALE else ProviderConnectionState.UNAVAILABLE,
+                refreshState = ProviderRefreshState.IDLE,
+                updatedAt = Instant.now().toString(),
+                message = message
+            ) ?: connectedWithoutUsage(providerId, message)
+        }
+
+        fun failedKeepingPrevious(providerId: ProviderId, previous: ProviderUsageSnapshot?, message: String): ProviderUsageSnapshot {
+            return previous?.copy(
+                connectionState = if (previous.lines.isNotEmpty()) ProviderConnectionState.STALE else ProviderConnectionState.ERROR,
+                refreshState = ProviderRefreshState.IDLE,
+                updatedAt = Instant.now().toString(),
+                message = message
+            ) ?: ProviderUsageSnapshot(
+                providerId = providerId,
+                connectionState = ProviderConnectionState.ERROR,
+                message = message
+            )
+        }
     }
 }
-
-internal fun ProviderUsageSnapshot.withRecoveredStaleProgress(
-    now: Instant = Instant.now()
-): ProviderUsageSnapshot {
-    if (refreshState != ProviderRefreshState.REFRESHING && connectionState != ProviderConnectionState.CONNECTING) {
-        return this
-    }
-    val updated = runCatching { Instant.parse(updatedAt) }.getOrNull() ?: return this
-    val ageMillis = Duration.between(updated, now).toMillis()
-    if (ageMillis < STALE_PROVIDER_PROGRESS_MS) return this
-
-    return copy(
-        connectionState = if (connectionState == ProviderConnectionState.CONNECTED || lines.isNotEmpty()) {
-            ProviderConnectionState.CONNECTED
-        } else {
-            ProviderConnectionState.UNAVAILABLE
-        },
-        refreshState = ProviderRefreshState.IDLE,
-        message = null
-    )
-}
-
-private const val STALE_PROVIDER_PROGRESS_MS = 5 * 60 * 1000L

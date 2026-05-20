@@ -1,59 +1,45 @@
 package com.aiusage.mobile.providers
 
 import android.content.Context
+import android.util.Base64
 import android.util.Log
-import com.aiusage.mobile.local.ProviderConnectionState
-import com.aiusage.mobile.local.ProviderId
-import com.aiusage.mobile.local.ProviderRefreshState
-import com.aiusage.mobile.local.ProviderUsageSnapshot
-import com.aiusage.mobile.local.normalizedPlanLabelForDisplay
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
-import java.net.URI
 import java.net.URL
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.security.SecureRandom
+import java.time.Duration
 import java.time.Instant
 import java.util.Locale
+import kotlin.math.roundToInt
 import org.json.JSONArray
 import org.json.JSONObject
 
 class GeminiCliOAuthRepository(context: Context) {
-    private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+    private val secureStore = SecureStringStore(context.applicationContext, PREFERENCES)
 
     fun beginAuthorizationUrl(): String {
-        val state = randomState()
-        preferences.edit()
-            .putString(KEY_PENDING_STATE, state)
-            .apply()
+        val state = randomToken(24)
+        secureStore.putString(KEY_STATE, state)
         return buildAuthorizationUrl(state)
-    }
-
-    fun hasStoredTokens(): Boolean {
-        return !preferences.getString(KEY_ACCESS_TOKEN, null).isNullOrBlank() ||
-            !preferences.getString(KEY_REFRESH_TOKEN, null).isNullOrBlank()
     }
 
     fun completeAuthorization(callbackUrl: String): Result<Unit> = runCatching {
         val query = queryParameters(callbackUrl)
-        query["error"]?.let { error ->
-            throw IllegalStateException(error)
-        }
+        query["error"]?.let { throw IllegalStateException(it) }
         val code = query["code"]?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("Authorization code is missing.")
         val state = query["state"]?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("OAuth state is missing.")
-        val expectedState = preferences.getString(KEY_PENDING_STATE, null)
+        val expectedState = secureStore.getString(KEY_STATE)
         if (expectedState.isNullOrBlank() || state != expectedState) {
             throw IllegalStateException("OAuth state did not match.")
         }
-
         val response = postForm(
-            url = TOKEN_URL,
-            body = mapOf(
+            TOKEN_URL,
+            mapOf(
                 "grant_type" to "authorization_code",
                 "code" to code,
                 "redirect_uri" to REDIRECT_URI,
@@ -64,63 +50,73 @@ class GeminiCliOAuthRepository(context: Context) {
         if (!response.isSuccess) {
             throw IllegalStateException("Token exchange failed with status ${response.statusCode}.")
         }
-        val json = JSONObject(response.body)
-        persistTokens(
-            accessToken = json.requiredString("access_token"),
-            refreshToken = json.optNullableString("refresh_token")
-                ?: preferences.getString(KEY_REFRESH_TOKEN, null).orEmpty(),
-            idToken = json.optNullableString("id_token"),
-            expiresInSeconds = json.optLongOrNull("expires_in")
-        )
-        preferences.edit()
-            .remove(KEY_PENDING_STATE)
-            .apply()
+        persistTokens(JSONObject(response.body))
+        secureStore.remove(KEY_STATE)
     }
 
-    fun fetchUsageSnapshot(): ProviderUsageSnapshot? {
+    fun fetchUsagePayload(): String? {
         val token = freshAccessToken() ?: return null
         val setup = setupCodeAssist(token) ?: return null
-        val quotaResponse = postCodeAssist(
+        val response = postCodeAssist(
             method = "retrieveUserQuota",
-            payload = JSONObject()
-                .put("project", setup.projectId)
-                .toString(),
+            payload = retrieveUserQuotaPayload(setup.projectId),
             accessToken = freshAccessToken() ?: token
-        ).retryUnauthorizedWithFreshToken { freshToken ->
+        ).retryUnauthorizedWithFreshToken { refreshedToken ->
             postCodeAssist(
                 method = "retrieveUserQuota",
-                payload = JSONObject()
-                    .put("project", setup.projectId)
-                    .toString(),
-                accessToken = freshToken
+                payload = retrieveUserQuotaPayload(setup.projectId),
+                accessToken = refreshedToken
             )
         }
-        if (!quotaResponse.isSuccess) {
-            logHttpFailure("retrieveUserQuota", quotaResponse)
+        val quotaJson = runCatching { JSONObject(response.body) }.getOrNull()
+        logCollection(
+            "retrieveUserQuota status=${response.statusCode} projectPresent=${setup.projectId.isNotBlank()} " +
+                "bucketCount=${quotaJson?.let(::trustedBucketCount) ?: 0}"
+        )
+        if (!response.isSuccess || quotaJson == null) {
+            logHttpFailure("retrieveUserQuota", response)
             return null
         }
-        val quotaJson = runCatching { JSONObject(quotaResponse.body) }.getOrNull() ?: return null
-        val payload = structuredPayloadFromCodeAssist(
+        if (trustedBucketCount(quotaJson) == 0) return null
+        return structuredPayloadFromCodeAssist(
             loadJson = setup.loadJson,
             quotaJson = quotaJson,
-            email = storedEmail()
+            email = secureStore.getString(KEY_EMAIL)
         )
-        val snapshot = TextUsageExtractor.extract(ProviderId.GEMINI, payload)
-        return if (
-            snapshot.connectionState == ProviderConnectionState.CONNECTED &&
-            snapshot.lines.isNotEmpty()
-        ) {
-            snapshot.copy(
-                refreshState = ProviderRefreshState.IDLE,
-                updatedAt = Instant.now().toString()
-            )
-        } else {
-            null
+    }
+
+    private fun freshAccessToken(): String? {
+        val accessToken = secureStore.getString(KEY_ACCESS_TOKEN)?.takeIf { it.isNotBlank() }
+        val expiresAt = secureStore.getLong(KEY_ACCESS_EXPIRES_AT, 0L)
+        if (accessToken != null && (expiresAt == 0L || expiresAt > Instant.now().epochSecond + 60L)) {
+            return accessToken
         }
+        return if (refreshAccessToken()) {
+            secureStore.getString(KEY_ACCESS_TOKEN)?.takeIf { it.isNotBlank() }
+        } else {
+            accessToken
+        }
+    }
+
+    private fun refreshAccessToken(): Boolean {
+        val refreshToken = secureStore.getString(KEY_REFRESH_TOKEN)?.takeIf { it.isNotBlank() } ?: return false
+        val response = postForm(
+            TOKEN_URL,
+            mapOf(
+                "grant_type" to "refresh_token",
+                "client_id" to CLIENT_ID,
+                "client_secret" to CLIENT_SECRET,
+                "refresh_token" to refreshToken
+            )
+        )
+        if (!response.isSuccess) return false
+        persistTokens(JSONObject(response.body), previousRefreshToken = refreshToken)
+        return true
     }
 
     private fun setupCodeAssist(accessToken: String): SetupResult? {
-        val initialLoad = loadCodeAssist(projectId = null, accessToken = accessToken) ?: return null
+        val initialLoad = loadCodeAssist(projectId = null, accessToken = freshAccessToken() ?: accessToken)
+            ?: return null
         projectIdFromLoad(initialLoad)?.let { projectId ->
             return SetupResult(projectId = projectId, loadJson = initialLoad)
         }
@@ -141,9 +137,10 @@ class GeminiCliOAuthRepository(context: Context) {
             method = "loadCodeAssist",
             payload = loadCodeAssistPayload(projectId),
             accessToken = accessToken
-        ).retryUnauthorizedWithFreshToken { freshToken ->
-            postCodeAssist("loadCodeAssist", loadCodeAssistPayload(projectId), freshToken)
+        ).retryUnauthorizedWithFreshToken { refreshedToken ->
+            postCodeAssist("loadCodeAssist", loadCodeAssistPayload(projectId), refreshedToken)
         }
+        logCollection("loadCodeAssist status=${response.statusCode} projectPresent=${!projectId.isNullOrBlank()}")
         if (!response.isSuccess) {
             logHttpFailure("loadCodeAssist", response)
             return null
@@ -159,9 +156,10 @@ class GeminiCliOAuthRepository(context: Context) {
             method = "onboardUser",
             payload = payload,
             accessToken = accessToken
-        ).retryUnauthorizedWithFreshToken { freshToken ->
-            postCodeAssist("onboardUser", payload, freshToken)
+        ).retryUnauthorizedWithFreshToken { refreshedToken ->
+            postCodeAssist("onboardUser", payload, refreshedToken)
         }
+        logCollection("onboardUser status=${response.statusCode} tierPresent=true")
         if (!response.isSuccess) {
             logHttpFailure("onboardUser", response)
             return null
@@ -185,7 +183,10 @@ class GeminiCliOAuthRepository(context: Context) {
     private fun getCodeAssistOperation(name: String, accessToken: String): HttpResponse {
         return getJson(
             url = "$CODE_ASSIST_BASE_URL/$name",
-            headers = mapOf("Authorization" to "Bearer $accessToken")
+            headers = mapOf(
+                "Accept" to "application/json",
+                "Authorization" to "Bearer $accessToken"
+            )
         )
     }
 
@@ -211,11 +212,83 @@ class GeminiCliOAuthRepository(context: Context) {
             ?.optNullableString("id")
     }
 
-    private fun logHttpFailure(method: String, response: HttpResponse) {
-        Log.w(
-            ProviderCollectionDiagnostics.TAG,
-            "geminiCli $method failed status=${response.statusCode} bodyLength=${response.body.length}"
+    private fun persistTokens(json: JSONObject, previousRefreshToken: String? = null) {
+        val idToken = json.optNullableString("id_token") ?: secureStore.getString(KEY_ID_TOKEN).orEmpty()
+        val accessToken = json.optNullableString("access_token") ?: secureStore.getString(KEY_ACCESS_TOKEN).orEmpty()
+        val refreshToken = json.optNullableString("refresh_token") ?: previousRefreshToken.orEmpty()
+        val claims = parseJwtClaims(idToken)
+        val expiresIn = json.optLong("expires_in", 0L).takeIf { it > 0L }
+        val expiresAt = expiresIn?.let { Instant.now().epochSecond + it }
+            ?: parseJwtExpiration(idToken)
+            ?: 0L
+        secureStore.putString(KEY_ID_TOKEN, idToken)
+        secureStore.putString(KEY_ACCESS_TOKEN, accessToken)
+        secureStore.putString(KEY_REFRESH_TOKEN, refreshToken)
+        secureStore.putLong(KEY_ACCESS_EXPIRES_AT, expiresAt)
+        secureStore.putString(KEY_EMAIL, claims?.optNullableString("email") ?: secureStore.getString(KEY_EMAIL))
+    }
+
+    private fun postCodeAssist(method: String, payload: String, accessToken: String): HttpResponse {
+        return postJson(
+            url = "$CODE_ASSIST_BASE_URL:$method",
+            body = payload,
+            headers = mapOf(
+                "Accept" to "application/json",
+                "Authorization" to "Bearer $accessToken"
+            )
         )
+    }
+
+    private fun postForm(url: String, body: Map<String, String>): HttpResponse {
+        val connection = openConnection(url)
+        connection.requestMethod = "POST"
+        connection.doOutput = true
+        connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+        connection.setRequestProperty("Accept", "application/json")
+        connection.setRequestProperty("User-Agent", USER_AGENT)
+        OutputStreamWriter(connection.outputStream, StandardCharsets.UTF_8).use { writer ->
+            writer.write(body.entries.joinToString("&") { (key, value) -> "${encode(key)}=${encode(value)}" })
+        }
+        return connection.response()
+    }
+
+    private fun postJson(url: String, body: String, headers: Map<String, String> = emptyMap()): HttpResponse {
+        val connection = openConnection(url)
+        connection.requestMethod = "POST"
+        connection.doOutput = true
+        connection.setRequestProperty("Content-Type", "application/json")
+        headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
+        OutputStreamWriter(connection.outputStream, StandardCharsets.UTF_8).use { writer ->
+            writer.write(body)
+        }
+        return connection.response()
+    }
+
+    private fun getJson(url: String, headers: Map<String, String>): HttpResponse {
+        val connection = openConnection(url)
+        connection.requestMethod = "GET"
+        headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
+        return connection.response()
+    }
+
+    private fun openConnection(url: String): HttpURLConnection {
+        return (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = NETWORK_TIMEOUT_MS
+            readTimeout = NETWORK_TIMEOUT_MS
+            instanceFollowRedirects = false
+        }
+    }
+
+    private fun HttpURLConnection.response(): HttpResponse {
+        val status = responseCode
+        val stream = if (status in 200..299) inputStream else errorStream
+        val body = stream?.bufferedReader(StandardCharsets.UTF_8)?.use { it.readText() }.orEmpty()
+        disconnect()
+        return HttpResponse(status, body)
+    }
+
+    private data class HttpResponse(val statusCode: Int, val body: String) {
+        val isSuccess: Boolean = statusCode in 200..299
     }
 
     private data class SetupResult(
@@ -229,258 +302,62 @@ class GeminiCliOAuthRepository(context: Context) {
         return block(token)
     }
 
-    private fun freshAccessToken(): String? {
-        val accessToken = preferences.getString(KEY_ACCESS_TOKEN, null)
-            ?.takeIf { it.isNotBlank() }
-        val expiresAt = preferences.getLong(KEY_ACCESS_EXPIRES_AT, 0L)
-        if (accessToken != null && (expiresAt == 0L || expiresAt > Instant.now().epochSecond + 60L)) {
-            return accessToken
-        }
-        return if (refreshAccessToken()) {
-            preferences.getString(KEY_ACCESS_TOKEN, null)?.takeIf { it.isNotBlank() }
-        } else {
-            accessToken
-        }
+    private fun logHttpFailure(method: String, response: HttpResponse) {
+        Log.w("AIUsageGemini", "collection geminiCliOAuthUsage $method failed status=${response.statusCode} bodyLength=${response.body.length}")
     }
 
-    private fun refreshAccessToken(): Boolean {
-        val refreshToken = preferences.getString(KEY_REFRESH_TOKEN, null)
-            ?.takeIf { it.isNotBlank() }
-            ?: return false
-        val response = postForm(
-            url = TOKEN_URL,
-            body = mapOf(
-                "grant_type" to "refresh_token",
-                "refresh_token" to refreshToken,
-                "client_id" to CLIENT_ID,
-                "client_secret" to CLIENT_SECRET
-            )
-        )
-        if (!response.isSuccess) return false
-        val json = runCatching { JSONObject(response.body) }.getOrNull() ?: return false
-        persistTokens(
-            accessToken = json.optNullableString("access_token")
-                ?: preferences.getString(KEY_ACCESS_TOKEN, null).orEmpty(),
-            refreshToken = json.optNullableString("refresh_token") ?: refreshToken,
-            idToken = json.optNullableString("id_token"),
-            expiresInSeconds = json.optLongOrNull("expires_in")
-        )
-        return true
-    }
-
-    private fun persistTokens(
-        accessToken: String,
-        refreshToken: String,
-        idToken: String?,
-        expiresInSeconds: Long?
-    ) {
-        val expiresAt = expiresInSeconds
-            ?.let { Instant.now().epochSecond + it }
-            ?: 0L
-        val email = idToken
-            ?.let(::parseJwtClaims)
-            ?.optNullableString("email")
-            ?: preferences.getString(KEY_EMAIL, null)
-        preferences.edit()
-            .putString(KEY_ACCESS_TOKEN, accessToken)
-            .putString(KEY_REFRESH_TOKEN, refreshToken)
-            .putString(KEY_ID_TOKEN, idToken)
-            .putLong(KEY_ACCESS_EXPIRES_AT, expiresAt)
-            .putString(KEY_EMAIL, email)
-            .apply()
-        fetchUserInfo(accessToken)?.let { userEmail ->
-            preferences.edit().putString(KEY_EMAIL, userEmail).apply()
-        }
-    }
-
-    private fun fetchUserInfo(accessToken: String): String? {
-        val response = getJson(
-            url = USERINFO_URL,
-            headers = mapOf("Authorization" to "Bearer $accessToken")
-        )
-        if (!response.isSuccess) return null
-        return runCatching { JSONObject(response.body).optNullableString("email") }.getOrNull()
-    }
-
-    private fun storedEmail(): String? {
-        return preferences.getString(KEY_EMAIL, null)?.takeIf { it.isNotBlank() }
-    }
-
-    private fun postCodeAssist(method: String, payload: String, accessToken: String): HttpResponse {
-        return postBody(
-            url = "$CODE_ASSIST_BASE_URL:$method",
-            contentType = "application/json",
-            body = payload,
-            headers = mapOf(
-                "Authorization" to "Bearer $accessToken",
-                "Accept" to "application/json"
-            )
-        )
-    }
-
-    private fun postForm(url: String, body: Map<String, String>): HttpResponse {
-        return postBody(
-            url = url,
-            contentType = "application/x-www-form-urlencoded",
-            body = body.entries.joinToString("&") { (key, value) ->
-                "${key.urlEncode()}=${value.urlEncode()}"
-            }
-        )
-    }
-
-    private fun postBody(
-        url: String,
-        contentType: String,
-        body: String,
-        headers: Map<String, String> = emptyMap()
-    ): HttpResponse {
-        val connection = openConnection(url)
-        connection.requestMethod = "POST"
-        connection.doOutput = true
-        connection.setRequestProperty("Content-Type", contentType)
-        headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
-        OutputStreamWriter(connection.outputStream, StandardCharsets.UTF_8).use { writer ->
-            writer.write(body)
-        }
-        return connection.readResponse()
-    }
-
-    private fun getJson(url: String, headers: Map<String, String>): HttpResponse {
-        val connection = openConnection(url)
-        connection.requestMethod = "GET"
-        headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
-        return connection.readResponse()
-    }
-
-    private fun openConnection(url: String): HttpURLConnection {
-        return (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = NETWORK_TIMEOUT_MS
-            readTimeout = NETWORK_TIMEOUT_MS
-            useCaches = false
-            setRequestProperty("User-Agent", USER_AGENT)
-        }
-    }
-
-    private fun HttpURLConnection.readResponse(): HttpResponse {
-        val status = responseCode
-        val stream = if (status in 200..299) inputStream else errorStream
-        val body = stream?.use { input ->
-            BufferedReader(InputStreamReader(input, StandardCharsets.UTF_8)).readText()
-        }.orEmpty()
-        disconnect()
-        return HttpResponse(status, body)
-    }
-
-    private data class HttpResponse(
-        val statusCode: Int,
-        val body: String
-    ) {
-        val isSuccess: Boolean = statusCode in 200..299
+    private fun logCollection(message: String) {
+        Log.i("AIUsageGemini", "collection geminiCliOAuthUsage $message")
     }
 
     companion object {
-        private const val PREFERENCES_NAME = "ai_usage_gemini_cli_oauth"
-        private const val KEY_PENDING_STATE = "pending_state"
+        const val REDIRECT_URI = "http://127.0.0.1:46417/oauth2callback"
+        private const val CLIENT_ID = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
+        private const val CLIENT_SECRET = "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"
+        private const val AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+        private const val TOKEN_URL = "https://oauth2.googleapis.com/token"
+        private const val CODE_ASSIST_BASE_URL = "https://cloudcode-pa.googleapis.com/v1internal"
+        private const val SCOPE = "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/cloud-platform"
+        private const val PREFERENCES = "ai_usage_gemini_oauth"
+        private const val KEY_STATE = "state"
         private const val KEY_ID_TOKEN = "id_token"
         private const val KEY_ACCESS_TOKEN = "access_token"
         private const val KEY_REFRESH_TOKEN = "refresh_token"
         private const val KEY_ACCESS_EXPIRES_AT = "access_expires_at"
         private const val KEY_EMAIL = "email"
-
-        private const val CLIENT_ID =
-            "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
-        private const val CLIENT_SECRET = "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"
-        private const val REDIRECT_URI = "http://127.0.0.1:46417/oauth2callback"
-        private const val TOKEN_URL = "https://oauth2.googleapis.com/token"
-        private const val USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
-        private const val CODE_ASSIST_BASE_URL = "https://cloudcode-pa.googleapis.com/v1internal"
-        private const val SCOPE =
-            "https://www.googleapis.com/auth/cloud-platform " +
-                "https://www.googleapis.com/auth/userinfo.email " +
-                "https://www.googleapis.com/auth/userinfo.profile"
-        private const val USER_AGENT = "gemini-cli/0.0.0 (Android; AI Usage Mobile)"
+        private const val USER_AGENT = "GeminiCLI/0.0.0 (Android; AI Usage Mobile)"
         private const val NETWORK_TIMEOUT_MS = 20_000
         private const val HTTP_UNAUTHORIZED = 401
         private const val OPERATION_POLL_ATTEMPTS = 12
         private const val OPERATION_POLL_DELAY_MS = 5_000L
 
-        fun isCallbackUrl(url: String?): Boolean {
-            val uri = runCatching { URI(url?.trim().orEmpty()) }.getOrNull() ?: return false
-            return uri.scheme.equals("http", ignoreCase = true) &&
-                uri.host == "127.0.0.1" &&
-                uri.port == 46417 &&
-                uri.path == "/oauth2callback"
-        }
-
-        internal fun buildAuthorizationUrl(state: String): String {
-            return "https://accounts.google.com/o/oauth2/v2/auth?" + listOf(
+        fun buildAuthorizationUrl(state: String): String {
+            val params = linkedMapOf(
+                "response_type" to "code",
                 "client_id" to CLIENT_ID,
                 "redirect_uri" to REDIRECT_URI,
-                "response_type" to "code",
                 "scope" to SCOPE,
                 "state" to state,
                 "access_type" to "offline",
                 "prompt" to "consent"
-            ).joinToString("&") { (key, value) ->
-                "${key.urlEncode()}=${value.urlEncode()}"
+            )
+            return AUTHORIZE_URL + "?" + params.entries.joinToString("&") { (key, value) ->
+                "${encode(key)}=${encode(value)}"
             }
         }
 
-        internal fun structuredPayloadFromCodeAssist(
-            loadJson: JSONObject,
-            quotaJson: JSONObject,
-            email: String?
-        ): String {
-            val limits = JSONArray()
-            val buckets = quotaJson.optJSONArray("buckets") ?: JSONArray()
-            for (index in 0 until buckets.length()) {
-                val bucket = buckets.optJSONObject(index) ?: continue
-                val label = geminiBucketLabel(bucket.optNullableString("modelId")) ?: continue
-                val remainingFraction = bucket.optNumber("remainingFraction")
-                    ?.coerceIn(0.0, 1.0)
-                    ?: continue
-                limits.put(
-                    JSONObject()
-                        .put("l", label)
-                        .put("u", ((1.0 - remainingFraction) * 100.0).coerceIn(0.0, 100.0))
-                        .put("remainingText", "${Math.round(remainingFraction * 100.0)}% left")
-                        .put("r", bucket.optNullableString("resetTime"))
-                        .put("unit", "percent")
-                        .put("category", "usage_window")
-                        .put("source", "Gemini Code Assist retrieveUserQuota")
-                        .put("confidence", 0.99)
-                )
-            }
-            val plan = planLabel(loadJson)
-            val account = JSONObject().put("p", plan)
-            if (!email.isNullOrBlank()) account.put("e", email)
-            return JSONObject()
-                .put("s", if (limits.length() > 0 || !plan.isNullOrBlank()) "s" else "e")
-                .put("provider", ProviderId.GEMINI.storageId)
-                .put("account", account)
-                .put(
-                    "usage",
-                    JSONObject()
-                        .put("x", limits)
-                        .put("l", System.currentTimeMillis())
-                )
-                .put("m", if (limits.length() > 0) JSONObject.NULL else "No Gemini Code Assist quota buckets found.")
-                .toString()
-        }
-
-        private fun loadCodeAssistPayload(projectId: String?): String {
+        internal fun loadCodeAssistPayload(projectId: String?): String {
             val metadata = JSONObject()
                 .put("ideType", "IDE_UNSPECIFIED")
                 .put("platform", "PLATFORM_UNSPECIFIED")
                 .put("pluginType", "GEMINI")
             if (!projectId.isNullOrBlank()) metadata.put("duetProject", projectId)
-            val payload = JSONObject()
-                .put("metadata", metadata)
+            val payload = JSONObject().put("metadata", metadata)
             if (!projectId.isNullOrBlank()) payload.put("cloudaicompanionProject", projectId)
             return payload.toString()
         }
 
-        private fun onboardUserPayload(tierId: String, projectId: String?): String {
+        internal fun onboardUserPayload(tierId: String, projectId: String?): String {
             val metadata = JSONObject()
                 .put("ideType", "IDE_UNSPECIFIED")
                 .put("platform", "PLATFORM_UNSPECIFIED")
@@ -495,75 +372,201 @@ class GeminiCliOAuthRepository(context: Context) {
             return payload.toString()
         }
 
+        internal fun retrieveUserQuotaPayload(projectId: String): String {
+            return JSONObject()
+                .put("project", projectId)
+                .toString()
+        }
+
+        internal fun structuredPayloadFromCodeAssist(
+            loadJson: JSONObject,
+            quotaJson: JSONObject,
+            email: String?
+        ): String? {
+            return normalizeQuotaPayload(
+                quotaJson = quotaJson.toString(),
+                account = email,
+                plan = planLabel(loadJson)
+            )
+        }
+
+        internal fun trustedBucketCount(quotaJson: JSONObject): Int {
+            val buckets = quotaJson.optJSONArray("buckets") ?: return 0
+            var count = 0
+            for (index in 0 until buckets.length()) {
+                val bucket = buckets.optJSONObject(index) ?: continue
+                if (bucketTitle(bucket.optString("modelId")) == null) continue
+                val remaining = bucket.optDouble("remainingFraction", Double.NaN)
+                if (!remaining.isNaN()) count += 1
+            }
+            return count
+        }
+
+        fun normalizeQuotaPayload(quotaJson: String, account: String?, plan: String?): String? {
+            val buckets = JSONObject(quotaJson).optJSONArray("buckets") ?: return null
+            val selected = linkedMapOf<String, JSONObject>()
+            for (index in 0 until buckets.length()) {
+                val bucket = buckets.optJSONObject(index) ?: continue
+                val title = bucketTitle(bucket.optString("modelId")) ?: continue
+                val remaining = bucket.optDouble("remainingFraction", Double.NaN)
+                if (remaining.isNaN()) continue
+                val existing = selected[title]
+                if (existing == null || remaining < existing.optDouble("remainingFraction", 1.0)) {
+                    selected[title] = bucket
+                }
+            }
+            if (selected.isEmpty()) return null
+            val limits = JSONArray()
+            listOf("Pro", "Flash", "Deep Research").forEach { title ->
+                selected[title]?.let { bucket ->
+                    val remaining = bucket.optDouble("remainingFraction").coerceIn(0.0, 1.0)
+                    val remainingPercent = (remaining * 100.0).roundToInt().coerceIn(0, 100)
+                    val line = JSONObject()
+                        .put("title", title)
+                        .put("usedPercent", 100 - remainingPercent)
+                        .put("remainingPercent", remainingPercent)
+                    parseResetMillis(bucket.optString("resetTime"))?.let { resetsAtMillis ->
+                        line
+                            .put("resetsAt", resetsAtMillis)
+                            .put("resetText", resetText(resetsAtMillis))
+                    }
+                    limits.put(line)
+                }
+            }
+            if (limits.length() == 0) return null
+            return JSONObject()
+                .put("provider", "gemini")
+                .apply {
+                    if (!plan.isNullOrBlank()) {
+                        put("plan", plan)
+                    }
+                }
+                .put("account", account ?: JSONObject.NULL)
+                .put("limits", limits)
+                .toString()
+        }
+
+        fun planFromLoadCodeAssist(responseJson: String): String? {
+            val root = runCatching { JSONObject(responseJson) }.getOrNull() ?: return null
+            return planLabel(root) ?: findPlanValue(root, 0)
+        }
+
         private fun planLabel(loadJson: JSONObject): String? {
             val paidTier = loadJson.optJSONObject("paidTier")
             val currentTier = loadJson.optJSONObject("currentTier")
-            val raw = paidTier?.optNullableString("name")
-                ?: paidTier?.optNullableString("id")
-                ?: currentTier?.optNullableString("name")
-                ?: currentTier?.optNullableString("id")
-            return ProviderId.GEMINI.normalizedPlanLabelForDisplay(raw)
+            return normalizeGeminiTier(paidTier?.optNullableString("name"))
+                ?: normalizeGeminiTier(paidTier?.optNullableString("id"))
+                ?: normalizeGeminiTier(currentTier?.optNullableString("name"))
+                ?: normalizeGeminiTier(currentTier?.optNullableString("id"))
         }
 
-        private fun geminiBucketLabel(modelId: String?): String? {
-            val compact = modelId.orEmpty().lowercase(Locale.US)
-            return when {
-                "pro" in compact -> "Gemini Pro"
-                "flash" in compact -> "Gemini Flash"
+        private fun findPlanValue(value: Any?, depth: Int): String? {
+            if (value == null || depth > 8) return null
+            if (value is JSONObject) {
+                val directKeys = listOf("tier", "plan", "planType", "subscriptionTier", "userTier")
+                directKeys.forEach { key ->
+                    normalizeGeminiTier(value.optNullableString(key))?.let { return it }
+                }
+                val keys = value.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    val raw = value.opt(key)
+                    if (key.contains("tier", ignoreCase = true) || key.contains("plan", ignoreCase = true)) {
+                        normalizeGeminiTier(raw?.toString())?.let { return it }
+                    }
+                    findPlanValue(raw, depth + 1)?.let { return it }
+                }
+            } else if (value is JSONArray) {
+                for (index in 0 until value.length()) {
+                    findPlanValue(value.opt(index), depth + 1)?.let { return it }
+                }
+            }
+            return null
+        }
+
+        private fun normalizeGeminiTier(value: String?): String? {
+            val compact = value?.lowercase(Locale.US)?.replace(Regex("[^a-z0-9]+"), "").orEmpty()
+            return when (compact) {
+                "standardtier", "paid", "googleaipro", "geminipro", "g1protier" -> "GEMINI_PRO"
+                "geminicodeassistgoogleoneaipro", "googleoneaipro" -> "GEMINI_PRO"
+                "legacytier", "legacy", "geminilegacy" -> "GEMINI_LEGACY"
+                "freetier", "free", "workspace", "googleaifree", "geminifree" -> "GEMINI_FREE"
+                "googleaiplus", "geminiplus" -> "GEMINI_PLUS"
+                "googleaiultra", "geminiultra", "g1ultratier" -> "GEMINI_ULTRA"
+                "googleoneaipremium" -> "GOOGLE_ONE_AI_PREMIUM"
+                "geminiadvanced" -> "GEMINI_ADVANCED"
                 else -> null
             }
         }
 
-        private fun randomState(): String {
-            return java.util.UUID.randomUUID().toString().replace("-", "")
+        private fun bucketTitle(modelId: String): String? {
+            val compact = modelId.lowercase(Locale.US)
+            return when {
+                "gemini" in compact && "pro" in compact -> "Pro"
+                "gemini" in compact && "flash" in compact -> "Flash"
+                "deep" in compact && "research" in compact -> "Deep Research"
+                else -> null
+            }
+        }
+
+        private fun parseResetMillis(value: String): Long? {
+            if (value.isBlank()) return null
+            return runCatching { Instant.parse(value).toEpochMilli() }.getOrNull()
+        }
+
+        private fun resetText(resetsAtMillis: Long): String {
+            val duration = Duration.between(Instant.now(), Instant.ofEpochMilli(resetsAtMillis))
+            if (duration.isNegative || duration.isZero) return "Resets soon"
+            val hours = duration.toHours()
+            val minutes = duration.minusHours(hours).toMinutes()
+            return when {
+                hours > 0 && minutes > 0 -> "Resets in ${hours}h ${minutes}m"
+                hours > 0 -> "Resets in ${hours}h"
+                minutes > 0 -> "Resets in ${minutes}m"
+                else -> "Resets soon"
+            }
+        }
+
+        private fun randomToken(byteCount: Int): String {
+            val bytes = ByteArray(byteCount)
+            SecureRandom().nextBytes(bytes)
+            return Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
+        }
+
+        private fun encode(value: String): String {
+            return URLEncoder.encode(value, StandardCharsets.UTF_8.name())
         }
 
         private fun queryParameters(url: String): Map<String, String> {
-            val query = URI(url).rawQuery.orEmpty()
+            val query = runCatching { URL(url).query }.getOrNull().orEmpty()
             if (query.isBlank()) return emptyMap()
-            return query.split("&").mapNotNull { part ->
-                val separator = part.indexOf("=")
-                if (separator < 0) return@mapNotNull null
-                part.substring(0, separator).urlDecode() to part.substring(separator + 1).urlDecode()
-            }.toMap()
+            return query.split("&")
+                .mapNotNull { part ->
+                    val pieces = part.split("=", limit = 2)
+                    if (pieces.isEmpty()) return@mapNotNull null
+                    val key = pieces[0].urlDecode()
+                    val value = pieces.getOrNull(1).orEmpty().urlDecode()
+                    key to value
+                }
+                .toMap()
         }
 
-        private fun parseJwtClaims(jwt: String): JSONObject? {
-            val payload = jwt.split(".").getOrNull(1)?.takeIf { it.isNotBlank() } ?: return null
-            val decoded = runCatching { java.util.Base64.getUrlDecoder().decode(payload) }.getOrNull()
-                ?: return null
-            return runCatching { JSONObject(String(decoded, StandardCharsets.UTF_8)) }.getOrNull()
+        private fun parseJwtClaims(token: String): JSONObject? {
+            val payload = token.split(".").getOrNull(1)?.takeIf { it.isNotBlank() } ?: return null
+            return runCatching {
+                JSONObject(String(Base64.decode(payload, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP), StandardCharsets.UTF_8))
+            }.getOrNull()
         }
 
-        private fun JSONObject.requiredString(key: String): String {
-            return optNullableString(key) ?: throw IllegalStateException("$key is missing.")
+        private fun parseJwtExpiration(token: String): Long? {
+            return parseJwtClaims(token)?.optLong("exp", 0L)?.takeIf { it > 0L }
         }
+
+        private fun String.urlDecode(): String = URLDecoder.decode(this, StandardCharsets.UTF_8.name())
 
         private fun JSONObject.optNullableString(key: String): String? {
             if (!has(key) || isNull(key)) return null
-            return optString(key).trim().takeIf { it.isNotBlank() }
-        }
-
-        private fun JSONObject.optLongOrNull(key: String): Long? {
-            if (!has(key) || isNull(key)) return null
-            return opt(key)?.toString()?.toLongOrNull()
-        }
-
-        private fun JSONObject.optNumber(key: String): Double? {
-            if (!has(key) || isNull(key)) return null
-            return when (val value = opt(key)) {
-                is Number -> value.toDouble()
-                is String -> value.trim().toDoubleOrNull()
-                else -> null
-            }
-        }
-
-        private fun String.urlEncode(): String {
-            return URLEncoder.encode(this, StandardCharsets.UTF_8.name())
-        }
-
-        private fun String.urlDecode(): String {
-            return URLDecoder.decode(this, StandardCharsets.UTF_8.name())
+            return optString(key).takeIf { it.isNotBlank() && it != "null" }
         }
     }
 }

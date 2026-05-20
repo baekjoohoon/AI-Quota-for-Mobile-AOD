@@ -294,12 +294,14 @@ provider 응답이 used percent만 주면 앱은 `remainingPercent = 1 - usedPer
 
 ### 사용량 수집
 
-- 우선 경로: `https://github.com/github-copilot/chat/entitlement`
+- 우선 경로: GitHub Copilot OAuth token 기반 `https://api.github.com/copilot_internal/user`
+- WebView 세션 경로 `https://github.com/github-copilot/chat/entitlement`는 보조 경로로만 사용한다.
+- 현재 프리미엄 사용량은 `quota_snapshots.premium_interactions`가 신뢰 경로이고, 구형 entitlement의 `premiumInteractionsPercentage`만으로 연결 완료 판단을 하면 안 된다.
 - `TextUsageExtractor.extractCopilotEntitlementResponse()`가 `quotas.remaining`, `quotas.limits`, `quotas.resetDate`를 해석한다.
 - 주요 line은 다음과 같다.
   - `Chat`: `remaining.chat`, `limits.chat/messages`, `remaining.chatPercentage`
   - `Completions`: `remaining.completions`, `limits.completions/...`, `remaining.completionsPercentage`
-  - `Premium requests`: `remaining.premiumInteractions`, `limits.premiumInteractions`, `remaining.premiumInteractionsPercentage`
+  - `Premium requests`: `quota_snapshots.premium_interactions.percent_remaining`, 또는 구형 `remaining.premiumInteractions`, `limits.premiumInteractions`, `remaining.premiumInteractionsPercentage`
 - `resetDate`는 월간 reset 기준으로 사용한다.
 - Free 또는 `licensed_limited`에서 completions limit이 응답에 없으면 `4000` completions를 기본 cap으로 보정한다.
 

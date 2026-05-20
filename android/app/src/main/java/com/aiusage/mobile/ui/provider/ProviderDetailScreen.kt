@@ -112,6 +112,10 @@ private fun ClassicProviderWindow(
     onDisconnect: () -> Unit
 ) {
     val colors = AIUsageTheme.colors
+    val isRefreshing = snapshot.refreshState == ProviderRefreshState.REFRESHING
+    val refreshEnabled = !isBusy &&
+        !isRefreshing &&
+        snapshot.connectionState != ProviderConnectionState.DISCONNECTED
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -205,11 +209,15 @@ private fun ClassicProviderWindow(
                         isBusy = isBusy,
                         layoutMetrics = layoutMetrics,
                         onConnect = onConnect,
-                        onRefresh = onRefresh,
                         onDisconnect = onDisconnect
                     )
 
-                    ClassicSectionTitle(text = stringResource(R.string.provider_usage_title))
+                    UsageSectionTitleWithRefresh(
+                        text = stringResource(R.string.provider_usage_title),
+                        isRefreshing = isRefreshing,
+                        enabled = refreshEnabled,
+                        onRefresh = onRefresh
+                    )
                     if (snapshot.lines.isEmpty()) {
                         Text(
                             text = stringResource(R.string.provider_no_lines),
@@ -240,14 +248,16 @@ private fun ProviderSummaryBlock(
     isBusy: Boolean,
     layoutMetrics: AppLayoutMetrics,
     onConnect: () -> Unit,
-    onRefresh: () -> Unit,
     onDisconnect: () -> Unit
 ) {
     val colors = AIUsageTheme.colors
     val isRefreshing = snapshot.refreshState == ProviderRefreshState.REFRESHING
-    val isConnected = snapshot.connectionState == ProviderConnectionState.CONNECTED
+    val isConnected = snapshot.connectionState in setOf(
+        ProviderConnectionState.CONNECTED,
+        ProviderConnectionState.COLLECTING,
+        ProviderConnectionState.STALE
+    )
     val actionEnabled = !isBusy && !isRefreshing
-    val refreshEnabled = actionEnabled && snapshot.connectionState != ProviderConnectionState.DISCONNECTED
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -272,11 +282,9 @@ private fun ProviderSummaryBlock(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(layoutMetrics.cardSpacingDp.dp)
         ) {
-            ClassicInfoLineWithRefresh(
+            ClassicInfoLine(
                 text = stringResource(R.string.provider_detail_status, providerStatus(snapshot, isBusy || isRefreshing)),
-                isRefreshing = isRefreshing,
-                enabled = refreshEnabled,
-                onRefresh = onRefresh
+                bold = true
             )
             snapshot.planLabel?.let { planLabel ->
                 ClassicInfoLine(text = stringResource(R.string.provider_detail_plan, planLabel))
@@ -304,7 +312,7 @@ private fun ProviderSummaryBlock(
 }
 
 @Composable
-private fun ClassicInfoLineWithRefresh(
+private fun UsageSectionTitleWithRefresh(
     text: String,
     isRefreshing: Boolean,
     enabled: Boolean,
@@ -313,12 +321,10 @@ private fun ClassicInfoLineWithRefresh(
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        ClassicInfoLine(
-            text = text,
-            modifier = Modifier.weight(1f),
-            bold = true
+        ClassicSectionTitle(
+            text = text
         )
         RefreshIconButton(
             isRefreshing = isRefreshing,
@@ -539,8 +545,11 @@ private fun providerStatus(snapshot: ProviderUsageSnapshot, isBusy: Boolean): St
         ProviderConnectionState.DISCONNECTED -> stringResource(R.string.provider_status_disconnected)
         ProviderConnectionState.CONNECTING -> stringResource(R.string.provider_status_connecting)
         ProviderConnectionState.CONNECTED -> stringResource(R.string.provider_status_connected)
+        ProviderConnectionState.COLLECTING -> stringResource(R.string.provider_status_connecting)
+        ProviderConnectionState.STALE -> stringResource(R.string.provider_status_connected)
         ProviderConnectionState.UNAVAILABLE -> stringResource(R.string.provider_unavailable)
         ProviderConnectionState.ERROR -> stringResource(R.string.provider_status_error)
+        ProviderConnectionState.NOT_CONNECTED -> stringResource(R.string.provider_status_disconnected)
     }
 }
 

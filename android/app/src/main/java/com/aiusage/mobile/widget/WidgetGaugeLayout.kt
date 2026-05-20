@@ -82,8 +82,8 @@ fun unifiedWidgetLayoutSpec(cellWidth: Int, cellHeight: Int): UnifiedWidgetLayou
     val horizontalPaddingDp = if (normalizedCellWidth == 2) 12 else 16
     val verticalPaddingDp = if (normalizedCellHeight == 2) 12 else 16
     val maxProviderCount = when (normalizedCellHeight) {
-        2 -> if (normalizedCellWidth == 2) 3 else 4
-        3 -> if (normalizedCellWidth == 2) 4 else 5
+        2 -> 2
+        3 -> 4
         else -> 5
     }
     val gaugeHeightDp = when (normalizedCellHeight) {
@@ -145,6 +145,14 @@ fun providerWidgetLayoutSpec(cellWidth: Int, cellHeight: Int): ProviderWidgetLay
         lineRowHeightDp = availableLineHeightDp.coerceAtLeast(gaugeHeightDp + 14),
         maxLineCount = maxLineCount
     )
+}
+
+fun providerWidgetLabelWidthDp(spec: ProviderWidgetLayoutSpec): Int {
+    return (spec.gaugeWidthDp * 58 / 100).coerceAtLeast(1)
+}
+
+fun providerWidgetValueWidthDp(spec: ProviderWidgetLayoutSpec): Int {
+    return (spec.gaugeWidthDp - providerWidgetLabelWidthDp(spec)).coerceAtLeast(1)
 }
 
 private fun widgetCellSpanWidthDp(cellWidth: Int): Int {

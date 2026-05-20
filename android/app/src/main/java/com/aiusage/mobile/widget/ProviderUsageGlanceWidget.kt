@@ -2,7 +2,6 @@ package com.aiusage.mobile.widget
 
 import android.content.Context
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -67,6 +66,7 @@ class ProviderUsageGlanceWidget : GlanceAppWidget() {
                 providerId = it.storageId
             )
         } ?: noVisibleProviderPayload()
+        val themeColors = widgetThemeColors(context)
         val providerAction = actionStartActivity(
             MainActivity::class.java,
             actionParametersOf(
@@ -77,7 +77,7 @@ class ProviderUsageGlanceWidget : GlanceAppWidget() {
         )
 
         provideContent {
-            ProviderWidgetContent(payload, providerAction)
+            ProviderWidgetContent(payload, providerAction, themeColors)
         }
     }
 
@@ -99,7 +99,11 @@ internal fun providerWidgetSelection(
 }
 
 @Composable
-private fun ProviderWidgetContent(payload: ProviderWidgetPayload, providerAction: Action) {
+private fun ProviderWidgetContent(
+    payload: ProviderWidgetPayload,
+    providerAction: Action,
+    themeColors: WidgetThemeColors
+) {
     val size = LocalSize.current
     val spec = providerWidgetLayoutSpec(
         cellWidth = size.width.toWidgetCells(min = 2, max = 3),
@@ -112,24 +116,28 @@ private fun ProviderWidgetContent(payload: ProviderWidgetPayload, providerAction
             .fillMaxSize()
             .clickable(onClick = providerAction)
             .cornerRadius(if (spec.cellHeight == 1) 18.dp else 24.dp)
-            .background(ColorProvider(R.color.widget_background))
+            .background(themeColors.background)
             .padding(horizontal = spec.horizontalPaddingDp.dp, vertical = spec.verticalPaddingDp.dp),
         verticalAlignment = Alignment.Vertical.CenterVertically
     ) {
-        ProviderHeader(payload, spec)
+        ProviderHeader(payload, spec, themeColors)
         Spacer(modifier = GlanceModifier.height(4.dp))
         if (visibleLines.isEmpty()) {
-            ProviderEmptyState(payload, spec)
+            ProviderEmptyState(payload, spec, themeColors)
         } else {
             visibleLines.forEach { line ->
-                ProviderLine(line, spec)
+                ProviderLine(line, spec, themeColors)
             }
         }
     }
 }
 
 @Composable
-private fun ProviderHeader(payload: ProviderWidgetPayload, spec: ProviderWidgetLayoutSpec) {
+private fun ProviderHeader(
+    payload: ProviderWidgetPayload,
+    spec: ProviderWidgetLayoutSpec,
+    themeColors: WidgetThemeColors
+) {
     Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
         Image(
             provider = ImageProvider(providerIconRes(payload.providerId)),
@@ -140,12 +148,12 @@ private fun ProviderHeader(payload: ProviderWidgetPayload, spec: ProviderWidgetL
         Column {
             Text(
                 text = payload.displayName,
-                style = widgetTextStyle(spec.displayNameTextSizeSp)
+                style = widgetTextStyle(spec.displayNameTextSizeSp, themeColors = themeColors)
             )
             if (spec.cellHeight > 1) {
                 Text(
                     text = statusLabel(payload.status),
-                    style = widgetTextStyle(spec.statusTextSizeSp)
+                    style = widgetTextStyle(spec.statusTextSizeSp, themeColors = themeColors)
                 )
             }
         }
@@ -153,32 +161,40 @@ private fun ProviderHeader(payload: ProviderWidgetPayload, spec: ProviderWidgetL
 }
 
 @Composable
-private fun ProviderEmptyState(payload: ProviderWidgetPayload, spec: ProviderWidgetLayoutSpec) {
+private fun ProviderEmptyState(
+    payload: ProviderWidgetPayload,
+    spec: ProviderWidgetLayoutSpec,
+    themeColors: WidgetThemeColors
+) {
     Text(
         text = if (payload.status.equals(DISCONNECTED_STATUS, ignoreCase = true)) {
             "Disconnected"
         } else {
             "No data"
         },
-        style = widgetTextStyle(spec.lineTextSizeSp, TextAlign.Center)
+        style = widgetTextStyle(spec.lineTextSizeSp, TextAlign.Center, themeColors)
     )
 }
 
 @Composable
-private fun ProviderLine(line: ProviderWidgetLine, spec: ProviderWidgetLayoutSpec) {
-    val labelWidthDp = (spec.gaugeWidthDp * 0.46f).roundToInt()
-    val valueWidthDp = (spec.gaugeWidthDp - labelWidthDp).coerceAtLeast(1)
+private fun ProviderLine(
+    line: ProviderWidgetLine,
+    spec: ProviderWidgetLayoutSpec,
+    themeColors: WidgetThemeColors
+) {
+    val labelWidthDp = providerWidgetLabelWidthDp(spec)
+    val valueWidthDp = providerWidgetValueWidthDp(spec)
     Column(modifier = GlanceModifier.height(spec.lineRowHeightDp.dp)) {
         Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
             Text(
                 text = line.label,
                 modifier = GlanceModifier.width(labelWidthDp.dp),
-                style = widgetTextStyle(spec.lineTextSizeSp)
+                style = widgetTextStyle(spec.lineTextSizeSp, themeColors = themeColors)
             )
             Text(
                 text = line.remainingText.ifBlank { statusLabel(line.severity) },
                 modifier = GlanceModifier.width(valueWidthDp.dp),
-                style = widgetTextStyle(spec.lineTextSizeSp, TextAlign.End)
+                style = widgetTextStyle(spec.lineTextSizeSp, TextAlign.End, themeColors)
             )
         }
         Spacer(modifier = GlanceModifier.height(3.dp))
@@ -186,7 +202,8 @@ private fun ProviderLine(line: ProviderWidgetLine, spec: ProviderWidgetLayoutSpe
             ratio = line.remainingPercent ?: 0f,
             width = spec.gaugeWidthDp.dp,
             height = spec.gaugeHeightDp.dp,
-            radius = spec.gaugeRadiusDp.dp
+            radius = spec.gaugeRadiusDp.dp,
+            themeColors = themeColors
         )
         if (spec.cellHeight > 1) {
             val detail = line.resetText ?: line.detailText
@@ -194,7 +211,7 @@ private fun ProviderLine(line: ProviderWidgetLine, spec: ProviderWidgetLayoutSpe
                 Spacer(modifier = GlanceModifier.height(2.dp))
                 Text(
                     text = detail,
-                    style = widgetTextStyle(spec.detailTextSizeSp)
+                    style = widgetTextStyle(spec.detailTextSizeSp, themeColors = themeColors)
                 )
             }
         }
@@ -202,14 +219,14 @@ private fun ProviderLine(line: ProviderWidgetLine, spec: ProviderWidgetLayoutSpe
 }
 
 @Composable
-private fun GaugeBar(ratio: Float, width: Dp, height: Dp, radius: Dp) {
+private fun GaugeBar(ratio: Float, width: Dp, height: Dp, radius: Dp, themeColors: WidgetThemeColors) {
     val boundedRatio = ratio.coerceIn(0f, 1f)
     Box(
         modifier = GlanceModifier
             .width(width)
             .height(height)
             .cornerRadius(radius)
-            .background(Color(0xFF334155))
+            .background(themeColors.gaugeTrack)
     ) {
         if (boundedRatio > 0f) {
             Box(
@@ -217,7 +234,7 @@ private fun GaugeBar(ratio: Float, width: Dp, height: Dp, radius: Dp) {
                     .width(width * boundedRatio)
                     .height(height)
                     .cornerRadius(radius)
-                    .background(gaugeColor(boundedRatio))
+                    .background(themeColors.gaugeColor(boundedRatio))
             ) {}
         }
     }
@@ -227,9 +244,13 @@ private fun Dp.toWidgetCells(min: Int, max: Int): Int {
     return (value / WIDGET_CELL_DP).roundToInt().coerceIn(min, max)
 }
 
-private fun widgetTextStyle(textSizeSp: Int, textAlign: TextAlign = TextAlign.Start): TextStyle {
+private fun widgetTextStyle(
+    textSizeSp: Int,
+    textAlign: TextAlign = TextAlign.Start,
+    themeColors: WidgetThemeColors
+): TextStyle {
     return TextStyle(
-        color = ColorProvider(R.color.widget_caption),
+        color = ColorProvider(themeColors.caption),
         fontSize = textSizeSp.sp,
         textAlign = textAlign
     )
@@ -256,14 +277,6 @@ private fun providerIconRes(providerId: String): Int {
         "copilot", "github-copilot", "github_copilot" -> R.drawable.ic_provider_copilot
         "antigravity" -> R.drawable.ic_provider_antigravity
         else -> R.drawable.ic_provider_unknown
-    }
-}
-
-private fun gaugeColor(ratio: Float): Color {
-    return when {
-        ratio < 0.15f -> Color(0xFFEF4444)
-        ratio < 0.35f -> Color(0xFFF59E0B)
-        else -> Color(0xFF22C55E)
     }
 }
 

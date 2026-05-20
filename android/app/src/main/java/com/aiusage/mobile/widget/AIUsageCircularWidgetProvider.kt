@@ -6,18 +6,18 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.view.View
 import android.widget.RemoteViews
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
 import com.aiusage.mobile.MainActivity
 import com.aiusage.mobile.R
-import com.google.firebase.auth.FirebaseAuth
+import com.aiusage.mobile.local.AppTheme
+import com.aiusage.mobile.local.ThemePreferencesRepository
 
 class AIUsageCircularWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
@@ -50,24 +50,24 @@ class AIUsageCircularWidgetProvider : AppWidgetProvider() {
             appWidgetIds: IntArray
         ) {
             if (appWidgetIds.isEmpty()) return
-            val isSignedIn = FirebaseAuth.getInstance().currentUser != null
-            val gauges = if (isSignedIn) {
-                parseWidgetProviderGauges(
-                    WidgetSnapshotCache(context).readState().snapshotJson
-                ).take(MAX_CIRCULAR_GAUGES)
-            } else {
-                emptyList()
-            }
+            val gauges = parseWidgetProviderGauges(
+                WidgetSnapshotCache(context).readState().snapshotJson
+            ).take(MAX_CIRCULAR_GAUGES)
+            val hasProviderData = gauges.isNotEmpty()
+            val theme = ThemePreferencesRepository(context).currentTheme()
+            val themeColors = widgetThemeColors(theme)
 
             appWidgetIds.forEach { appWidgetId ->
                 val views = RemoteViews(context.packageName, R.layout.ai_usage_widget_circular)
+                views.setInt(R.id.circular_widget_root, "setBackgroundResource", widgetBackgroundRes(theme))
+                views.setTextColor(R.id.circular_login_message, themeColors.caption.toArgb())
                 views.setOnClickPendingIntent(
                     R.id.circular_widget_root,
                     mainActivityPendingIntent(context)
                 )
                 views.setViewVisibility(
                     R.id.circular_login_message,
-                    if (isSignedIn) View.GONE else View.VISIBLE
+                    if (hasProviderData) View.GONE else View.VISIBLE
                 )
                 gaugeViewIds.forEachIndexed { index, viewId ->
                     val gauge = gauges.getOrNull(index)
@@ -75,7 +75,7 @@ class AIUsageCircularWidgetProvider : AppWidgetProvider() {
                         views.setViewVisibility(viewId, View.INVISIBLE)
                     } else {
                         views.setViewVisibility(viewId, View.VISIBLE)
-                        views.setImageViewBitmap(viewId, circularGaugeBitmap(context, gauge))
+                        views.setImageViewBitmap(viewId, circularGaugeBitmap(context, gauge, themeColors))
                     }
                 }
                 appWidgetManager.updateAppWidget(appWidgetId, views)
@@ -94,7 +94,11 @@ class AIUsageCircularWidgetProvider : AppWidgetProvider() {
             )
         }
 
-        private fun circularGaugeBitmap(context: Context, gauge: WidgetProviderGauge): Bitmap {
+        private fun circularGaugeBitmap(
+            context: Context,
+            gauge: WidgetProviderGauge,
+            themeColors: WidgetThemeColors
+        ): Bitmap {
             val bitmap = Bitmap.createBitmap(CANVAS_SIZE, CANVAS_SIZE, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             val rect = RectF(
@@ -104,15 +108,14 @@ class AIUsageCircularWidgetProvider : AppWidgetProvider() {
                 CANVAS_SIZE - RING_PADDING
             )
             val ratio = gauge.remainingRatio.coerceIn(0f, 1f)
-            val trackColor = if (isDarkMode(context)) Color.argb(92, 148, 163, 184) else Color.argb(92, 100, 116, 139)
             val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = trackColor
+                color = themeColors.gaugeTrack.toArgb()
                 style = Paint.Style.STROKE
                 strokeCap = Paint.Cap.ROUND
                 strokeWidth = RING_STROKE_WIDTH
             }
             val activePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = gaugeColor(ratio)
+                color = themeColors.gaugeColor(ratio).toArgb()
                 style = Paint.Style.STROKE
                 strokeCap = Paint.Cap.ROUND
                 strokeWidth = RING_STROKE_WIDTH
@@ -146,17 +149,11 @@ class AIUsageCircularWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        private fun gaugeColor(ratio: Float): Int {
-            return when {
-                ratio < 0.15f -> Color.rgb(239, 68, 68)
-                ratio < 0.35f -> Color.rgb(245, 158, 11)
-                else -> Color.rgb(34, 197, 94)
+        private fun widgetBackgroundRes(theme: AppTheme): Int {
+            return when (theme) {
+                AppTheme.MACOS -> R.drawable.widget_background_macos_rounded
+                AppTheme.WINDOWS -> R.drawable.widget_background_windows_rounded
             }
-        }
-
-        private fun isDarkMode(context: Context): Boolean {
-            return (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-                Configuration.UI_MODE_NIGHT_YES
         }
     }
 }

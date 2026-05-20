@@ -2,7 +2,6 @@ package com.aiusage.mobile.widget
 
 import android.content.Context
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -57,6 +56,7 @@ open class AIUsageGlanceWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val payload = parseUnifiedWidgetPayload(WidgetSnapshotCache(context).read())
         val emptyMessage = context.getString(R.string.widget_no_data)
+        val themeColors = widgetThemeColors(context)
         val homeAction = actionStartActivity(
             MainActivity::class.java,
             actionParametersOf(RouteActionKey.to(AppRoute.ROUTE_HOME))
@@ -65,29 +65,29 @@ open class AIUsageGlanceWidget : GlanceAppWidget() {
         provideContent {
             // Widget renders only from the local cache written by the app refresh flow.
             if (payload.providers.isNotEmpty()) {
-                AIUsageWidgetContent(payload, emptyMessage, homeAction)
+                AIUsageWidgetContent(payload, emptyMessage, homeAction, themeColors)
             } else {
-                EmptyDashboardWidgetContent(emptyMessage, homeAction)
+                EmptyDashboardWidgetContent(emptyMessage, homeAction, themeColors)
             }
         }
     }
 }
 
 @Composable
-private fun EmptyDashboardWidgetContent(message: String, homeAction: Action) {
+private fun EmptyDashboardWidgetContent(message: String, homeAction: Action, themeColors: WidgetThemeColors) {
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
             .clickable(onClick = homeAction)
             .cornerRadius(24.dp)
-            .background(widgetBackgroundColor())
+            .background(themeColors.background)
             .padding(14.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = message,
             style = TextStyle(
-                color = ColorProvider(R.color.widget_caption),
+                color = ColorProvider(themeColors.caption),
                 textAlign = TextAlign.Center
             )
         )
@@ -95,7 +95,12 @@ private fun EmptyDashboardWidgetContent(message: String, homeAction: Action) {
 }
 
 @Composable
-private fun AIUsageWidgetContent(payload: UnifiedWidgetPayload, emptyMessage: String, homeAction: Action) {
+private fun AIUsageWidgetContent(
+    payload: UnifiedWidgetPayload,
+    emptyMessage: String,
+    homeAction: Action,
+    themeColors: WidgetThemeColors
+) {
     val widgetSize = LocalSize.current
     val layoutSpec = unifiedWidgetLayoutSpec(
         cellWidth = widgetSize.width.toWidgetCells(min = 2, max = 3),
@@ -108,7 +113,7 @@ private fun AIUsageWidgetContent(payload: UnifiedWidgetPayload, emptyMessage: St
             .fillMaxSize()
             .clickable(onClick = homeAction)
             .cornerRadius(24.dp)
-            .background(widgetBackgroundColor())
+            .background(themeColors.background)
             .padding(
                 horizontal = layoutSpec.horizontalPaddingDp.dp,
                 vertical = layoutSpec.verticalPaddingDp.dp
@@ -117,25 +122,29 @@ private fun AIUsageWidgetContent(payload: UnifiedWidgetPayload, emptyMessage: St
     ) {
         Text(
             text = "AI Usage",
-            style = widgetTextStyle(layoutSpec.titleTextSizeSp)
+            style = widgetTextStyle(layoutSpec.titleTextSizeSp, themeColors = themeColors)
         )
         Spacer(modifier = GlanceModifier.height(4.dp))
         if (providers.isEmpty()) {
             Text(
                 text = emptyMessage,
-                style = widgetTextStyle(layoutSpec.providerTextSizeSp, TextAlign.Center)
+                style = widgetTextStyle(layoutSpec.providerTextSizeSp, TextAlign.Center, themeColors)
             )
             return@Column
         }
 
         providers.forEach { provider ->
-            UnifiedProviderRow(provider, layoutSpec)
+            UnifiedProviderRow(provider, layoutSpec, themeColors)
         }
     }
 }
 
 @Composable
-private fun UnifiedProviderRow(provider: ProviderWidgetPayload, layoutSpec: UnifiedWidgetLayoutSpec) {
+private fun UnifiedProviderRow(
+    provider: ProviderWidgetPayload,
+    layoutSpec: UnifiedWidgetLayoutSpec,
+    themeColors: WidgetThemeColors
+) {
     val line = provider.lines.firstOrNull { it.remainingPercent != null }
         ?: provider.lines.firstOrNull()
     val ratio = line?.remainingPercent ?: 0f
@@ -159,12 +168,12 @@ private fun UnifiedProviderRow(provider: ProviderWidgetPayload, layoutSpec: Unif
             Text(
                 text = provider.displayName,
                 modifier = GlanceModifier.width((providerTextWidthDp - 22).coerceAtLeast(1).dp),
-                style = widgetTextStyle(layoutSpec.providerTextSizeSp)
+                style = widgetTextStyle(layoutSpec.providerTextSizeSp, themeColors = themeColors)
             )
             Text(
                 text = remainingText,
                 modifier = GlanceModifier.width(remainingTextWidthDp.dp),
-                style = widgetTextStyle(layoutSpec.detailTextSizeSp, TextAlign.End)
+                style = widgetTextStyle(layoutSpec.detailTextSizeSp, TextAlign.End, themeColors)
             )
         }
         Spacer(modifier = GlanceModifier.height(2.dp))
@@ -172,23 +181,22 @@ private fun UnifiedProviderRow(provider: ProviderWidgetPayload, layoutSpec: Unif
             ratio = ratio,
             width = layoutSpec.gaugeWidthDp.dp,
             height = layoutSpec.gaugeHeightDp.dp,
-            radius = layoutSpec.gaugeRadiusDp.dp
+            radius = layoutSpec.gaugeRadiusDp.dp,
+            themeColors = themeColors
         )
-        if (layoutSpec.cellHeight > 2) {
-            val detail = line?.resetText ?: line?.detailText
-            if (!detail.isNullOrBlank()) {
-                Spacer(modifier = GlanceModifier.height(2.dp))
-                Text(
-                    text = detail,
-                    style = widgetTextStyle(layoutSpec.detailTextSizeSp)
-                )
-            }
+        val detail = line?.resetText ?: line?.detailText
+        if (!detail.isNullOrBlank()) {
+            Spacer(modifier = GlanceModifier.height(2.dp))
+            Text(
+                text = detail,
+                style = widgetTextStyle(layoutSpec.detailTextSizeSp, themeColors = themeColors)
+            )
         }
     }
 }
 
 @Composable
-private fun CompactGauge(gauge: WidgetProviderGauge, layoutSpec: WidgetGaugeLayoutSpec) {
+private fun CompactGauge(gauge: WidgetProviderGauge, layoutSpec: WidgetGaugeLayoutSpec, themeColors: WidgetThemeColors) {
     Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
         Image(
             provider = ImageProvider(providerIconRes(gauge.providerId)),
@@ -200,13 +208,14 @@ private fun CompactGauge(gauge: WidgetProviderGauge, layoutSpec: WidgetGaugeLayo
             ratio = gauge.remainingRatio,
             width = layoutSpec.gaugeWidthDp.dp,
             height = layoutSpec.gaugeHeightDp.dp,
-            radius = layoutSpec.gaugeRadiusDp.dp
+            radius = layoutSpec.gaugeRadiusDp.dp,
+            themeColors = themeColors
         )
     }
 }
 
 @Composable
-private fun IconGauge(gauge: WidgetProviderGauge, layoutSpec: WidgetGaugeLayoutSpec) {
+private fun IconGauge(gauge: WidgetProviderGauge, layoutSpec: WidgetGaugeLayoutSpec, themeColors: WidgetThemeColors) {
     val resetTextWidthDp = (
         layoutSpec.gaugeWidthDp - EXPANDED_CAPTION_REMAINING_WIDTH_DP - EXPANDED_CAPTION_SPACER_WIDTH_DP
     ).coerceAtLeast(0)
@@ -223,7 +232,8 @@ private fun IconGauge(gauge: WidgetProviderGauge, layoutSpec: WidgetGaugeLayoutS
                 ratio = gauge.remainingRatio,
                 width = layoutSpec.gaugeWidthDp.dp,
                 height = layoutSpec.gaugeHeightDp.dp,
-                radius = layoutSpec.gaugeRadiusDp.dp
+                radius = layoutSpec.gaugeRadiusDp.dp,
+                themeColors = themeColors
             )
             Spacer(modifier = GlanceModifier.height(2.dp))
             Row(
@@ -232,13 +242,13 @@ private fun IconGauge(gauge: WidgetProviderGauge, layoutSpec: WidgetGaugeLayoutS
                 Text(
                     text = gauge.remainingText,
                     modifier = GlanceModifier.width(EXPANDED_CAPTION_REMAINING_WIDTH_DP.dp),
-                    style = WidgetCaptionStyle
+                    style = widgetTextStyle(themeColors = themeColors)
                 )
                 Spacer(modifier = GlanceModifier.width(EXPANDED_CAPTION_SPACER_WIDTH_DP.dp))
                 Text(
                     text = gauge.resetText.orEmpty(),
                     modifier = GlanceModifier.width(resetTextWidthDp.dp),
-                    style = WidgetCaptionStyle.copy(textAlign = TextAlign.End)
+                    style = widgetTextStyle(textAlign = TextAlign.End, themeColors = themeColors)
                 )
             }
         }
@@ -246,15 +256,15 @@ private fun IconGauge(gauge: WidgetProviderGauge, layoutSpec: WidgetGaugeLayoutS
 }
 
 @Composable
-private fun GaugeBar(ratio: Float, width: Dp, height: Dp, radius: Dp) {
+private fun GaugeBar(ratio: Float, width: Dp, height: Dp, radius: Dp, themeColors: WidgetThemeColors) {
     val activeWidth = width * ratio.coerceIn(0f, 1f)
-    val activeColor = gaugeColor(ratio)
+    val activeColor = themeColors.gaugeColor(ratio)
     Box(
         modifier = GlanceModifier
             .width(width)
             .height(height)
             .cornerRadius(radius)
-            .background(Color(0xFF334155))
+            .background(themeColors.gaugeTrack)
     ) {
         if (activeWidth > 0.dp) {
             Box(
@@ -279,21 +289,17 @@ private fun providerIconRes(providerId: String): Int {
     }
 }
 
-private fun gaugeColor(ratio: Float): Color {
-    return when {
-        ratio < 0.15f -> Color(0xFFEF4444)
-        ratio < 0.35f -> Color(0xFFF59E0B)
-        else -> Color(0xFF22C55E)
-    }
-}
-
 private fun Dp.toWidgetCells(min: Int, max: Int): Int {
     return (value / WIDGET_CELL_DP).roundToInt().coerceIn(min, max)
 }
 
-private fun widgetTextStyle(textSizeSp: Int, textAlign: TextAlign = TextAlign.Start): TextStyle {
+private fun widgetTextStyle(
+    textSizeSp: Int = 11,
+    textAlign: TextAlign = TextAlign.Start,
+    themeColors: WidgetThemeColors
+): TextStyle {
     return TextStyle(
-        color = ColorProvider(R.color.widget_caption),
+        color = ColorProvider(themeColors.caption),
         fontSize = textSizeSp.sp,
         textAlign = textAlign
     )
@@ -304,16 +310,7 @@ private const val EXPANDED_CAPTION_REMAINING_WIDTH_DP = 66
 private const val EXPANDED_CAPTION_SPACER_WIDTH_DP = 8
 private const val WIDGET_CELL_DP = 80f
 
-private val WidgetCaptionStyle = TextStyle(
-    color = ColorProvider(R.color.widget_caption),
-    textAlign = TextAlign.Start
-)
-
 private val RouteActionKey = ActionParameters.Key<String>(AppRoute.EXTRA_ROUTE)
-
-private fun widgetBackgroundColor(): ColorProvider {
-    return ColorProvider(R.color.widget_background)
-}
 
 class AIUsageUnifiedGlanceWidget : AIUsageGlanceWidget()
 
