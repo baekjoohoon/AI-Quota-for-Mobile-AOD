@@ -90,6 +90,7 @@ fun BackgroundProviderWebCollector(
                 webViewClient = BackgroundCollectorWebViewClient(
                     currentJob = { latestJob.value },
                     geminiCollectorAsset = geminiCollectorAsset,
+                    onPayload = { job, payload -> latestOnPayload.value(job, payload) },
                     onError = { job, message -> latestOnError.value(job, message) },
                     onFinished = { requestId -> latestOnFinished.value(requestId) }
                 )
@@ -141,10 +142,13 @@ private class BackgroundCollectorChromeClient : WebChromeClient() {
 private class BackgroundCollectorWebViewClient(
     private val currentJob: () -> QueuedProviderRefreshJob?,
     private val geminiCollectorAsset: String,
+    private val onPayload: (QueuedProviderRefreshJob, String) -> Unit,
     private val onError: (QueuedProviderRefreshJob, String) -> Unit,
     private val onFinished: (Long) -> Unit
 ) : WebViewClient() {
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val collectorInjectionKeys = mutableSetOf<String>()
+    private val terminalRequestIds = mutableSetOf<Long>()
     private var observedCodexAccountId: String? = null
 
     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
@@ -155,6 +159,7 @@ private class BackgroundCollectorWebViewClient(
 
     override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
         captureCodexAccountId(request.url.toString())
+        collectCopilotInternalUserResource(request)
         return null
     }
 
@@ -180,6 +185,10 @@ private class BackgroundCollectorWebViewClient(
             "AIUsageBgCollector",
             "pageFinished provider=${providerId.storageId} url=${hostOf(url)}${pathOf(url)}"
         )
+        if (ProviderWebCollectorScripts.isRefreshLoginPage(providerId, url)) {
+            finishWithErrorOnce(job, "${providerId.displayName} login session expired. Sign in again.")
+            return
+        }
         view.evaluateJavascript(PAGE_CAPTURE_SCRIPT) { encoded ->
             val activeJob = currentJob() ?: return@evaluateJavascript
             if (activeJob.requestId != requestId || activeJob.job.providerId != providerId) return@evaluateJavascript
@@ -227,6 +236,39 @@ private class BackgroundCollectorWebViewClient(
             pageText = pageText
         )
         view.evaluateJavascript(script, null)
+    }
+
+    private fun finishWithErrorOnce(job: QueuedProviderRefreshJob, message: String) {
+        if (!terminalRequestIds.add(job.requestId)) return
+        onError(job, message)
+        onFinished(job.requestId)
+    }
+
+    private fun collectCopilotInternalUserResource(request: WebResourceRequest) {
+        val job = currentJob() ?: return
+        if (job.job.providerId != ProviderId.COPILOT) return
+        val url = request.url.toString()
+        if (!CopilotNativeUsageFetcher.isInternalUserUrl(url)) return
+        val authorizationHeader = CopilotNativeUsageFetcher.apiAuthorizationHeaderFromRequest(request.requestHeaders)
+        Log.d(
+            "AIUsageBgCollector",
+            "provider=copilot resource=/copilot_internal/user hasAuth=${authorizationHeader != null}"
+        )
+        if (authorizationHeader == null) return
+        val result = CopilotNativeUsageFetcher.fetchJsonWithAuthorization(url, authorizationHeader)
+        val parsed = runCatching { JSONObject(result) }.getOrNull()
+        val payload = CopilotNativeUsageFetcher.payloadFromInternalUserResponse(result)
+        Log.d(
+            "AIUsageBgCollector",
+            "provider=copilot resourceInternal status=${parsed?.optInt("status", -1)} payload=${payload != null}"
+        )
+        if (payload == null) return
+        mainHandler.post {
+            val activeJob = currentJob() ?: return@post
+            if (activeJob.requestId != job.requestId || activeJob.job.providerId != ProviderId.COPILOT) return@post
+            onPayload(activeJob, payload)
+            onFinished(activeJob.requestId)
+        }
     }
 
     private fun captureCodexAccountId(url: String) {

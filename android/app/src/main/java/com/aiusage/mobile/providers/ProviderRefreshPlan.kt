@@ -40,10 +40,10 @@ object ProviderRefreshPlan {
 
     private fun refreshModeFor(providerId: ProviderId): ProviderRefreshMode {
         return when (providerId) {
-            ProviderId.GEMINI,
-            ProviderId.COPILOT -> ProviderRefreshMode.NATIVE_API
+            ProviderId.GEMINI -> ProviderRefreshMode.NATIVE_API
             ProviderId.CLAUDE,
             ProviderId.CODEX,
+            ProviderId.COPILOT,
             ProviderId.CURSOR -> ProviderRefreshMode.HIDDEN_WEB_COLLECTOR
         }
     }

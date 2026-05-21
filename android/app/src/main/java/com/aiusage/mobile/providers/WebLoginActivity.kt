@@ -38,6 +38,7 @@ class WebLoginActivity : Activity() {
     private var finished = false
     private var firstPageLogged = false
     private var observedCodexAccountId: String? = null
+    private var copilotPostLoginRedirected = false
     private val popupViews = mutableSetOf<WebView>()
     private val collectorInjectionKeys = mutableSetOf<String>()
     private val startedAtMs = SystemClock.elapsedRealtime()
@@ -181,6 +182,7 @@ class WebLoginActivity : Activity() {
         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
             val url = request.url.toString()
             captureCodexAccountId(url)
+            collectCopilotInternalUserResource(request)
             Log.d("AIUsageLogin", "provider=${providerId.storageId} resource=$url")
             return if (ProviderLoginWebViewPolicy.shouldInterceptRequest(providerId, url)) {
                 super.shouldInterceptRequest(view, request)
@@ -201,6 +203,9 @@ class WebLoginActivity : Activity() {
             logFirstPageFinished(url)
             view.evaluateJavascript(PAGE_CAPTURE_SCRIPT) { encoded ->
                 val pageText = decodeJsString(encoded)
+                if (maybeRedirectCopilotToSettings(view, url, pageText)) {
+                    return@evaluateJavascript
+                }
                 if (ProviderLoginStrategy.isLoginComplete(providerId, url, cookiesFor(url), pageText)) {
                     injectCollectorIfReady(view, url, pageText)
                 } else {
@@ -289,6 +294,38 @@ class WebLoginActivity : Activity() {
         }
     }
 
+    private fun maybeRedirectCopilotToSettings(view: WebView, url: String, pageText: String): Boolean {
+        if (providerId != ProviderId.COPILOT || copilotPostLoginRedirected) return false
+        if (!ProviderLoginStrategy.shouldRedirectCopilotToSettings(url, pageText)) return false
+        copilotPostLoginRedirected = true
+        Log.i("AIUsageLogin", "provider=copilot postLoginRedirect=settings/copilot from=${hostOf(url)}${pathOf(url)}")
+        view.loadUrl(ProviderDefinitionRegistry.definitionFor(ProviderId.COPILOT).loginStartUrl)
+        return true
+    }
+
+    private fun collectCopilotInternalUserResource(request: WebResourceRequest) {
+        if (finished || providerId != ProviderId.COPILOT) return
+        val url = request.url.toString()
+        if (!CopilotNativeUsageFetcher.isInternalUserUrl(url)) return
+        val authorizationHeader = CopilotNativeUsageFetcher.apiAuthorizationHeaderFromRequest(request.requestHeaders)
+        Log.d(
+            "AIUsageCollector",
+            "provider=copilot resource=/copilot_internal/user hasAuth=${authorizationHeader != null}"
+        )
+        if (authorizationHeader == null) return
+        val result = CopilotNativeUsageFetcher.fetchJsonWithAuthorization(url, authorizationHeader)
+        val parsed = runCatching { JSONObject(result) }.getOrNull()
+        val payload = CopilotNativeUsageFetcher.payloadFromInternalUserResponse(result)
+        Log.d(
+            "AIUsageCollector",
+            "provider=copilot resourceInternal status=${parsed?.optInt("status", -1)} payload=${payload != null}"
+        )
+        if (payload == null) return
+        runOnUiThread {
+            if (!finished) finishSuccessfulLogin(payload)
+        }
+    }
+
     private fun cursorEndpoint(url: String): String? {
         val uri = runCatching { URI(url) }.getOrNull() ?: return null
         val host = uri.host.orEmpty().lowercase()
@@ -368,6 +405,7 @@ class WebLoginActivity : Activity() {
     ) {
         if (finished) return
         finished = true
+        CookieManager.getInstance().flush()
         ProviderUsageCollectionService.start(
             context = applicationContext,
             providerId = providerId,

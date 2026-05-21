@@ -12,6 +12,7 @@ class LocalUsageRepository(context: Context) {
     fun readSnapshots(): List<ProviderUsageSnapshot> {
         return ProviderSnapshotCodec.decode(preferences.getString(KEY_SNAPSHOTS, "").orEmpty())
             .map(::clearStaleRefreshing)
+            .map(::clearExpiredProviderSpecificLines)
     }
 
     private fun clearStaleRefreshing(snapshot: ProviderUsageSnapshot): ProviderUsageSnapshot {
@@ -36,6 +37,10 @@ class LocalUsageRepository(context: Context) {
             refreshState = ProviderRefreshState.IDLE,
             message = "Previous collection did not finish."
         )
+    }
+
+    private fun clearExpiredProviderSpecificLines(snapshot: ProviderUsageSnapshot): ProviderUsageSnapshot {
+        return snapshot.withExpiredProviderSpecificLinesRemoved(Instant.now())
     }
 
     fun saveSnapshot(snapshot: ProviderUsageSnapshot) {
@@ -120,3 +125,32 @@ class LocalUsageRepository(context: Context) {
         val STALE_REFRESH_TIMEOUT: Duration = Duration.ofSeconds(45)
     }
 }
+
+internal fun ProviderUsageSnapshot.withExpiredProviderSpecificLinesRemoved(now: Instant): ProviderUsageSnapshot {
+    val volatileKeys = VOLATILE_WINDOW_KEYS[providerId] ?: return this
+    val lines = lines.filterNot { line ->
+        line.key in volatileKeys &&
+            line.resetsAt?.let(::parseInstantLike)?.let { !it.isAfter(now) } == true
+    }
+    if (lines.size == this.lines.size) return this
+    return copy(
+        connectionState = if (lines.isEmpty()) ProviderConnectionState.STALE else connectionState,
+        lines = lines,
+        message = "${providerId.displayName} session window expired before a fresh provider payload was collected."
+    )
+}
+
+private fun parseInstantLike(value: String): Instant? {
+    runCatching { Instant.parse(value) }.getOrNull()?.let { return it }
+    val epoch = value.toLongOrNull() ?: return null
+    return when {
+        epoch > 10_000_000_000L -> Instant.ofEpochMilli(epoch)
+        epoch > 0L -> Instant.ofEpochSecond(epoch)
+        else -> null
+    }
+}
+
+private val VOLATILE_WINDOW_KEYS = mapOf(
+    ProviderId.CLAUDE to setOf("claude:session"),
+    ProviderId.CODEX to setOf("codex:primary_window")
+)

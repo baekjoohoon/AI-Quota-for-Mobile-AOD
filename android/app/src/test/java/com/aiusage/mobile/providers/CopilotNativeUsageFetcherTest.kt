@@ -3,6 +3,7 @@ package com.aiusage.mobile.providers
 import com.aiusage.mobile.local.ProviderId
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 
@@ -143,5 +144,58 @@ class CopilotNativeUsageFetcherTest {
         )
 
         assertEquals("GitHub-Bearer abc123", header)
+    }
+
+    @Test
+    fun copilotTokenCanBeRetriedAsGitHubApiTokenHeader() {
+        val header = CopilotNativeUsageFetcher.copilotApiAuthorizationHeader(
+            JSONObject(
+                """
+                {
+                  "token": "abc123",
+                  "expiration": "2026-06-15T00:00:00Z"
+                }
+                """.trimIndent()
+            )
+        )
+
+        assertEquals("token abc123", header)
+    }
+
+    @Test
+    fun copilotInternalUserResponseBuildsInlineSuggestionPayload() {
+        val payload = CopilotNativeUsageFetcher.payloadFromInternalUserResponse(
+            """
+            {
+              "ok": true,
+              "status": 200,
+              "json": {
+                "limited_user_quotas": {
+                  "chat": 410,
+                  "completions": 3000
+                },
+                "monthly_quotas": {
+                  "chat": 500,
+                  "completions": 4000
+                },
+                "limited_user_reset_date": "2026-06-15"
+              }
+            }
+            """.trimIndent()
+        )
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.COPILOT,
+            payload!!,
+            ProviderPayloadSource.PROVIDER_API
+        )!!
+
+        assertEquals(listOf("Chat", "Inline suggestions"), snapshot.lines.map { it.label })
+        assertEquals(0.75f, snapshot.lines.single { it.label == "Inline suggestions" }.remainingPercent ?: 0f, 0.001f)
+    }
+
+    @Test
+    fun githubSessionInternalUserEndpointIsAllowed() {
+        assertTrue(CopilotNativeUsageFetcher.isInternalUserUrl("https://github.com/copilot_internal/user"))
+        assertTrue(CopilotNativeUsageFetcher.isInternalUserUrl("https://api.github.com/copilot_internal/user"))
     }
 }

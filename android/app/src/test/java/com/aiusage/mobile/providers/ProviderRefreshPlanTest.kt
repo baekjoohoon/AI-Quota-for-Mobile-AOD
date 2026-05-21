@@ -15,18 +15,20 @@ class ProviderRefreshPlanTest {
         val jobs = listOf(
             ProviderId.CLAUDE,
             ProviderId.CODEX,
+            ProviderId.COPILOT,
             ProviderId.CURSOR
         ).map(ProviderRefreshPlan::manualJobFor)
 
         assertTrue(jobs.all { it.mode == ProviderRefreshMode.HIDDEN_WEB_COLLECTOR })
         assertFalse(jobs.any { it.startUrl.contains("/auth/login") || it.startUrl.contains("/login") })
-        assertEquals("https://chatgpt.com/", jobs.first { it.providerId == ProviderId.CODEX }.startUrl)
         assertEquals("https://claude.ai/", jobs.first { it.providerId == ProviderId.CLAUDE }.startUrl)
+        assertEquals("https://chatgpt.com/", jobs.first { it.providerId == ProviderId.CODEX }.startUrl)
+        assertEquals("https://github.com/settings/copilot", jobs.first { it.providerId == ProviderId.COPILOT }.startUrl)
     }
 
     @Test
     fun tokenBackedProvidersRefreshThroughNativeApiWithoutWebCollector() {
-        val jobs = listOf(ProviderId.GEMINI, ProviderId.COPILOT).map(ProviderRefreshPlan::manualJobFor)
+        val jobs = listOf(ProviderId.GEMINI).map(ProviderRefreshPlan::manualJobFor)
 
         assertTrue(jobs.all { it.mode == ProviderRefreshMode.NATIVE_API })
         assertTrue(jobs.all { it.startUrl.isBlank() })

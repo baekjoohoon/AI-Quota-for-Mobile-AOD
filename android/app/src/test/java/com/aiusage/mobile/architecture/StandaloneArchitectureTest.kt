@@ -6,7 +6,7 @@ import org.junit.Test
 
 class StandaloneArchitectureTest {
     @Test
-    fun androidSourcesDoNotDependOnFirebasePairingFirestoreOrWindowsSync() {
+    fun androidSourcesDoNotDependOnFirebasePairingOrWindowsSync() {
         val root = File(System.getProperty("user.dir"))
         val appDir = if (root.name == "app") root else File(root, "android/app")
         val files = listOf(
@@ -17,10 +17,13 @@ class StandaloneArchitectureTest {
         val source = files.joinToString("\n") { it.readText() }
 
         listOf(
+            "com.google.gms.google-services",
+            "firebase-auth",
             "firebase-firestore",
             "play-services-auth",
             "AI_USAGE_FUNCTIONS_BASE_URL",
             ".sync.ForegroundRefreshService",
+            "FirebaseAuth",
             "PairingCode",
             "SnapshotRepository"
         ).forEach { marker ->

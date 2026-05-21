@@ -8,6 +8,21 @@
 
 **Tech Stack:** Android APK/JADX/APKTool, ADB emulator, Android WebView, Firebase Remote Config observation, Frida or equivalent runtime hook tooling, Kotlin/JUnit4, Markdown evidence docs under `docs/qa`, sanitized captured scripts under `.tmp/store-apk-analysis`.
 
+## 현재 실행 상태 (2026-05-21)
+
+아래 checkbox plan은 최초 실행 절차다. 현재 authoritative 상태는 `docs/qa/store-apk-context-handoff-2026-05-20.md`와 `docs/qa/store-apk-provider-evidence-2026-05-20.md`에 있다.
+
+| 계획 영역 | 현재 상태 | 근거 | 다음 조건 |
+| --- | --- | --- | --- |
+| Task 1-4 정적 workspace/map/decrypt/runbook | 완료 | scratch rebuild, JADX/apktool, provider map, Remote Config/fallback/decrypt path, runtime runbook 작성 | 없음 |
+| Task 5 runtime collector script capture | 차단 | attached APK는 base-only이고, `u.sage` 미설치, base APK에 native `lib/<abi>/libs.so` 없음, manifest가 `base__abi,base__density` 요구 | full Store split set, same-version installed `u.sage`, 또는 equivalent native decrypt evidence |
+| Task 6 provider evidence document | 정적/encrypted 단계 완료, runtime section 차단 | provider section과 readiness matrix 존재; 모든 provider `Ready=No` | runtime/decrypt evidence |
+| Task 7 parity gap tracker | 정적/current-app gap 단계 완료 | Copilot/provider-scope/auth/service/widget/storage/normalizer/manifest gap 기록 | runtime evidence 확보 시 row 추가 가능 |
+| Task 8 context handoff | 완료, 계속 갱신 | source APK, scratch, key, blocker, next action 기록 | next action 변경 |
+| Task 9 implementation handoff gate | guard 완료, implementation plan 차단 | readiness checklist에서 gate 통과 provider 없음 | 최소 1개 provider가 readiness 전 항목 충족 |
+
+Production provider code 변경은 여전히 금지다. Runtime/decrypt evidence 없이 provider-specific implementation plan을 작성하지 않는다.
+
 ---
 
 ## Source Inputs

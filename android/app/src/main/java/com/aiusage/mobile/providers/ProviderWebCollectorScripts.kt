@@ -6,6 +6,43 @@ import java.util.Locale
 import org.json.JSONObject
 
 object ProviderWebCollectorScripts {
+    fun isRefreshLoginPage(providerId: ProviderId, url: String): Boolean {
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase(Locale.US)
+        val path = uri.path.orEmpty().lowercase(Locale.US)
+        return when (providerId) {
+            ProviderId.CLAUDE ->
+                host.endsWith("claude.ai") && path.contains("login") ||
+                    host == "accounts.google.com"
+            ProviderId.CODEX ->
+                host == "auth.openai.com" ||
+                    host == "accounts.google.com" ||
+                    ((host == "chatgpt.com" || host.endsWith(".chatgpt.com")) && path == "/auth/login")
+            ProviderId.GEMINI ->
+                host == "accounts.google.com"
+            ProviderId.COPILOT ->
+                host == "github.com" &&
+                    (path.startsWith("/login") ||
+                        path.startsWith("/sessions") ||
+                        path.startsWith("/session") ||
+                        path.contains("two-factor"))
+            ProviderId.CURSOR ->
+                host == "accounts.google.com" ||
+                    (host == "github.com" &&
+                        (path.startsWith("/login") ||
+                            path.startsWith("/sessions") ||
+                            path.startsWith("/session") ||
+                            path.contains("two-factor"))) ||
+                    host == "api.workos.com" ||
+                    host == "auth.workos.com" ||
+                    host == "workos.com" ||
+                    host == "authenticate.cursor.sh" ||
+                    host == "authenticator.cursor.sh" ||
+                    ((host == "cursor.com" || host == "www.cursor.com") &&
+                        (path.contains("login") || path.contains("signin") || path.contains("auth")))
+        }
+    }
+
     fun shouldRunCollector(providerId: ProviderId, url: String, cookies: Map<String, String>, pageText: String): Boolean {
         if (providerId == ProviderId.COPILOT && url == "about:blank") return true
         val uri = runCatching { URI(url) }.getOrNull() ?: return false
@@ -74,7 +111,8 @@ object ProviderWebCollectorScripts {
                     (path == "/github-copilot/chat/entitlement" ||
                         path == "/github-copilot/chat/token" ||
                         path == "/settings/billing/premium_requests_usage" ||
-                        path == "/settings/billing/copilot_usage_card")) ||
+                        path == "/settings/billing/copilot_usage_card" ||
+                        path == "/copilot_internal/user")) ||
                     (host == "api.github.com" && path == "/copilot_internal/user")
             else -> false
         }
@@ -843,6 +881,42 @@ object ProviderWebCollectorScripts {
                 var trimmed = value.trim();
                 return trimmed.indexOf("Bearer ") === 0 || trimmed.indexOf("token ") === 0 ? trimmed : null;
               }
+              function githubApiAuthorizationHeaderFromToken(tokenRaw) {
+                if (!tokenRaw || typeof tokenRaw !== "object") return null;
+                var direct = first(
+                  tokenRaw.apiAuthorizationHeader,
+                  tokenRaw.api_authorization_header,
+                  tokenRaw.githubAuthorizationHeader,
+                  tokenRaw.github_authorization_header,
+                  tokenRaw.authorizationHeaderValue,
+                  tokenRaw.authorization_header_value,
+                  tokenRaw.authorizationHeader
+                );
+                var directApi = githubApiAuthorizationHeader(direct);
+                if (directApi) return directApi;
+                var token = first(tokenRaw.github_token, tokenRaw.githubToken, tokenRaw.accessToken, tokenRaw.access_token, tokenRaw.token, tokenRaw.value);
+                return token ? ("token " + token) : null;
+              }
+              function quotaSummary(raw) {
+                var value = raw && (raw.json || raw);
+                var envelope = quotaEnvelope(value, 0);
+                var limited = envelope && (envelope.limited_user_quotas || envelope.limitedUserQuotas);
+                var monthly = envelope && (envelope.monthly_quotas || envelope.monthlyQuotas);
+                var snapshots = quotaSnapshots(envelope || value);
+                return "limited=" + !!limited +
+                  " monthly=" + !!monthly +
+                  " completions=" + !!(limited && limited.completions !== undefined && monthly && monthly.completions !== undefined) +
+                  " snapshots=" + !!snapshots;
+              }
+              function rawTextMarkerSummary(raw) {
+                var value = raw && (raw.json || raw);
+                var text = value && value.rawText ? String(value.rawText) : "";
+                return "rawLen=" + text.length +
+                  " limitedIdx=" + text.indexOf("limited_user_quotas") +
+                  " monthlyIdx=" + text.indexOf("monthly_quotas") +
+                  " completionsIdx=" + text.indexOf("completions") +
+                  " internalIdx=" + text.indexOf("copilot_internal/user");
+              }
               function quotaEnvelope(value, depth) {
                 if (!value || typeof value !== "object" || depth > 8) return null;
                 if (value.limited_user_quotas || value.limitedUserQuotas ||
@@ -1028,6 +1102,14 @@ object ProviderWebCollectorScripts {
                   quotas.remaining.premiumInteractions !== undefined ||
                   quotas.remaining.premium_interactions !== undefined
                 )) return true;
+                var limited = quotas.limited_user_quotas || quotas.limitedUserQuotas;
+                var monthly = quotas.monthly_quotas || quotas.monthlyQuotas;
+                if (limited && monthly && (
+                  limited.chat !== undefined ||
+                  limited.completions !== undefined ||
+                  monthly.chat !== undefined ||
+                  monthly.completions !== undefined
+                )) return true;
                 return !!(quotas.premium_billing || quotas.premiumBilling || quotas.premium_requests || quotas.premiumRequests || quotas.chat || quotas.completions);
               }
               function collectEntitlementFallback(billingInput) {
@@ -1037,18 +1119,48 @@ object ProviderWebCollectorScripts {
                   nativeJson("https://github.com/settings/copilot"),
                   nativeJson("https://github.com/settings/billing/premium_requests_usage")
                 ]).then(function(results) {
-                  var entitlement = results[0] || {};
-                  var token = results[1] || {};
-                  var settingsPage = results[2] || {};
-                  var billingPage = results[3] || {};
-                  var authHeader = copilotAuthorizationHeader(token.json || {});
-                  var tokenUsage = copilotUsageFromToken(token.json || {});
-                  var apiAuthHeader = githubApiAuthorizationHeader(authHeader);
-                  var internalPromise = apiAuthHeader
-                    ? nativeJson("https://api.github.com/copilot_internal/user", apiAuthHeader)
-                    : Promise.resolve({ ok: false, error: "github_api_token_unavailable" });
-                  internalPromise.then(function(internal) {
-                  var internalUsage = internal.ok
+                   var entitlement = results[0] || {};
+                   var token = results[1] || {};
+                   var settingsPage = results[2] || {};
+                   var billingPage = results[3] || {};
+                   var authHeader = copilotAuthorizationHeader(token.json || {});
+                   var tokenUsage = copilotUsageFromToken(token.json || {});
+                   var apiAuthHeader = githubApiAuthorizationHeader(authHeader) || githubApiAuthorizationHeaderFromToken(token.json || {});
+                   try {
+                     console.log("AIUsageCopilot token status=" + (token && token.status) +
+                       " ok=" + !!(token && token.ok) +
+                       " usage=" + quotaSummary(token || {}) +
+                       " apiAuth=" + !!apiAuthHeader);
+                   } catch (logError) {}
+                   try {
+                     console.log("AIUsageCopilot settings status=" + (settingsPage && settingsPage.status) +
+                       " ok=" + !!(settingsPage && settingsPage.ok) +
+                       " usage=" + quotaSummary(settingsPage || {}) +
+                       " markers=" + rawTextMarkerSummary(settingsPage || {}));
+                   } catch (logError) {}
+                    var internalPromise = (apiAuthHeader
+                      ? nativeJson("https://api.github.com/copilot_internal/user", apiAuthHeader)
+                      : Promise.resolve({ ok: false, error: "github_api_token_unavailable" }))
+                      .then(function(primaryInternal) {
+                        if (primaryInternal && primaryInternal.ok) return primaryInternal;
+                        return nativeJson("https://github.com/copilot_internal/user").then(function(sessionInternal) {
+                          try {
+                            console.log("AIUsageCopilot internal_session status=" + (sessionInternal && sessionInternal.status) +
+                              " ok=" + !!(sessionInternal && sessionInternal.ok) +
+                              " usage=" + quotaSummary(sessionInternal || {}));
+                          } catch (logError) {}
+                          return sessionInternal && sessionInternal.ok ? sessionInternal : primaryInternal;
+                        }).catch(function() {
+                          return primaryInternal;
+                        });
+                      });
+                   internalPromise.then(function(internal) {
+                   try {
+                     console.log("AIUsageCopilot internal status=" + (internal && internal.status) +
+                       " ok=" + !!(internal && internal.ok) +
+                       " usage=" + quotaSummary(internal || {}));
+                   } catch (logError) {}
+                   var internalUsage = internal.ok
                     ? Object.assign({}, tokenUsage || {}, internal.json || {})
                     : tokenUsage;
                   billingInput = billingInput || currentPagePremiumBillingInput() || premiumBillingInput(billingPage.json || {});

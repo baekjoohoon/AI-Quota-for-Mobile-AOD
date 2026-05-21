@@ -17,8 +17,7 @@ object CopilotNativeUsageFetcher {
         val internalUser = fetchWrappedJson(
             COPILOT_INTERNAL_USER_URL,
             authorizationHeader = githubAuthorizationHeader
-                ?: copilotAuthorizationHeader(token.optJSONObject("json"))
-                ?.takeIf(::isGitHubApiAuthorizationHeader)
+                ?: copilotApiAuthorizationHeader(token.optJSONObject("json"))
         )
         val settingsPage = fetchWrappedJson(COPILOT_SETTINGS_URL)
         val billingPage = fetchWrappedJson(COPILOT_PREMIUM_USAGE_URL)
@@ -58,6 +57,31 @@ object CopilotNativeUsageFetcher {
 
     fun fetchJsonWithAuthorization(url: String, authorizationHeader: String): String {
         return fetchWrappedJson(url, authorizationHeader = authorizationHeader).toString()
+    }
+
+    fun isInternalUserUrl(url: String): Boolean {
+        return copilotEndpoint(url) == "/copilot_internal/user"
+    }
+
+    fun apiAuthorizationHeaderFromRequest(headers: Map<String, String>): String? {
+        val value = headers.entries
+            .firstOrNull { it.key.equals("authorization", ignoreCase = true) }
+            ?.value
+            ?: return null
+        return value.takeIf(::isGitHubApiAuthorizationHeader)
+    }
+
+    fun payloadFromInternalUserResponse(result: String): String? {
+        val wrapped = runCatching { JSONObject(result) }.getOrNull() ?: return null
+        if (!wrapped.optBoolean("ok")) return null
+        val internalUser = wrapped.optJSONObject("json") ?: return null
+        return buildUsagePayload(
+            entitlement = null,
+            internalUser = internalUser,
+            settingsPage = null,
+            premiumBilling = null,
+            billingInput = null
+        )?.takeIf(::hasCopilotUsage)?.toString()
     }
 
     internal fun extractPremiumBillingInput(rawText: String): CopilotPremiumBillingInput? {
@@ -237,6 +261,26 @@ object CopilotNativeUsageFetcher {
         return "GitHub-Bearer $token".takeIf(::isAllowedCopilotAuthorizationHeader)
     }
 
+    internal fun copilotApiAuthorizationHeader(json: JSONObject?): String? {
+        if (json == null) return null
+        val direct = json.optionalString("apiAuthorizationHeader")
+            ?: json.optionalString("api_authorization_header")
+            ?: json.optionalString("githubAuthorizationHeader")
+            ?: json.optionalString("github_authorization_header")
+            ?: json.optionalString("authorizationHeaderValue")
+            ?: json.optionalString("authorization_header_value")
+            ?: json.optionalString("authorizationHeader")
+        if (direct != null && isGitHubApiAuthorizationHeader(direct)) return direct
+        val token = json.optionalString("github_token")
+            ?: json.optionalString("githubToken")
+            ?: json.optionalString("accessToken")
+            ?: json.optionalString("access_token")
+            ?: json.optionalString("token")
+            ?: json.optionalString("value")
+            ?: return null
+        return githubTokenAuthorizationHeader(token)
+    }
+
     private fun isAllowedCopilotAuthorizationHeader(value: String): Boolean {
         val trimmed = value.trim()
         if (trimmed.any { it == '\r' || it == '\n' }) return false
@@ -288,6 +332,17 @@ object CopilotNativeUsageFetcher {
         if (quotas.has("premium_billing") || quotas.has("premiumBilling")) return true
         if (quotas.has("premium_requests") || quotas.has("premiumRequests")) return true
         if (quotas.has("chat") || quotas.has("completions")) return true
+        val limited = quotas.optJSONObject("limited_user_quotas") ?: quotas.optJSONObject("limitedUserQuotas")
+        val monthly = quotas.optJSONObject("monthly_quotas") ?: quotas.optJSONObject("monthlyQuotas")
+        if (limited != null && monthly != null && (
+                limited.has("chat") ||
+                    limited.has("completions") ||
+                    monthly.has("chat") ||
+                    monthly.has("completions")
+                )
+        ) {
+            return true
+        }
         val remaining = quotas.optJSONObject("remaining") ?: return false
         return remaining.has("chat") || remaining.has("completions") || remaining.has("premiumInteractions")
     }
@@ -326,7 +381,8 @@ object CopilotNativeUsageFetcher {
                 "/github-copilot/chat/deferred_payload.json",
                 "/settings/copilot",
                 "/settings/billing/premium_requests_usage",
-                "/settings/billing/copilot_usage_card"
+                "/settings/billing/copilot_usage_card",
+                "/copilot_internal/user"
             )
             "api.github.com" -> path == "/copilot_internal/user"
             else -> false

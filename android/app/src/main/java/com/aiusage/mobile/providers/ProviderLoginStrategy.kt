@@ -35,6 +35,27 @@ object ProviderLoginStrategy {
             (uri.query.orEmpty().contains("code=") || uri.query.orEmpty().contains("error="))
     }
 
+    fun shouldRedirectCopilotToSettings(url: String, pageText: String): Boolean {
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase(Locale.US)
+        if (host != "github.com" && host != "www.github.com") return false
+        val path = uri.path.orEmpty().lowercase(Locale.US)
+        if (path.startsWith("/login") ||
+            path.startsWith("/sessions") ||
+            path.startsWith("/session") ||
+            path.contains("two-factor") ||
+            path.startsWith("/settings/copilot") ||
+            path.startsWith("/github-copilot")
+        ) {
+            return false
+        }
+        if (path == "/" || path == "/dashboard") return true
+        val text = pageText.lowercase(Locale.US)
+        val signedInHome = text.contains("dashboard") &&
+            (text.contains("top repositories") || text.contains("pull requests") || text.contains("new repository"))
+        return signedInHome && !text.contains("sign in to github")
+    }
+
     fun isTransientNavigationError(url: String, errorCode: Int): Boolean {
         val host = runCatching { URI(url).host.orEmpty().lowercase(Locale.US) }.getOrDefault("")
         if (errorCode == 0) return false

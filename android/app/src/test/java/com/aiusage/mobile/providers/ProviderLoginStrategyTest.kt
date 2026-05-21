@@ -31,6 +31,34 @@ class ProviderLoginStrategyTest {
     }
 
     @Test
+    fun copilotRedirectsSignedInGithubDashboardBackToSettings() {
+        assertTrue(
+            ProviderLoginStrategy.shouldRedirectCopilotToSettings(
+                "https://github.com/dashboard",
+                "Dashboard Home Top Repositories Pull requests"
+            )
+        )
+        assertTrue(
+            ProviderLoginStrategy.shouldRedirectCopilotToSettings(
+                "https://github.com/",
+                "Home Top Repositories"
+            )
+        )
+        assertFalse(
+            ProviderLoginStrategy.shouldRedirectCopilotToSettings(
+                "https://github.com/login",
+                "Sign in to GitHub"
+            )
+        )
+        assertFalse(
+            ProviderLoginStrategy.shouldRedirectCopilotToSettings(
+                "https://github.com/settings/copilot",
+                "Copilot"
+            )
+        )
+    }
+
+    @Test
     fun oauthTransientErrorsAreRecoverable() {
         assertTrue(ProviderLoginStrategy.isTransientNavigationError("https://accounts.google.com/o/oauth2/v2/auth", -2))
         assertTrue(ProviderLoginStrategy.isTransientNavigationError("https://github.com/login/oauth/authorize", -6))

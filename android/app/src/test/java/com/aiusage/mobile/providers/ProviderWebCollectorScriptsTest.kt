@@ -26,6 +26,22 @@ class ProviderWebCollectorScriptsTest {
     }
 
     @Test
+    fun hiddenRefreshDetectsProviderLoginPages() {
+        assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CLAUDE, "https://claude.ai/login"))
+        assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CODEX, "https://chatgpt.com/auth/login"))
+        assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CODEX, "https://auth.openai.com/authorize"))
+        assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.COPILOT, "https://github.com/login"))
+        assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.COPILOT, "https://github.com/sessions/two-factor"))
+        assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CURSOR, "https://api.workos.com/sso/authorize"))
+        assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CURSOR, "https://github.com/login"))
+
+        assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CLAUDE, "https://claude.ai/new"))
+        assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CODEX, "https://chatgpt.com/"))
+        assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.COPILOT, "https://github.com/settings/copilot"))
+        assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CURSOR, "https://cursor.com/dashboard"))
+    }
+
+    @Test
     fun geminiCollectorRunsOnlyOnAuthenticatedAppShell() {
         assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.GEMINI, "https://gemini.google.com/app", emptyMap(), "Gemini"))
         assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.GEMINI, "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"))
@@ -69,6 +85,7 @@ class ProviderWebCollectorScriptsTest {
         assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.COPILOT, "https://github.com/github-copilot/chat/token"))
         assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.COPILOT, "https://github.com/settings/billing/premium_requests_usage"))
         assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.COPILOT, "https://github.com/settings/billing/copilot_usage_card?customer_id=abc123&period=3&query="))
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.COPILOT, "https://github.com/copilot_internal/user"))
         assertTrue(
             ProviderWebCollectorScripts.shouldRunCollectorFromResource(
                 ProviderId.COPILOT,
@@ -163,6 +180,13 @@ class ProviderWebCollectorScriptsTest {
         assertTrue(copilot.contains("github-copilot/chat/token"))
         assertTrue(copilot.contains("fetchCopilotJsonWithAuthorization"))
         assertTrue(copilot.contains("GitHub-Bearer"))
+        assertTrue(copilot.contains("githubApiAuthorizationHeaderFromToken"))
+        assertTrue(copilot.contains("https://api.github.com/copilot_internal/user"))
+        assertTrue(copilot.contains("https://github.com/copilot_internal/user"))
+        assertTrue(copilot.contains("AIUsageCopilot internal status="))
+        assertTrue(copilot.contains("AIUsageCopilot internal_session status="))
+        assertTrue(copilot.contains("AIUsageCopilot settings status="))
+        assertTrue(copilot.contains("limitedIdx="))
         assertTrue(copilot.contains("GitHub-Verified-Fetch"))
         assertTrue(copilot.contains("fetch-nonce"))
         assertTrue(copilot.contains("https://github.com/settings/copilot"))
