@@ -1,78 +1,86 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI Usage Privacy Policy</title>
+  <title>AI Quota 개인정보 처리방침</title>
   <style>
     body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; margin: 0; color: #111827; background: #f8fafc; }
     main { max-width: 840px; margin: 0 auto; padding: 48px 20px; }
     h1, h2 { line-height: 1.2; }
     section { margin-top: 28px; }
     li { margin: 6px 0; }
+    code { background: #f1f5f9; padding: 2px 5px; border-radius: 4px; }
   </style>
 </head>
 <body>
 <main>
-  <h1>Privacy Policy</h1>
-  <p>Last updated: May 14, 2026</p>
-  <p>AI Usage is an Android app that displays sanitized AI usage limit snapshots synced from AI Usage for Windows.</p>
+  <h1>개인정보 처리방침</h1>
+  <p>최종 업데이트: 2026년 5월 26일</p>
+  <p>AI Quota는 Android 기기에서 AI provider의 남은 사용량과 reset 시간을 확인하기 위한 앱입니다.</p>
 
   <section>
-    <h2>Information We Collect</h2>
-    <p>AI Usage uses Google sign-in through Firebase Authentication. This may collect your email address and Firebase user ID so the app can identify your account and show your synced data.</p>
-    <p>The app stores display-only usage snapshots in Firebase Firestore. These snapshots can include:</p>
+    <h2>앱이 처리하는 정보</h2>
+    <p>AI Quota는 사용자가 직접 연결한 provider 세션 또는 OAuth 연결을 사용해 quota snapshot을 확인합니다. 앱은 표시를 위해 다음 정보를 기기 안에 저장할 수 있습니다.</p>
     <ul>
-      <li>Connected Windows device name and device ID.</li>
-      <li>Snapshot upload and fetch timestamps.</li>
-      <li>AI provider names and IDs.</li>
-      <li>Provider plan labels.</li>
-      <li>Remaining usage, used usage, limit values, reset times, and provider status.</li>
+      <li>provider ID와 provider 이름</li>
+      <li>plan label</li>
+      <li>사용량 항목 이름</li>
+      <li>남은 사용량 비율</li>
+      <li>reset time</li>
+      <li>마지막 수집 시각</li>
+      <li>stale, auth-required 같은 표시 상태</li>
+      <li>provider별 WebView 세션 데이터 또는 OAuth 기반 로컬 세션 상태</li>
     </ul>
-    <p>AI Usage may show ads inside the Android app through Google AdMob and the Google Mobile Ads SDK. The ads SDK may collect and share data such as IP address, app interactions, diagnostic information, and device or account identifiers including the Android advertising ID for advertising, analytics, and fraud prevention. AI Usage uses Google's User Messaging Platform to manage privacy choices where required.</p>
+    <p>Gemini 또는 Antigravity 연결에 Google OAuth가 사용되는 경우, AI Quota는 사용자가 승인한 범위 안에서 Google 계정의 기본 프로필, 이메일 주소, Google Cloud 또는 Code Assist 관련 사용량 확인에 필요한 응답을 처리할 수 있습니다. 이 정보는 provider 연결 상태 표시와 사용량 snapshot 생성을 위해 사용됩니다.</p>
   </section>
 
   <section>
-    <h2>Information We Do Not Collect</h2>
-    <p>AI Usage is designed not to collect or store provider access tokens, refresh tokens, API keys, local file paths, raw logs, authentication file contents, or provider credential files.</p>
+    <h2>개발자 서버로 전송하지 않는 정보</h2>
+    <p>AI Quota는 다음 정보를 개발자 서버로 전송하지 않습니다.</p>
+    <ul>
+      <li>raw token</li>
+      <li>raw cookie</li>
+      <li>OAuth secret</li>
+      <li>OAuth callback code</li>
+      <li>auth header value</li>
+      <li>provider API key</li>
+      <li>provider credential file</li>
+      <li>full provider HTML</li>
+      <li>raw provider response log</li>
+    </ul>
   </section>
 
   <section>
-    <h2>How We Use Information</h2>
-    <p>We use the collected information to sign you in, link your Android app to synced Windows devices, display AI usage limits, refresh cached display data, and show and measure in-app ads where enabled.</p>
+    <h2>provider 및 제3자 서비스</h2>
+    <p>AI Quota는 사용자가 선택한 provider의 웹사이트 또는 API에 연결될 수 있습니다. 이 과정에서 provider는 자체 개인정보 처리방침에 따라 계정 식별 정보, 세션 쿠키, OAuth 토큰 등을 처리할 수 있습니다.</p>
+    <p>AI Quota는 각 provider의 공식 앱이 아니며, 각 provider와 제휴되어 있지 않습니다.</p>
   </section>
 
   <section>
-    <h2>Third-Party Services</h2>
-    <p>AI Usage uses Firebase services provided by Google, including Firebase Authentication and Cloud Firestore. These services process data needed for authentication and sync.</p>
-    <p>AI Usage may also use Google AdMob, the Google Mobile Ads SDK, and Google's User Messaging Platform for in-app ads and privacy choices. Home screen widgets and the pinned notification do not contain ads.</p>
+    <h2>알림과 위젯</h2>
+    <p>AI Quota는 사용자가 활성화한 경우 홈 화면 위젯과 상태 표시줄 알림에 quota snapshot을 표시합니다. 이 정보는 기기에 저장된 표시용 cache를 기반으로 합니다.</p>
   </section>
 
   <section>
-    <h2>Data Sharing</h2>
-    <p>We do not sell your personal data. Data is processed by Firebase/Google as the infrastructure provider for authentication and sync. If ads are enabled, advertising-related data may be processed by Google AdMob and the Google Mobile Ads SDK for ad delivery, measurement, analytics, and fraud prevention.</p>
+    <h2>데이터 보안</h2>
+    <p>provider 및 OAuth 통신은 HTTPS 기반 연결을 사용합니다. 로컬 cache, WebView 세션 데이터, OAuth 기반 로컬 세션 상태는 Android 앱 저장소에 보관됩니다. AI Quota는 Google 사용자 데이터를 판매하지 않으며, 앱 기능 제공 목적 외로 공유하지 않습니다.</p>
   </section>
 
   <section>
-    <h2>Data Security</h2>
-    <p>Data is transmitted over encrypted connections. Firestore security rules restrict user data access to the signed-in account owner.</p>
+    <h2>데이터 보관 및 삭제</h2>
+    <p>로컬 snapshot과 세션 데이터는 앱의 연결 해제, 앱 데이터 삭제, provider 연결 해제, 또는 앱 제거를 통해 삭제할 수 있습니다.</p>
+    <p>데이터 삭제 요청은 Google Play에 표시된 개발자 연락처를 통해 요청할 수 있습니다. 요청 시 계정 확인에 필요한 정보를 제공해야 할 수 있습니다.</p>
   </section>
 
   <section>
-    <h2>Data Retention and Deletion</h2>
-    <p>Synced snapshots and device records remain stored until they are deleted from the backend, removed from the app settings, or you request deletion.</p>
-    <p>You can remove connected Windows device records from the Android app settings. You can request account and data deletion by emailing <a href="mailto:datell1357@naver.com?subject=AI%20Usage%20account%20deletion%20request">datell1357@naver.com</a> with the subject <code>AI Usage account deletion request</code>.</p>
-    <p>Deletion requests can include Firebase account-linked user records, connected Windows device records, and synced usage snapshots. Some data may be retained when required for security, fraud prevention, legal, or operational reasons.</p>
+    <h2>아동</h2>
+    <p>AI Quota는 아동을 대상으로 하지 않습니다.</p>
   </section>
 
   <section>
-    <h2>Children</h2>
-    <p>AI Usage is not intended for children.</p>
-  </section>
-
-  <section>
-    <h2>Contact</h2>
-    <p>For privacy questions or deletion requests, contact <a href="mailto:datell1357@naver.com">datell1357@naver.com</a>.</p>
+    <h2>문의</h2>
+    <p>개인정보 관련 문의는 Google Play에 표시된 개발자 연락처를 통해 요청할 수 있습니다.</p>
   </section>
 </main>
 </body>

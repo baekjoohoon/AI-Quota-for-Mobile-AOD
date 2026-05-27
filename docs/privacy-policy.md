@@ -1,71 +1,67 @@
 # Privacy Policy
 
-Last updated: May 14, 2026
+Last updated: May 26, 2026
 
-AI Usage is an Android app that displays sanitized AI usage limit snapshots synced from AI Usage for Windows.
+AI Quota is an Android app for checking AI provider usage limits and reset times.
 
-## Information We Collect
+## Information The App Processes
 
-AI Usage uses Google sign-in through Firebase Authentication. This may collect your email address and Firebase user ID so the app can identify your account and show your synced data.
+AI Quota uses provider sessions or OAuth connections that you start on your device to check quota snapshots. The app may store the following display data locally on the device:
 
-The app stores display-only usage snapshots in Firebase Firestore. These snapshots can include:
+- Provider ID and provider name.
+- Plan label.
+- Usage item name.
+- Remaining usage percentage.
+- Reset time.
+- Last collection time.
+- Display state such as stale or auth-required.
+- Provider WebView session data or OAuth-based local session state.
 
-- Connected Windows device name and device ID.
-- Snapshot upload and fetch timestamps.
-- AI provider names and IDs.
-- Provider plan labels.
-- Remaining usage, used usage, limit values, reset times, and provider status.
+When Google OAuth is used for Gemini or Antigravity connections, AI Quota may process the basic Google profile, email address, and Google Cloud or Code Assist usage responses that the user authorizes. This information is used to show provider connection state and create usage snapshots.
 
-AI Usage may show ads inside the Android app through Google AdMob and the Google Mobile Ads SDK. The ads SDK may collect and share data such as IP address, app interactions, diagnostic information, and device or account identifiers including the Android advertising ID for advertising, analytics, and fraud prevention. AI Usage uses Google's User Messaging Platform to manage privacy choices where required.
+## Information We Do Not Send To Developer Servers
 
-## Information We Do Not Collect
+AI Quota does not send the following information to developer servers:
 
-AI Usage is designed not to collect or store:
-
-- Provider access tokens.
-- Refresh tokens.
-- API keys.
-- Local file paths.
-- Raw logs.
-- Authentication file contents.
+- Raw tokens.
+- Raw cookies.
+- OAuth secrets.
+- OAuth callback codes.
+- Auth header values.
+- Provider API keys.
 - Provider credential files.
+- Full provider HTML.
+- Raw provider response logs.
 
 ## How We Use Information
 
-We use the collected information to:
+We use local display data to:
 
-- Sign you in.
-- Link your Android app to your synced Windows devices.
-- Display current AI usage limits in the app, widgets, and pinned notification.
-- Refresh cached display data.
-- Show and measure in-app ads where enabled.
+- Show current AI quota information in the app.
+- Render home screen widgets.
+- Render the optional pinned notification.
+- Retry refreshes when a provider collection fails temporarily.
 
 ## Third-Party Services
 
-AI Usage uses Firebase services provided by Google, including Firebase Authentication and Cloud Firestore. These services process data needed for authentication and sync.
+AI Quota may connect to the websites or APIs of providers selected by the user. Providers may process account identifiers, session cookies, OAuth tokens, or similar data according to their own privacy policies.
 
-AI Usage may also use Google AdMob, the Google Mobile Ads SDK, and Google's User Messaging Platform for in-app ads and privacy choices. Home screen widgets and the pinned notification do not contain ads.
-
-## Data Sharing
-
-We do not sell your personal data. Data is processed by Firebase/Google as the infrastructure provider for authentication and sync. If ads are enabled, advertising-related data may be processed by Google AdMob and the Google Mobile Ads SDK for ad delivery, measurement, analytics, and fraud prevention.
+AI Quota is not an official app of any supported provider and is not affiliated with those providers.
 
 ## Data Security
 
-Data is transmitted over encrypted connections. Firestore security rules restrict user data access to the signed-in account owner.
+Provider and OAuth communication uses HTTPS. Local cache, WebView session data, and OAuth-based local session state are stored in Android app storage. AI Quota does not sell Google user data and does not share it except as needed to provide app functionality.
 
 ## Data Retention and Deletion
 
-Synced snapshots and device records remain stored until they are deleted from the backend, removed from the app settings, or you request deletion.
+Local snapshots and session data can be deleted by disconnecting providers, clearing app data, disconnecting provider sessions, or uninstalling the app.
 
-You can remove connected Windows device records from the Android app settings. You can request account and data deletion by emailing `datell1357@naver.com` with the subject `AI Usage account deletion request`.
-
-Deletion requests can include Firebase account-linked user records, connected Windows device records, and synced usage snapshots. Some data may be retained when required for security, fraud prevention, legal, or operational reasons.
+Deletion requests can be sent through the developer contact shown on Google Play. You may need to provide an email address so the request can be verified.
 
 ## Children
 
-AI Usage is not intended for children.
+AI Quota is not intended for children.
 
 ## Contact
 
-For privacy questions or deletion requests, contact `datell1357@naver.com`.
+For privacy questions or deletion requests, use the developer contact shown on Google Play.
