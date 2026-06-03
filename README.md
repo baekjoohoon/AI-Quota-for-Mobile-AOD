@@ -1,6 +1,6 @@
-﻿# AI Quota for Mobile
+# AI Quota for Mobile
 
-[English](#english) | [?쒓뎅??(#korean)
+[English](#english) | [한국어](#korean)
 
 ---
 
@@ -101,66 +101,66 @@ MIT
 
 ## Korean
 
-AI Quota for Mobile? ?щ윭 AI provider???⑥? ?ъ슜?됱쓣 ?쒓납?먯꽌 ?뺤씤?섍린 ?꾪븳 Android ?깆엯?덈떎. ????쒕낫?? ???붾㈃ ?꾩젽, ?좏깮 媛?ν븳 怨좎젙 ?뚮┝ 湲곕컲 foreground refresh瑜??쒓났?⑸땲??
+AI Quota for Mobile은 여러 AI provider의 사용량을 한곳에서 확인하기 위한 Android 앱입니다. 로컬 우선 대시보드, 홈 화면 위젯, 선택 가능한 고정 알림 기반 foreground refresh를 제공합니다.
 
-### ?꾩옱 ?곹깭
+### 현재 상태
 
-Android ?깆? Google Play ?대? ?뚯뒪???깅줉??以鍮?以묒엯?덈떎.
+Android 앱은 Google Play 내부 테스트 등록을 준비 중입니다.
 
-?꾩옱 ?낅줈???곗텧臾?
+현재 업로드 산출물:
 
 ```text
 android/app/build/outputs/bundle/release/app-release.aab
 ```
 
-### 二쇱슂 湲곕뒫
+### 주요 기능
 
-- 濡쒖뺄 ?곗꽑 provider ?ъ슜????쒕낫??
-- 鍮좊Ⅸ quota ?뺤씤???꾪븳 ???붾㈃ ?꾩젽.
-- foreground refresh瑜??꾪븳 ?좏깮??怨좎젙 ?뚮┝.
-- ?섎룞 refresh? foreground service refresh.
-- provider ?④? 諛??쒖꽌 蹂寃??ㅼ젙.
-- ?쒓뎅?댁? ?곸뼱 UI 臾몄옄??
-- Google Play release signing 諛??ㅽ넗???깅줉 asset 以鍮?
+- 로컬 우선 provider 사용량 대시보드.
+- 빠른 quota 확인을 위한 홈 화면 위젯.
+- foreground refresh를 위한 선택 가능한 고정 알림.
+- 수동 refresh와 foreground service refresh.
+- provider 숨김 및 순서 변경 설정.
+- 한국어와 영어 UI 문자열.
+- Google Play release signing 및 스토어 등록 asset 준비.
 
-### 吏??Provider
+### 지원 Provider
 
-| Provider | ?곹깭 |
+| Provider | 상태 |
 | --- | --- |
-| Claude | 吏??|
-| Codex | 吏??|
-| Gemini | 吏??|
-| GitHub Copilot | 吏??|
-| Antigravity | 吏??|
-| Cursor | 吏??|
+| Claude | 지원 |
+| Codex | 지원 |
+| Gemini | 지원 |
+| GitHub Copilot | 지원 |
+| Antigravity | 지원 |
+| Cursor | 지원 |
 
-### Android ?⑦궎吏
+### Android 패키지
 
-Google Play ?⑦궎吏 ?대쫫:
+Google Play 패키지 이름:
 
 ```text
 com.aiquota.mobile
 ```
 
-Kotlin namespace???대? 援ы쁽 ?몃??ы빆?쇰줈 `com.aiquota.mobile`???좎??⑸땲?? Google Play ?⑦궎吏 ?대쫫怨쇰뒗 蹂꾧컻?낅땲??
+Kotlin namespace는 내부 구현 사항으로 `com.aiquota.mobile`을 유지합니다. Google Play 패키지 이름과는 별개입니다.
 
-### 媛쒖씤?뺣낫 諛??곗씠????젣
+### 개인정보 및 데이터 삭제
 
-- [媛쒖씤?뺣낫 泥섎━諛⑹묠](docs/privacy-policy.html)
-- [怨꾩젙 諛??곗씠????젣 ?덈궡](docs/account-deletion.html)
+- [개인정보처리방침](docs/privacy-policy.html)
+- [계정 및 데이터 삭제 안내](docs/account-deletion.html)
 
-### ?뚯뒪?먯꽌 鍮뚮뱶
+### 소스에서 빌드
 
-?꾩닔 議곌굔:
+필수 조건:
 
-- Windows 媛쒕컻 ?섍꼍.
-- Android Studio 諛?Android SDK.
-- JDK 17. Android Studio JBR ?ъ슜 媛??
-- Android ?⑦궎吏 `com.aiquota.mobile`濡??ㅼ젙??Firebase ?꾨줈?앺듃.
+- Windows 개발 환경.
+- Android Studio 및 Android SDK.
+- JDK 17. Android Studio JBR 사용 가능.
+- Android 패키지 `com.aiquota.mobile`로 설정된 Firebase 프로젝트.
 - `android/app/google-services.json`.
-- 湲곗〈 Gradle wrapper 諛고룷蹂??먮뒗 Gradle 8.10.2.
+- 기존 Gradle wrapper 배포본 또는 Gradle 8.10.2.
 
-?뚯뒪??
+테스트:
 
 ```powershell
 npm.cmd test
@@ -170,24 +170,24 @@ npm.cmd test
 & '.\.tmp\tools\gradle-8.10.2\bin\gradle.bat' -p android :app:testDebugUnitTest
 ```
 
-Debug APK 鍮뚮뱶:
+Debug APK 빌드:
 
 ```powershell
 & '.\.tmp\tools\gradle-8.10.2\bin\gradle.bat' -p android :app:assembleDebug
 ```
 
-Google Play AAB 鍮뚮뱶:
+Google Play AAB 빌드:
 
 ```powershell
 & '.\.tmp\tools\gradle-8.10.2\bin\gradle.bat' -p android :app:bundleRelease
 ```
 
-異쒕젰:
+출력:
 
 ```text
 android/app/build/outputs/bundle/release/app-release.aab
 ```
 
-### ?쇱씠?좎뒪
+### 라이선스
 
 MIT
