@@ -1,11 +1,11 @@
-# AI Usage Mobile Sync PRD
+# AI Quota Mobile Sync PRD
 
 Created: 2026-04-29  
 Updated: 2026-04-29
 
 ## Product summary
 
-AI Usage Mobile Sync shows the latest AI usage snapshot from one or more Windows devices on Android. The free-plan MVP uses Firebase Auth and Firestore only. There is no pairing code. A user signs in on Android and Windows with the same Firebase account, and devices appear automatically under that user's Firestore path.
+AI Quota Mobile Sync shows the latest AI quota snapshot from one or more Windows devices on Android. The free-plan MVP uses Firebase Auth and Firestore only. There is no pairing code. A user signs in on Android and Windows with the same Firebase account, and devices appear automatically under that user's Firestore path.
 
 ## Target user
 
@@ -16,7 +16,7 @@ AI Usage Mobile Sync shows the latest AI usage snapshot from one or more Windows
 ## Core jobs
 
 - Sign in once on Android with Google
-- See remaining AI usage limits first, matching the Windows app
+- See remaining AI quota limits first, matching the Windows app
 - Open device management from settings
 - Rename a device to something meaningful like `Home PC` or `Work Laptop`
 - Surface stale, offline, revoked, and provider-error states clearly

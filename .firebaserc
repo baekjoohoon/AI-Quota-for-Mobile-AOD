@@ -1,7 +1,5 @@
 {
   "projects": {
-    "default": "ai-usage-for-mobile"
-  },
-  "targets": {},
-  "etags": {}
+    "default": "com-aiquota-mobile"
+  }
 }

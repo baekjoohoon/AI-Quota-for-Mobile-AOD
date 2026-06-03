@@ -1,0 +1,86 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent">
+
+  <LinearLayout
+    android:layout_width="160dp"
+    android:layout_height="160dp"
+    android:layout_gravity="center"
+    android:background="@drawable/widget_background_macos_rounded"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1"
+      android:gravity="center"
+      android:orientation="horizontal">
+
+      <FrameLayout
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_margin="5dp"
+        android:background="@drawable/widget_preview_circle_ring">
+
+        <ImageView
+          android:layout_width="28dp"
+          android:layout_height="28dp"
+          android:layout_gravity="center"
+          android:contentDescription="@string/widget_label_2x2"
+          android:src="@drawable/ic_provider_claude" />
+      </FrameLayout>
+
+      <FrameLayout
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_margin="5dp"
+        android:background="@drawable/widget_preview_circle_ring">
+
+        <ImageView
+          android:layout_width="28dp"
+          android:layout_height="28dp"
+          android:layout_gravity="center"
+          android:contentDescription="@string/widget_label_2x2"
+          android:src="@drawable/ic_provider_codex" />
+      </FrameLayout>
+    </LinearLayout>
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1"
+      android:gravity="center"
+      android:orientation="horizontal">
+
+      <FrameLayout
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_margin="5dp"
+        android:background="@drawable/widget_preview_circle_ring">
+
+        <ImageView
+          android:layout_width="28dp"
+          android:layout_height="28dp"
+          android:layout_gravity="center"
+          android:contentDescription="@string/widget_label_2x2"
+          android:src="@drawable/ic_provider_gemini" />
+      </FrameLayout>
+
+      <FrameLayout
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_margin="5dp"
+        android:background="@drawable/widget_preview_circle_ring">
+
+        <ImageView
+          android:layout_width="28dp"
+          android:layout_height="28dp"
+          android:layout_gravity="center"
+          android:contentDescription="@string/widget_label_2x2"
+          android:src="@drawable/ic_provider_copilot" />
+      </FrameLayout>
+    </LinearLayout>
+  </LinearLayout>
+</FrameLayout>

@@ -2,11 +2,11 @@
 
 Last updated: 2026-05-19
 
-This document summarizes how AI Usage for Mobile should collect and normalize provider plan and usage data in standalone mode.
+This document summarizes how AI Quota for Mobile should collect and normalize provider plan and usage data in standalone mode.
 It is based on:
 
-- APK analysis of `AI Usage_1.260505.7.apk`
-- Current AI Usage for Windows provider plugins
+- APK analysis of `AI Quota_1.260505.7.apk`
+- Current AI Quota for Windows provider plugins
 - Local-first mobile architecture decisions
 
 ## Scope
@@ -278,7 +278,7 @@ Do not use placeholder text such as `starts when you send a message` as a reset 
 
 ### Windows Collection Reference
 
-AI Usage for Windows reads Gemini CLI credentials:
+AI Quota for Windows reads Gemini CLI credentials:
 
 ```text
 ~/.gemini/settings.json
@@ -440,7 +440,7 @@ Do not parse marketing pages such as Copilot plan comparison pages as usage.
 
 ### Windows Collection Reference
 
-AI Usage for Windows reads Cursor Desktop or Cursor CLI auth:
+AI Quota for Windows reads Cursor Desktop or Cursor CLI auth:
 
 ```text
 %APPDATA%/Cursor/User/globalStorage/state.vscdb
@@ -640,4 +640,3 @@ Suggested unit test groups:
 - `ProviderLocalUsageCollectorTest`
 - `ProviderUsageCollectionServiceTest`
 - `WebLoginActivityTest`
-

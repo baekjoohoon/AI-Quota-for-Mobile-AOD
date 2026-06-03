@@ -1,0 +1,16 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/provider_widget_not_configured_root"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:background="@drawable/widget_background_rounded"
+  android:padding="14dp">
+
+  <TextView
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:text="@string/widget_no_data"
+    android:textColor="@color/widget_caption"
+    android:textSize="14sp"
+    android:textStyle="bold" />
+</FrameLayout>

@@ -1,40 +1,43 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI Usage Account and Data Deletion</title>
+  <title>AI Quota 계정 및 데이터 삭제 안내</title>
   <style>
-    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #111827; }
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #111827; background: #f8fafc; }
     h1, h2 { line-height: 1.2; }
-    code { background: #f1f5f9; padding: 2px 5px; border-radius: 4px; }
     a { color: #4f46e5; }
   </style>
 </head>
 <body>
-  <h1>Account and Data Deletion</h1>
-  <p>Last updated: May 13, 2026</p>
-  <p>AI Usage lets signed-in users request deletion of their AI Usage account, account-linked data, or synced snapshots.</p>
+  <h1>AI Quota 계정 및 데이터 삭제 안내</h1>
+  <p>최종 업데이트: 2026년 6월 1일</p>
+  <p>AI Quota는 별도의 username/password 계정을 생성하지 않습니다. provider 연결과 quota snapshot은 Android 기기 안에서 처리되며, Gemini와 Antigravity 같은 지원되는 Google OAuth provider의 경우 token exchange, token refresh, quota collection을 위해 Firebase Functions를 사용할 수 있습니다.</p>
 
-  <h2>What can be deleted</h2>
+  <h2>앱 또는 기기 설정에서 삭제할 수 있는 데이터</h2>
   <ul>
-    <li>Firebase account-linked user record.</li>
-    <li>Connected Windows device records.</li>
-    <li>Synced usage snapshots.</li>
-    <li>Display cache data associated with the account.</li>
+    <li>provider 연결 상태</li>
+    <li>provider별 표시용 quota snapshot</li>
+    <li>위젯 및 상태 표시줄 알림 표시 cache</li>
+    <li>provider별 WebView 세션 데이터 또는 OAuth 기반 로컬 세션 상태</li>
+    <li>지원되는 OAuth provider를 위해 생성된 server-side provider secret record</li>
+    <li>적용 가능한 임시 OAuth state record</li>
   </ul>
-  <p>AI Usage does not store provider access tokens, refresh tokens, API keys, provider credential files, local file paths, or raw logs in Firebase.</p>
 
-  <h2>Request data deletion without deleting your account</h2>
-  <p>You may request deletion of synced Windows device records, synced usage snapshots, or display cache data without deleting your AI Usage account.</p>
-  <p>Email <a href="mailto:datell1357@naver.com?subject=AI%20Usage%20data%20deletion%20request">datell1357@naver.com</a> with the subject <code>AI Usage data deletion request</code>.</p>
-  <p>In the email, include the Google email address used to sign in and describe which data you want deleted, such as synced device records or synced snapshots.</p>
+  <h2>기기에서 직접 삭제하는 방법</h2>
+  <ul>
+    <li>AI Quota 앱에서 provider 연결 해제를 실행합니다.</li>
+    <li>Android 설정에서 AI Quota 앱 데이터를 삭제합니다.</li>
+    <li>AI Quota 앱을 제거합니다.</li>
+  </ul>
+  <p>지원되는 OAuth provider의 연결을 해제하면 로컬 credential이 삭제되고, 지원되는 경우 Firebase backend의 provider-scoped server record 삭제를 요청합니다.</p>
 
-  <h2>Request account deletion</h2>
-  <p>Email <a href="mailto:datell1357@naver.com?subject=AI%20Usage%20account%20deletion%20request">datell1357@naver.com</a> with the subject <code>AI Usage account deletion request</code>.</p>
-  <p>Include the Google email address used to sign in.</p>
+  <h2>개발자에게 삭제 요청하기</h2>
+  <p>추가 삭제 요청이 필요한 경우 <a href="mailto:datell1357@naver.com?subject=AI%20Quota%20data%20deletion%20request">datell1357@naver.com</a> 으로 이메일을 보내주세요. 제목은 <strong>AI Quota data deletion request</strong> 로 작성하면 됩니다.</p>
+  <p>관련 Firebase 인증 record를 찾기 위해 필요한 경우 Google 이메일 주소 또는 provider 계정 식별 정보를 요청할 수 있습니다. 삭제 요청은 수동으로 확인되며, 보안, 사기 방지, 법적 또는 운영상 필요한 보관 사유가 없는 한 합리적인 기간 안에 처리됩니다.</p>
 
-  <h2>Processing</h2>
-  <p>Deletion requests are reviewed manually. Requested account data, synced device records, synced snapshots, or display cache data will be deleted unless retention is required for security, fraud prevention, legal, or operational reasons.</p>
+  <h2>provider 계정 데이터</h2>
+  <p>Claude, Codex, Gemini, GitHub Copilot, Antigravity, Cursor 등 provider가 보관하는 계정, 결제, 구독 데이터는 AI Quota에서 삭제할 수 없습니다. 해당 정보는 각 provider의 계정 설정 또는 개인정보 처리 절차를 이용해야 합니다.</p>
 </body>
 </html>

@@ -1,14 +1,14 @@
 {
-  "name": "ai-usage-mobile-sync",
+  "name": "ai-quota-mobile",
   "version": "0.1.0",
   "private": true,
-  "description": "Firebase and mobile sync foundation for AI Usage mobile apps.",
+  "description": "Android app foundation for AI Quota.",
   "type": "module",
   "scripts": {
-    "test": "node functions/test/core.test.js && node test/structure.test.js && node test/mobile-source.test.js",
+    "test": "node --test functions/test/core.test.js functions/test/antigravityGateway.test.js functions/test/geminiCliGateway.test.js && node test/structure.test.js && node test/mobile-source.test.js",
     "test:mobile": "node test/structure.test.js && node test/mobile-source.test.js",
-    "test:functions": "node functions/test/core.test.js",
-    "lint": "node --check functions/src/core.js && node --check functions/src/index.js && node --check test/structure.test.js && node --check test/mobile-source.test.js"
+    "test:functions": "node --test functions/test/core.test.js functions/test/antigravityGateway.test.js functions/test/geminiCliGateway.test.js",
+    "lint": "node --check functions/src/core.js && node --check functions/src/index.js && node --check functions/src/geminiCliGateway.js && node --check test/structure.test.js && node --check test/mobile-source.test.js"
   },
   "engines": {
     "node": ">=22"

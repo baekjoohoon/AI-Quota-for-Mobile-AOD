@@ -1,6 +1,6 @@
 # Windows Sync Contract for the Free Firebase Model
 
-This document describes the direct Firestore contract for AI Usage for Windows when the project runs on the Firebase Spark plan.
+This document describes the direct Firestore contract for AI Quota for Windows when the project runs on the Firebase Spark plan.
 
 ## Authentication
 
@@ -34,7 +34,7 @@ Example:
   "deviceId": "home-pc",
   "name": "Home PC",
   "platform": "windows",
-  "appName": "AI Usage for Windows",
+  "appName": "AI Quota for Windows",
   "appVersion": "1.4.0",
   "linkedAt": "2026-04-29T12:00:00.000Z",
   "lastSeenAt": "2026-04-29T12:05:00.000Z",
@@ -56,7 +56,7 @@ Example:
   "schemaVersion": 1,
   "fetchedAt": "2026-04-29T12:05:00.000Z",
   "uploadedAt": "2026-04-29T12:05:05.000Z",
-  "source": "ai-usage-windows",
+  "source": "ai-quota-windows",
   "providers": [
     {
       "providerId": "codex",

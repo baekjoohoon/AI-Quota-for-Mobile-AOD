@@ -1,5 +1,5 @@
 {
-  "name": "ai-usage-mobile-sync-functions",
+  "name": "ai-quota-mobile-functions",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,4 +12,3 @@
     "firebase-functions": "^6.0.0"
   }
 }
-

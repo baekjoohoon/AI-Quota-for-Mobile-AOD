@@ -4,17 +4,57 @@
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
   <application
+    android:name=".AIQuotaApplication"
     android:allowBackup="false"
     android:icon="@mipmap/ic_launcher"
     android:label="@string/app_name"
+    android:networkSecurityConfig="@xml/network_security_config"
     android:roundIcon="@mipmap/ic_launcher_round"
     android:supportsRtl="true"
-    android:theme="@style/Theme.AIUsage">
+    android:theme="@style/Theme.AIQuota">
     <activity
       android:name=".providers.WebLoginActivity"
       android:exported="false" />
     <activity
+      android:name=".providers.GeminiCliLoopbackOAuthActivity"
+      android:exported="true"
+      android:launchMode="singleTop">
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data
+          android:scheme="aiquota"
+          android:host="provider"
+          android:path="/gemini-oauth-complete" />
+      </intent-filter>
+    </activity>
+    <activity
+      android:name=".providers.AntigravityLoopbackOAuthActivity"
+      android:exported="true"
+      android:launchMode="singleTop">
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data
+          android:scheme="aiquota"
+          android:host="provider"
+          android:path="/antigravity-oauth-complete" />
+      </intent-filter>
+    </activity>
+    <activity
+      android:name=".providers.GoogleAuthorizationActivity"
+      android:exported="false" />
+    <activity
+      android:name="net.openid.appauth.RedirectUriReceiverActivity"
+      android:exported="true"
+      android:theme="@style/Theme.AppCompat.Translucent.NoTitleBar" />
+    <activity
       android:name=".widget.ProviderWidgetConfigureActivity"
+      android:exported="true" />
+    <activity
+      android:name=".widget.DashboardWidgetConfigureActivity"
       android:exported="true" />
     <activity
       android:name=".MainActivity"
@@ -26,10 +66,28 @@
     </activity>
     <service
       android:name=".providers.ProviderUsageCollectionService"
+      android:exported="false" />
+    <service
+      android:name=".providers.ProviderBackgroundRefreshService"
       android:exported="false"
+      android:stopWithTask="false"
       android:foregroundServiceType="dataSync" />
     <receiver
-      android:name=".widget.AIUsageUnifiedGlanceWidgetReceiver"
+      android:name=".widget.WidgetManualRefreshReceiver"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="u.sage.widget.action.REFRESH" />
+      </intent-filter>
+    </receiver>
+    <receiver
+      android:name=".providers.ProviderRefreshReceiver"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="com.aiquota.mobile.action.REFRESH" />
+      </intent-filter>
+    </receiver>
+    <receiver
+      android:name=".widget.AIQuotaUnifiedGlanceWidgetReceiver"
       android:label="@string/widget_label_unified"
       android:exported="false">
       <intent-filter>
@@ -37,10 +95,21 @@
       </intent-filter>
       <meta-data
         android:name="android.appwidget.provider"
-        android:resource="@xml/ai_usage_widget_large" />
+        android:resource="@xml/ai_quota_widget_large" />
     </receiver>
     <receiver
-      android:name=".widget.ProviderUsageGlanceWidgetReceiver"
+      android:name=".widget.AIQuotaCircularWidgetProvider"
+      android:label="@string/widget_label_2x2"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/ai_quota_widget_circular" />
+    </receiver>
+    <receiver
+      android:name=".widget.ProviderUsageWidgetProvider"
       android:label="@string/widget_label_provider"
       android:exported="false">
       <intent-filter>
@@ -48,7 +117,7 @@
       </intent-filter>
       <meta-data
         android:name="android.appwidget.provider"
-        android:resource="@xml/ai_usage_widget_provider" />
+        android:resource="@xml/ai_quota_widget_provider" />
     </receiver>
   </application>
 </manifest>

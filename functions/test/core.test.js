@@ -2,11 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  antigravityTokenAad,
   assertSnapshotIsSafe,
+  assertNoPlaintextProviderSecret,
   buildDeviceRecord,
   consumePairingCodeRecord,
   createPairingCodeRecord,
   createUploadToken,
+  hashOAuthState,
   verifyUploadToken
 } from "../src/core.js";
 
@@ -66,7 +69,7 @@ test("buildDeviceRecord creates a Windows sync device with enabled sync", () => 
     deviceId: "dev_home_pc_abc123",
     name: "Home PC",
     platform: "windows",
-    appName: "AI Usage for Windows",
+    appName: "AI Quota for Windows",
     appVersion: "1.4.0",
     linkedAt: "2026-04-29T01:00:00.000Z",
     lastSeenAt: "2026-04-29T01:00:00.000Z",
@@ -122,7 +125,7 @@ test("assertSnapshotIsSafe rejects provider credentials and local artifacts", ()
   const safeSnapshot = {
     schemaVersion: 1,
     fetchedAt: "2026-04-29T01:00:00.000Z",
-    source: "ai-usage-windows",
+    source: "ai-quota-windows",
     providers: [
       {
         providerId: "codex",
@@ -181,3 +184,32 @@ test("assertSnapshotIsSafe rejects provider credentials and local artifacts", ()
   );
 });
 
+test("hashOAuthState returns stable sha256 base64url without exposing raw state", () => {
+  const rawState = "state-secret-value";
+  const hash = hashOAuthState(rawState);
+
+  assert.equal(hash.includes(rawState), false);
+  assert.match(hash, /^[A-Za-z0-9_-]{43}$/);
+  assert.equal(hashOAuthState(rawState), hash);
+});
+
+test("antigravityTokenAad binds token encryption to uid provider client and version", () => {
+  assert.equal(
+    antigravityTokenAad({
+      uid: "uid-123",
+      oauthClientId: "client.apps.googleusercontent.com"
+    }),
+    "uid:uid-123:provider:antigravity:oauthClient:client.apps.googleusercontent.com:aad:v1"
+  );
+});
+
+test("assertNoPlaintextProviderSecret rejects plaintext token fields", () => {
+  assert.throws(
+    () =>
+      assertNoPlaintextProviderSecret({
+        encryptedRefreshToken: "ciphertext",
+        refreshToken: "plain"
+      }),
+    /PROVIDER_SECRET_FORBIDDEN_FIELD:refreshToken/
+  );
+});

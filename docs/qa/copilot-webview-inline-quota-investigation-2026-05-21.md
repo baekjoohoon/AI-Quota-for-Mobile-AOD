@@ -1,91 +1,91 @@
-# Copilot WebView Inline Quota Investigation - 2026-05-21
+﻿# Copilot WebView Inline Quota Investigation - 2026-05-21
 
 ## Context Refresh Checklist
 
-- 이 문서는 컨텍스트 압축 후 먼저 확인한다.
-- Store APK 방식 분석은 별도 문서에서 계속 진행 중이다.
-- 이 문서의 범위는 현재 앱의 WebView 기반 Copilot 수집 경로에서 `Inline suggestions` 실제 quota를 얻을 수 있는지 검증하는 것이다.
-- 성공 기준은 연결 상태가 아니라 refresh마다 실제 provider 응답에서 `limited_user_quotas.completions`와 `monthly_quotas.completions` 또는 동등한 가변 quota가 수집되는 것이다.
-- 고정값, preview sample, 마케팅 페이지 숫자, fallback 0%는 성공으로 보지 않는다.
+- ??臾몄꽌??而⑦뀓?ㅽ듃 ?뺤텞 ??癒쇱? ?뺤씤?쒕떎.
+- Store APK 諛⑹떇 遺꾩꽍? 蹂꾨룄 臾몄꽌?먯꽌 怨꾩냽 吏꾪뻾 以묒씠??
+- ??臾몄꽌??踰붿쐞???꾩옱 ?깆쓽 WebView 湲곕컲 Copilot ?섏쭛 寃쎈줈?먯꽌 `Inline suggestions` ?ㅼ젣 quota瑜??살쓣 ???덈뒗吏 寃利앺븯??寃껋씠??
+- ?깃났 湲곗?? ?곌껐 ?곹깭媛 ?꾨땲??refresh留덈떎 ?ㅼ젣 provider ?묐떟?먯꽌 `limited_user_quotas.completions`? `monthly_quotas.completions` ?먮뒗 ?숇벑??媛蹂 quota媛 ?섏쭛?섎뒗 寃껋씠??
+- 怨좎젙媛? preview sample, 留덉????섏씠吏 ?レ옄, fallback 0%???깃났?쇰줈 蹂댁? ?딅뒗??
 
 ## Source Docs Checked
 
 - `PROVIDER_USAGE_COLLECTION.md`
-  - Copilot 우선 수집 경로: `https://api.github.com/copilot_internal/user`
-  - WebView 보조 경로: `https://github.com/github-copilot/chat/entitlement`
-  - 인라인 제안: `limited_user_quotas.completions` + `monthly_quotas.completions`
+  - Copilot ?곗꽑 ?섏쭛 寃쎈줈: `https://api.github.com/copilot_internal/user`
+  - WebView 蹂댁“ 寃쎈줈: `https://github.com/github-copilot/chat/entitlement`
+  - ?몃씪???쒖븞: `limited_user_quotas.completions` + `monthly_quotas.completions`
 - `APK_PROVIDER_COLLECTION_ANALYSIS.md`
-  - Copilot 시작 URL: `https://github.com/settings/copilot`
-  - 같은 WebView 세션에서 `credentials: include`로 entitlement를 확인한다.
+  - Copilot ?쒖옉 URL: `https://github.com/settings/copilot`
+  - 媛숈? WebView ?몄뀡?먯꽌 `credentials: include`濡?entitlement瑜??뺤씤?쒕떎.
 - `MOBILE_PROVIDER_LOGIN_WIREFRAME_HANDOFF.md`
-  - 로그인 완료 조건은 GitHub URL 도착이 아니라 Copilot entitlement 200 + payload 확인이다.
+  - 濡쒓렇???꾨즺 議곌굔? GitHub URL ?꾩갑???꾨땲??Copilot entitlement 200 + payload ?뺤씤?대떎.
 - `docs/qa/store-apk-analysis-journal-2026-05-20.md`
-  - Store APK Copilot fallback asset은 `assets/b`, remote key는 `b260503`.
-  - Store APK의 로그인 전 sample 값은 실제 수집값으로 사용하지 않는다.
+  - Store APK Copilot fallback asset? `assets/b`, remote key??`b260503`.
+  - Store APK??濡쒓렇????sample 媛믪? ?ㅼ젣 ?섏쭛媛믪쑝濡??ъ슜?섏? ?딅뒗??
 
 ## Current Code Path
 
-- `ProviderRefreshPlan`은 Copilot refresh를 `HIDDEN_WEB_COLLECTOR`로 실행한다.
-- hidden collector URL은 `https://github.com/settings/copilot`이다.
-- `ProviderWebCollectorScripts.copilot()`은 다음 후보를 병렬 호출한다.
+- `ProviderRefreshPlan`? Copilot refresh瑜?`HIDDEN_WEB_COLLECTOR`濡??ㅽ뻾?쒕떎.
+- hidden collector URL? `https://github.com/settings/copilot`?대떎.
+- `ProviderWebCollectorScripts.copilot()`? ?ㅼ쓬 ?꾨낫瑜?蹂묐젹 ?몄텧?쒕떎.
   - `https://github.com/github-copilot/chat/entitlement`
   - `https://github.com/github-copilot/chat/token`
   - `https://github.com/settings/copilot`
   - `https://github.com/settings/billing/premium_requests_usage`
-- `CopilotNativeUsageFetcher`는 native bridge에서 allowlist된 Copilot/GitHub endpoint만 호출한다.
-- `ProviderUsageNormalizer`는 `limited_user_quotas.completions`와 `monthly_quotas.completions`가 들어오면 `Inline suggestions`를 정상 생성한다.
+- `CopilotNativeUsageFetcher`??native bridge?먯꽌 allowlist??Copilot/GitHub endpoint留??몄텧?쒕떎.
+- `ProviderUsageNormalizer`??`limited_user_quotas.completions`? `monthly_quotas.completions`媛 ?ㅼ뼱?ㅻ㈃ `Inline suggestions`瑜??뺤긽 ?앹꽦?쒕떎.
 
 ## Evidence So Far
 
-- Logcat에서 Copilot background refresh는 다음까지 성공했다.
+- Logcat?먯꽌 Copilot background refresh???ㅼ쓬源뚯? ?깃났?덈떎.
   - `/github-copilot/chat/entitlement`: 200
   - `/settings/copilot`: 200
   - `/settings/billing/premium_requests_usage`: 200
-  - payload 저장됨
-- 1차 변경 후 logcat에서 다음이 확인됐다.
+  - payload ??λ맖
+- 1李?蹂寃???logcat?먯꽌 ?ㅼ쓬???뺤씤?먮떎.
   - `/github-copilot/chat/token`: 200
-  - token endpoint 응답으로 API header 후보 생성 가능: `apiAuth=true`
+  - token endpoint ?묐떟?쇰줈 API header ?꾨낫 ?앹꽦 媛?? `apiAuth=true`
   - `https://api.github.com/copilot_internal/user`: 401
-  - internal user 응답에는 `limited_user_quotas`, `monthly_quotas`, `completions`, `quota_snapshots`가 모두 없음
-- 따라서 `/github-copilot/chat/token`의 token을 `Authorization: token <value>`로 바꿔 쓰는 경로는 현재 계정/세션에서 실패한다.
-- 현재 누락 지점은 normalizer가 아니라 collector가 `completions` 원본을 payload에 넣지 못하는 단계다.
+  - internal user ?묐떟?먮뒗 `limited_user_quotas`, `monthly_quotas`, `completions`, `quota_snapshots`媛 紐⑤몢 ?놁쓬
+- ?곕씪??`/github-copilot/chat/token`??token??`Authorization: token <value>`濡?諛붽퓭 ?곕뒗 寃쎈줈???꾩옱 怨꾩젙/?몄뀡?먯꽌 ?ㅽ뙣?쒕떎.
+- ?꾩옱 ?꾨씫 吏?먯? normalizer媛 ?꾨땲??collector媛 `completions` ?먮낯??payload???ｌ? 紐삵븯???④퀎??
 
 ## Change Under Test
 
-- `CopilotNativeUsageFetcher.copilotApiAuthorizationHeader()` 추가.
-- `/github-copilot/chat/token` 응답의 token 계열 값을 GitHub API용 `Authorization: token <value>` 후보로도 시험한다.
-- WebView collector도 같은 후보 헤더를 만들어 `https://api.github.com/copilot_internal/user`를 재시도한다.
-- 토큰 값은 로그에 남기지 않는다.
-- 추가 로그는 상태와 구조만 남긴다.
+- `CopilotNativeUsageFetcher.copilotApiAuthorizationHeader()` 異붽?.
+- `/github-copilot/chat/token` ?묐떟??token 怨꾩뿴 媛믪쓣 GitHub API??`Authorization: token <value>` ?꾨낫濡쒕룄 ?쒗뿕?쒕떎.
+- WebView collector??媛숈? ?꾨낫 ?ㅻ뜑瑜?留뚮뱾??`https://api.github.com/copilot_internal/user`瑜??ъ떆?꾪븳??
+- ?좏겙 媛믪? 濡쒓렇???④린吏 ?딅뒗??
+- 異붽? 濡쒓렇???곹깭? 援ъ“留??④릿??
   - token endpoint status/ok
   - internal user endpoint status/ok
-  - settings page raw marker 위치
-  - `limited_user_quotas`, `monthly_quotas`, `completions`, `quota_snapshots` 존재 여부
-- `shouldInterceptRequest`에서 GitHub 페이지가 직접 `https://api.github.com/copilot_internal/user`를 호출하는지 감시한다.
-  - request에 GitHub API용 `Authorization: Bearer ...` 또는 `Authorization: token ...`이 있으면 native에서 같은 요청을 복제한다.
-  - 응답이 200이고 completions quota가 있으면 즉시 normalized payload로 저장한다.
-  - Authorization header 값 자체는 로그에 남기지 않는다.
-- internal user 응답만 들어온 경우도 신뢰 payload로 인정하도록 `limited_user_quotas/monthly_quotas` 존재 조건을 추가했다.
-  - 기존에는 entitlement의 `remaining`이나 `quota_snapshots`가 없으면 internal-only completions payload가 null 처리될 수 있었다.
+  - settings page raw marker ?꾩튂
+  - `limited_user_quotas`, `monthly_quotas`, `completions`, `quota_snapshots` 議댁옱 ?щ?
+- `shouldInterceptRequest`?먯꽌 GitHub ?섏씠吏媛 吏곸젒 `https://api.github.com/copilot_internal/user`瑜??몄텧?섎뒗吏 媛먯떆?쒕떎.
+  - request??GitHub API??`Authorization: Bearer ...` ?먮뒗 `Authorization: token ...`???덉쑝硫?native?먯꽌 媛숈? ?붿껌??蹂듭젣?쒕떎.
+  - ?묐떟??200?닿퀬 completions quota媛 ?덉쑝硫?利됱떆 normalized payload濡???ν븳??
+  - Authorization header 媛??먯껜??濡쒓렇???④린吏 ?딅뒗??
+- internal user ?묐떟留??ㅼ뼱??寃쎌슦???좊ː payload濡??몄젙?섎룄濡?`limited_user_quotas/monthly_quotas` 議댁옱 議곌굔??異붽??덈떎.
+  - 湲곗〈?먮뒗 entitlement??`remaining`?대굹 `quota_snapshots`媛 ?놁쑝硫?internal-only completions payload媛 null 泥섎━?????덉뿀??
 
 ## Open Questions
 
-- `/github-copilot/chat/token`의 token이 `api.github.com/copilot_internal/user`에서 실제 GitHub API token으로 인정되는가?
-  - 현재 검증 결과: 401. 이 경로 단독으로는 실패.
-- 인정되지 않는다면 현재 WebView 방식만으로 GitHub OAuth token을 얻을 수 있는 다른 page state, embeddedData, JS chunk, response hook이 있는가?
-- `/settings/copilot` HTML 또는 embedded app state에 `limited_user_quotas.completions`가 들어오지만 현재 parser가 놓치는가?
-- Store APK `b260503` collector는 위 세 후보 중 어느 원본에서 inline suggestions를 얻는가?
-- GitHub 페이지 자체가 `/copilot_internal/user`를 호출한다면 WebView request header에 API Authorization이 실리는가?
+- `/github-copilot/chat/token`??token??`api.github.com/copilot_internal/user`?먯꽌 ?ㅼ젣 GitHub API token?쇰줈 ?몄젙?섎뒗媛?
+  - ?꾩옱 寃利?寃곌낵: 401. ??寃쎈줈 ?⑤룆?쇰줈???ㅽ뙣.
+- ?몄젙?섏? ?딅뒗?ㅻ㈃ ?꾩옱 WebView 諛⑹떇留뚯쑝濡?GitHub OAuth token???살쓣 ???덈뒗 ?ㅻⅨ page state, embeddedData, JS chunk, response hook???덈뒗媛?
+- `/settings/copilot` HTML ?먮뒗 embedded app state??`limited_user_quotas.completions`媛 ?ㅼ뼱?ㅼ?留??꾩옱 parser媛 ?볦튂?붽??
+- Store APK `b260503` collector???????꾨낫 以??대뒓 ?먮낯?먯꽌 inline suggestions瑜??삳뒗媛?
+- GitHub ?섏씠吏 ?먯껜媛 `/copilot_internal/user`瑜??몄텧?쒕떎硫?WebView request header??API Authorization???ㅻ━?붽??
 
 ## Next Verification
 
-1. 단위 테스트 실행.
-2. debug APK 빌드/설치.
-3. Copilot refresh 실행.
-4. logcat에서 `AIUsageCopilot token status=`, `AIUsageCopilot internal status=` 확인.
-5. logcat에서 `resource=/copilot_internal/user hasAuth=` 확인.
-6. `internal ok=true`와 `completions=true` 또는 `resourceInternal payload=true`가 나오면 dashboard에 `Inline suggestions`가 떠야 한다.
-7. `internal 401/403`이고 resource hook도 `hasAuth=false` 또는 미발생이면 WebView 세션만으로는 GitHub API token이 없으므로 Store APK `b260503` runtime capture 또는 GitHub page state token 추적이 필요하다.
+1. ?⑥쐞 ?뚯뒪???ㅽ뻾.
+2. debug APK 鍮뚮뱶/?ㅼ튂.
+3. Copilot refresh ?ㅽ뻾.
+4. logcat?먯꽌 `AIQuotaCopilot token status=`, `AIQuotaCopilot internal status=` ?뺤씤.
+5. logcat?먯꽌 `resource=/copilot_internal/user hasAuth=` ?뺤씤.
+6. `internal ok=true`? `completions=true` ?먮뒗 `resourceInternal payload=true`媛 ?섏삤硫?dashboard??`Inline suggestions`媛 ?좎빞 ?쒕떎.
+7. `internal 401/403`?닿퀬 resource hook??`hasAuth=false` ?먮뒗 誘몃컻?앹씠硫?WebView ?몄뀡留뚯쑝濡쒕뒗 GitHub API token???놁쑝誘濡?Store APK `b260503` runtime capture ?먮뒗 GitHub page state token 異붿쟻???꾩슂?섎떎.
 
 ## Verification Log
 
@@ -109,20 +109,20 @@
 ## 2026-05-21 - GitHub Dashboard After Login
 
 Issue:
-- 사용자가 GitHub 로그인 완료 후 앱으로 돌아가지 않고 GitHub `Dashboard/Home` 화면에 머무는 상태를 확인했다.
+- ?ъ슜?먭? GitHub 濡쒓렇???꾨즺 ???깆쑝濡??뚯븘媛吏 ?딄퀬 GitHub `Dashboard/Home` ?붾㈃??癒몃Т???곹깭瑜??뺤씤?덈떎.
 
 Root Cause:
-- Copilot collector는 `/settings/copilot`, `/settings/billing/*`, `/github-copilot/*`에서만 실행된다.
-- GitHub가 로그인 후 원래 요청 URL인 `/settings/copilot` 대신 대시보드로 보낼 경우 collector가 실행되지 않아 앱 복귀가 발생하지 않는다.
+- Copilot collector??`/settings/copilot`, `/settings/billing/*`, `/github-copilot/*`?먯꽌留??ㅽ뻾?쒕떎.
+- GitHub媛 濡쒓렇?????먮옒 ?붿껌 URL??`/settings/copilot` ?????쒕낫?쒕줈 蹂대궪 寃쎌슦 collector媛 ?ㅽ뻾?섏? ?딆븘 ??蹂듦?媛 諛쒖깮?섏? ?딅뒗??
 
 Change:
-- `ProviderLoginStrategy.shouldRedirectCopilotToSettings()` 추가.
-- Copilot 로그인 WebView가 `github.com/` 또는 `github.com/dashboard` 또는 signed-in dashboard text를 감지하면 `/settings/copilot`로 1회만 재진입한다.
-- `/login`, `/sessions`, two-factor, `/settings/copilot`, `/github-copilot` 경로에서는 재진입하지 않는다.
+- `ProviderLoginStrategy.shouldRedirectCopilotToSettings()` 異붽?.
+- Copilot 濡쒓렇??WebView媛 `github.com/` ?먮뒗 `github.com/dashboard` ?먮뒗 signed-in dashboard text瑜?媛먯??섎㈃ `/settings/copilot`濡?1?뚮쭔 ?ъ쭊?낇븳??
+- `/login`, `/sessions`, two-factor, `/settings/copilot`, `/github-copilot` 寃쎈줈?먯꽌???ъ쭊?낇븯吏 ?딅뒗??
 
 Expected:
-- GitHub 인증 완료 후 대시보드에 멈추면 앱이 자동으로 `https://github.com/settings/copilot`을 다시 로드한다.
-- 그 뒤 Copilot collector가 실행되고 usage payload 수집/앱 복귀를 시도한다.
+- GitHub ?몄쬆 ?꾨즺 ????쒕낫?쒖뿉 硫덉텛硫??깆씠 ?먮룞?쇰줈 `https://github.com/settings/copilot`???ㅼ떆 濡쒕뱶?쒕떎.
+- 洹???Copilot collector媛 ?ㅽ뻾?섍퀬 usage payload ?섏쭛/??蹂듦?瑜??쒕룄?쒕떎.
 
 ## 2026-05-21 - Web Session Internal Endpoint Attempt
 
@@ -141,7 +141,7 @@ Change:
   - `https://github.com/copilot_internal/user`
   - Same GitHub WebView session cookies, no fake payload.
 - Added safe console marker:
-  - `AIUsageCopilot internal_session status=... ok=... usage=limited=... monthly=... completions=...`
+  - `AIQuotaCopilot internal_session status=... ok=... usage=limited=... monthly=... completions=...`
 
 Verification Gate:
 - Success requires `internal_session ok=true` with `completions=true`, or a hooked `/copilot_internal/user` resource with payload=true.
@@ -161,5 +161,5 @@ Change:
 - This is display semantics only; it does not fabricate usage values.
 
 Runtime Evidence:
-- After reinstall, Claude UI shows `메시지를 보내면 시작` under `Claude Session`.
+- After reinstall, Claude UI shows `硫붿떆吏瑜?蹂대궡硫??쒖옉` under `Claude Session`.
 - Hidden refresh currently redirects to `claude.ai/login`; the emulator WebView session is not authenticated, so fresh Claude usage cannot be collected until Claude is reconnected.

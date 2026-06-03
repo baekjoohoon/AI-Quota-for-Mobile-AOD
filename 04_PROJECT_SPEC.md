@@ -1,4 +1,4 @@
-# AI Usage Mobile Sync Project Spec
+# AI Quota Mobile Sync Project Spec
 
 ## Decision
 
@@ -62,7 +62,7 @@ Windows uploads must never store:
 
 ## Device UX contract
 
-- Android home must focus on remaining AI usage limits
+- Android home must focus on remaining AI quota limits
 - Android settings must show connected devices
 - Android settings must show which device is currently selected
 - Android settings must allow device rename

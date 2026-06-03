@@ -1,56 +1,56 @@
-# 새 세션 시작 프롬프트
+﻿# ???몄뀡 ?쒖옉 ?꾨＼?꾪듃
 
-아래 프롬프트를 새 Codex 세션에 그대로 전달한다.
+?꾨옒 ?꾨＼?꾪듃瑜???Codex ?몄뀡??洹몃?濡??꾨떖?쒕떎.
 
 ```text
-사용하지 않는 MCP들을 호출하지마. 필요한 경우에만 호출해.
-답변과 문서 작성은 반드시 한국어로 작성해.
+?ъ슜?섏? ?딅뒗 MCP?ㅼ쓣 ?몄텧?섏?留? ?꾩슂??寃쎌슦?먮쭔 ?몄텧??
+?듬?怨?臾몄꽌 ?묒꽦? 諛섎뱶???쒓뎅?대줈 ?묒꽦??
 
-작업 위치:
-D:\Vibe Project\AI Usage for Mobile
+?묒뾽 ?꾩튂:
+D:\Vibe Project\AI Quota for Mobile
 
-목표:
-Provider usage freshness/auth continuity를 구현해줘. 세션 유지 자체보다 더 중요한 것은 수집 데이터 신뢰성이야. refresh 실패 뒤 과거 usage를 최신값처럼 계속 보여주면 안 되고, stale/last-known 상태를 명확히 표시해야 해. reset이 지난 volatile row는 제거해야 해.
+紐⑺몴:
+Provider usage freshness/auth continuity瑜?援ы쁽?댁쨾. ?몄뀡 ?좎? ?먯껜蹂대떎 ??以묒슂??寃껋? ?섏쭛 ?곗씠???좊ː?깆씠?? refresh ?ㅽ뙣 ??怨쇨굅 usage瑜?理쒖떊媛믪쿂??怨꾩냽 蹂댁뿬二쇰㈃ ???섍퀬, stale/last-known ?곹깭瑜?紐낇솗???쒖떆?댁빞 ?? reset??吏??volatile row???쒓굅?댁빞 ??
 
-먼저 읽을 문서:
+癒쇱? ?쎌쓣 臾몄꽌:
 1. docs/superpowers/specs/2026-05-21-provider-usage-freshness-auth-continuity-spec.md
 2. docs/superpowers/plans/2026-05-21-provider-usage-freshness-auth-continuity.md
 3. docs/qa/provider-usage-freshness-auth-continuity-handoff-2026-05-21.md
 4. docs/qa/provider-usage-freshness-auth-continuity-progress-2026-05-21.md
 5. docs/qa/store-apk-context-handoff-2026-05-20.md
 
-진행 기록:
-작업 중 의미 있는 코드 변경, 테스트 실행, 실패, 트러블슈팅, 결정사항은 반드시 아래 문서에 기록해.
+吏꾪뻾 湲곕줉:
+?묒뾽 以??섎? ?덈뒗 肄붾뱶 蹂寃? ?뚯뒪???ㅽ뻾, ?ㅽ뙣, ?몃윭釉붿뒋?? 寃곗젙?ы빆? 諛섎뱶???꾨옒 臾몄꽌??湲곕줉??
 docs/qa/provider-usage-freshness-auth-continuity-progress-2026-05-21.md
 
-핵심 요구사항:
-1. 이전 usage를 표시할 수는 있지만 반드시 stale/last-known으로 표시해야 한다.
-2. reset이 지난 volatile row는 현재 usage로 표시하지 않는다.
-3. connected=true는 trusted usage row 저장 성공 후에만 허용한다.
-4. login URL 도착, OAuth redirect, session cookie 감지만으로 connected 처리하지 않는다.
-5. refresh 전 provider별 auth/session probe를 먼저 실행한다.
-6. WebView 기반 provider는 login과 collector가 같은 app WebView profile을 써야 한다.
-7. Copilot은 OAuth/token 기반 native API 수집 우선으로 전환한다.
-8. Gemini는 AppAuth + Code Assist quota API 방향을 유지한다.
-9. Cursor는 token/API 우선, 안 되면 same WebView profile fallback으로 둔다.
-10. Store APK collector parity는 runtime/decrypt evidence 전까지 완료로 주장하지 않는다.
+?듭떖 ?붽뎄?ы빆:
+1. ?댁쟾 usage瑜??쒖떆???섎뒗 ?덉?留?諛섎뱶??stale/last-known?쇰줈 ?쒖떆?댁빞 ?쒕떎.
+2. reset??吏??volatile row???꾩옱 usage濡??쒖떆?섏? ?딅뒗??
+3. connected=true??trusted usage row ????깃났 ?꾩뿉留??덉슜?쒕떎.
+4. login URL ?꾩갑, OAuth redirect, session cookie 媛먯?留뚯쑝濡?connected 泥섎━?섏? ?딅뒗??
+5. refresh ??provider蹂?auth/session probe瑜?癒쇱? ?ㅽ뻾?쒕떎.
+6. WebView 湲곕컲 provider??login怨?collector媛 媛숈? app WebView profile???⑥빞 ?쒕떎.
+7. Copilot? OAuth/token 湲곕컲 native API ?섏쭛 ?곗꽑?쇰줈 ?꾪솚?쒕떎.
+8. Gemini??AppAuth + Code Assist quota API 諛⑺뼢???좎??쒕떎.
+9. Cursor??token/API ?곗꽑, ???섎㈃ same WebView profile fallback?쇰줈 ?붾떎.
+10. Store APK collector parity??runtime/decrypt evidence ?꾧퉴吏 ?꾨즺濡?二쇱옣?섏? ?딅뒗??
 
-Provider별 방향:
-- Claude: WebView session 기반 유지
-- Codex: WebView session 기반 유지
-- Copilot: OAuth/token 기반 native API 우선
+Provider蹂?諛⑺뼢:
+- Claude: WebView session 湲곕컲 ?좎?
+- Codex: WebView session 湲곕컲 ?좎?
+- Copilot: OAuth/token 湲곕컲 native API ?곗꽑
 - Gemini: AppAuth + Code Assist quota API
-- Cursor: token/API 우선, WebView session fallback
+- Cursor: token/API ?곗꽑, WebView session fallback
 
 Redaction:
-문서나 답변에 raw token, raw cookie, OAuth secret/callback code, auth header value, account identifier, email, username, full provider HTML을 쓰지 마.
-이메일은 <email>, 사용자명은 <username>로 써.
+臾몄꽌???듬???raw token, raw cookie, OAuth secret/callback code, auth header value, account identifier, email, username, full provider HTML???곗? 留?
+?대찓?쇱? <email>, ?ъ슜?먮챸? <username>濡???
 
-실행 방식:
-docs/superpowers/plans/2026-05-21-provider-usage-freshness-auth-continuity.md의 Task 1부터 TDD로 진행해.
-각 task마다 focused test를 먼저 실패시키고, 최소 구현으로 통과시킨 뒤 progress journal을 갱신해.
+?ㅽ뻾 諛⑹떇:
+docs/superpowers/plans/2026-05-21-provider-usage-freshness-auth-continuity.md??Task 1遺??TDD濡?吏꾪뻾??
+媛?task留덈떎 focused test瑜?癒쇱? ?ㅽ뙣?쒗궎怨? 理쒖냼 援ы쁽?쇰줈 ?듦낵?쒗궓 ??progress journal??媛깆떊??
 
-최종 검증:
+理쒖쥌 寃利?
 .\gradlew.bat :app:testDebugUnitTest
 git diff --check
 ```

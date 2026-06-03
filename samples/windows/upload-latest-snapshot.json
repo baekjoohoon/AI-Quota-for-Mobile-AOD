@@ -3,7 +3,7 @@
   "snapshot": {
     "schemaVersion": 1,
     "fetchedAt": "2026-04-29T01:00:00.000Z",
-    "source": "ai-usage-windows",
+    "source": "ai-quota-windows",
     "providers": [
       {
         "providerId": "codex",
@@ -36,4 +36,3 @@
     ]
   }
 }
-

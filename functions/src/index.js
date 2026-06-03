@@ -1,5 +1,8 @@
 import admin from "firebase-admin";
-import { onRequest } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
+import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
+import { createAntigravityGatewayHandlers } from "./antigravityGateway.js";
+import { createGeminiCliGatewayHandlers } from "./geminiCliGateway.js";
 import {
   buildDeviceRecord,
   consumePairingCodeRecord,
@@ -13,6 +16,90 @@ admin.initializeApp();
 
 const db = admin.firestore();
 const tokenSecret = process.env.DEVICE_TOKEN_SECRET;
+const antigravityOAuthClientId = defineSecret("ANTIGRAVITY_GOOGLE_OAUTH_CLIENT_ID");
+const antigravityOAuthClientSecret = defineSecret("ANTIGRAVITY_GOOGLE_OAUTH_CLIENT_SECRET");
+const antigravityOAuthRedirectUri = defineSecret("ANTIGRAVITY_GOOGLE_OAUTH_REDIRECT_URI");
+const antigravityTokenMasterKey = defineSecret("ANTIGRAVITY_TOKEN_MASTER_KEY");
+const geminiCliOAuthClientId = defineSecret("GEMINI_CLI_GOOGLE_OAUTH_CLIENT_ID");
+const geminiCliOAuthClientSecret = defineSecret("GEMINI_CLI_GOOGLE_OAUTH_CLIENT_SECRET");
+const geminiCliOAuthRedirectUri = defineSecret("GEMINI_CLI_GOOGLE_OAUTH_REDIRECT_URI");
+const antigravityGateway = createAntigravityGatewayHandlers({
+  onCall,
+  onRequest,
+  HttpsError,
+  db,
+  enforceAppCheck: true,
+  secrets: {
+    startAntigravityOAuth: [
+      antigravityOAuthClientId,
+      antigravityOAuthRedirectUri
+    ],
+    antigravityOAuthCallback: [
+      antigravityOAuthClientId,
+      antigravityOAuthClientSecret,
+      antigravityOAuthRedirectUri,
+      antigravityTokenMasterKey
+    ],
+    completeAntigravityOAuth: [
+      antigravityOAuthClientId,
+      antigravityOAuthClientSecret,
+      antigravityOAuthRedirectUri
+    ],
+    refreshAntigravityAccessToken: [
+      antigravityOAuthClientId,
+      antigravityOAuthClientSecret
+    ],
+    collectAntigravityUsage: [
+      antigravityOAuthClientSecret,
+      antigravityTokenMasterKey
+    ],
+    disconnectAntigravity: [
+      antigravityTokenMasterKey
+    ]
+  },
+  config: {
+    oauthClientId: () => antigravityOAuthClientId.value(),
+    oauthClientSecret: () => antigravityOAuthClientSecret.value(),
+    redirectUri: () => antigravityOAuthRedirectUri.value(),
+    tokenMasterKey: () => antigravityTokenMasterKey.value()
+  }
+});
+const geminiCliGateway = createGeminiCliGatewayHandlers({
+  onCall,
+  HttpsError,
+  db,
+  enforceAppCheck: true,
+  secrets: {
+    startGeminiCliOAuth: [
+      geminiCliOAuthClientId,
+      geminiCliOAuthRedirectUri
+    ],
+    completeGeminiCliOAuth: [
+      geminiCliOAuthClientId,
+      geminiCliOAuthClientSecret,
+      geminiCliOAuthRedirectUri
+    ],
+    refreshGeminiCliAccessToken: [
+      geminiCliOAuthClientId,
+      geminiCliOAuthClientSecret
+    ]
+  },
+  config: {
+    oauthClientId: () => geminiCliOAuthClientId.value(),
+    oauthClientSecret: () => geminiCliOAuthClientSecret.value(),
+    redirectUri: () => geminiCliOAuthRedirectUri.value()
+  }
+});
+
+export const startAntigravityOAuth = antigravityGateway.startAntigravityOAuth;
+export const antigravityOAuthCallback = antigravityGateway.antigravityOAuthCallback;
+export const completeAntigravityOAuth = antigravityGateway.completeAntigravityOAuth;
+export const refreshAntigravityAccessToken = antigravityGateway.refreshAntigravityAccessToken;
+export const collectAntigravityUsage = antigravityGateway.collectAntigravityUsage;
+export const disconnectAntigravity = antigravityGateway.disconnectAntigravity;
+export const startGeminiCliOAuth = geminiCliGateway.startGeminiCliOAuth;
+export const completeGeminiCliOAuth = geminiCliGateway.completeGeminiCliOAuth;
+export const refreshGeminiCliAccessToken = geminiCliGateway.refreshGeminiCliAccessToken;
 
 export const createPairingCode = onRequest(async (request, response) => {
   if (request.method !== "POST") {
@@ -109,7 +196,7 @@ export const uploadLatestSnapshot = onRequest(async (request, response) => {
   try {
     assertDeviceTokenSecretConfigured();
 
-    const uid = String(request.header("x-ai-usage-uid") ?? "").trim();
+    const uid = String(request.header("x-ai-quota-uid") ?? "").trim();
     const uploadToken = String(request.header("authorization") ?? "").replace(/^Bearer\s+/i, "");
     const { deviceId, snapshot } = request.body ?? {};
 
@@ -197,4 +284,3 @@ function statusForError(code) {
   }
   return 500;
 }
-

@@ -9,20 +9,24 @@ function source(path) {
   return readFileSync(join(root, path), "utf8");
 }
 
-test("iOS app has a real sync API client and typed UI state model", () => {
-  const requiredPaths = [
-    "ios/AIUsageMobile/AIUsageAPIClient.swift",
-    "ios/AIUsageMobile/PairingCodeViewModel.swift",
-    "ios/AIUsageMobile/SnapshotStatus.swift"
-  ];
-
-  for (const path of requiredPaths) {
+function assertPathsExist(paths) {
+  for (const path of paths) {
     assert.equal(existsSync(join(root, path)), true, `${path} should exist`);
   }
+}
 
-  const api = source("ios/AIUsageMobile/AIUsageAPIClient.swift");
-  const pairing = source("ios/AIUsageMobile/PairingCodeViewModel.swift");
-  const status = source("ios/AIUsageMobile/SnapshotStatus.swift");
+test("iOS app has a real sync API client and typed UI state model", () => {
+  const requiredPaths = [
+    "ios/AIQuotaMobile/AIQuotaAPIClient.swift",
+    "ios/AIQuotaMobile/PairingCodeViewModel.swift",
+    "ios/AIQuotaMobile/SnapshotStatus.swift"
+  ];
+
+  assertPathsExist(requiredPaths);
+
+  const api = source("ios/AIQuotaMobile/AIQuotaAPIClient.swift");
+  const pairing = source("ios/AIQuotaMobile/PairingCodeViewModel.swift");
+  const status = source("ios/AIQuotaMobile/SnapshotStatus.swift");
 
   assert.match(api, /func createPairingCode\(idToken:/);
   assert.match(api, /func fetchLatestSnapshot\(uid: String, deviceId: String, idToken: String\)/);
@@ -36,643 +40,211 @@ test("iOS app has a real sync API client and typed UI state model", () => {
   assert.match(status, /24 \* 60 \* 60/);
 });
 
-test("Android app has device-list snapshot sync and non-placeholder widget cache", () => {
+test("Android local-first shell keeps provider snapshots in local display cache", () => {
   const requiredPaths = [
-    "android/app/src/main/java/com/aiusage/mobile/sync/Models.kt",
-    "android/app/src/main/java/com/aiusage/mobile/sync/SnapshotStatus.kt"
+    "android/app/src/main/java/com/aiquota/mobile/MainActivity.kt",
+    "android/app/src/main/java/com/aiquota/mobile/ui/AIQuotaAppShell.kt",
+    "android/app/src/main/java/com/aiquota/mobile/local/LocalUsageRepository.kt",
+    "android/app/src/main/java/com/aiquota/mobile/local/WidgetCacheSanitizer.kt",
+    "android/app/src/main/java/com/aiquota/mobile/widget/WidgetSnapshotCache.kt",
+    "android/app/src/main/java/com/aiquota/mobile/widget/AIQuotaGlanceWidget.kt",
+    "android/app/src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt",
+    "android/app/src/main/java/com/aiquota/mobile/sync/ForegroundRefreshController.kt",
+    "android/app/src/main/java/com/aiquota/mobile/sync/ForegroundRefreshPolicy.kt",
+    "android/app/src/main/res/xml/ai_quota_widget_large.xml",
+    "android/app/src/main/res/xml/ai_quota_widget_provider.xml"
   ];
 
-  for (const path of requiredPaths) {
-    assert.equal(existsSync(join(root, path)), true, `${path} should exist`);
-  }
+  assertPathsExist(requiredPaths);
 
-  const models = source("android/app/src/main/java/com/aiusage/mobile/sync/Models.kt");
-  const status = source("android/app/src/main/java/com/aiusage/mobile/sync/SnapshotStatus.kt");
-  const repo = source("android/app/src/main/java/com/aiusage/mobile/sync/SnapshotRepository.kt");
-  const worker = source("android/app/src/main/java/com/aiusage/mobile/sync/SnapshotSyncWorker.kt");
-  const cache = source("android/app/src/main/java/com/aiusage/mobile/widget/WidgetSnapshotCache.kt");
-  const notificationController = source("android/app/src/main/java/com/aiusage/mobile/notification/UsageLimitNotificationController.kt");
+  const main = source("android/app/src/main/java/com/aiquota/mobile/MainActivity.kt");
+  const appShell = source("android/app/src/main/java/com/aiquota/mobile/ui/AIQuotaAppShell.kt");
+  const localRepo = source("android/app/src/main/java/com/aiquota/mobile/local/LocalUsageRepository.kt");
+  const sanitizer = source("android/app/src/main/java/com/aiquota/mobile/local/WidgetCacheSanitizer.kt");
+  const widgetCache = source("android/app/src/main/java/com/aiquota/mobile/widget/WidgetSnapshotCache.kt");
+  const widget = source("android/app/src/main/java/com/aiquota/mobile/widget/AIQuotaGlanceWidget.kt");
+  const refreshService = source("android/app/src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt");
+  const foregroundController = source("android/app/src/main/java/com/aiquota/mobile/sync/ForegroundRefreshController.kt");
+  const foregroundPolicy = source("android/app/src/main/java/com/aiquota/mobile/sync/ForegroundRefreshPolicy.kt");
   const manifest = source("android/app/src/main/AndroidManifest.xml");
-  const foregroundController = source("android/app/src/main/java/com/aiusage/mobile/sync/ForegroundRefreshController.kt");
-  const foregroundService = source("android/app/src/main/java/com/aiusage/mobile/sync/ForegroundRefreshService.kt");
-  const compactNotificationLayout = source("android/app/src/main/res/layout/notification_usage_compact.xml");
-  const widget = source("android/app/src/main/java/com/aiusage/mobile/widget/AIUsageGlanceWidget.kt");
-  const widgetLayout = source("android/app/src/main/java/com/aiusage/mobile/widget/WidgetGaugeLayout.kt");
-  const widgetParser = source("android/app/src/main/java/com/aiusage/mobile/widget/WidgetGaugeParser.kt");
-  const providerWidget = source("android/app/src/main/java/com/aiusage/mobile/widget/ProviderUsageGlanceWidget.kt");
-  const providerWidgetConfig = source("android/app/src/main/java/com/aiusage/mobile/widget/ProviderWidgetConfigureActivity.kt");
-  const mainActivity = source("android/app/src/main/java/com/aiusage/mobile/MainActivity.kt");
-  const appRoute = source("android/app/src/main/java/com/aiusage/mobile/ui/AppRoute.kt");
-  const appShell = source("android/app/src/main/java/com/aiusage/mobile/ui/AIUsageAppShell.kt");
-  const largeWidgetXml = source("android/app/src/main/res/xml/ai_usage_widget_large.xml");
-  const providerWidgetXml = source("android/app/src/main/res/xml/ai_usage_widget_provider.xml");
-  const providerPreviewLayout = source("android/app/src/main/res/layout/ai_usage_widget_preview_2x2.xml");
-  const noDataInitialLayout = source("android/app/src/main/res/layout/ai_usage_widget_initial_no_data.xml");
-  const largePreviewLayout = source("android/app/src/main/res/layout/ai_usage_widget_preview_3x2.xml");
-  const strings = source("android/app/src/main/res/values/strings.xml");
-  const colors = source("android/app/src/main/res/values/colors.xml");
-  const nightColors = source("android/app/src/main/res/values-night/colors.xml");
+
+  assert.match(main, /AIQuotaAppShell\(context = this\)/);
+  assert.match(main, /requestNotificationPermissionOnFirstLaunch/);
+  assert.match(main, /ForegroundRefreshController/);
+  assert.match(appShell, /LocalUsageRepository\(appContext\)/);
+  assert.match(appShell, /ProviderConnectorRegistry\.default\(appContext\)/);
+  assert.match(localRepo, /getSharedPreferences\(PREFERENCES_NAME/);
+  assert.match(localRepo, /fun readSnapshots\(\): List<ProviderUsageSnapshot>/);
+  assert.match(localRepo, /fun saveSnapshot\(snapshot: ProviderUsageSnapshot\)/);
+  assert.match(localRepo, /fun exportDisplayOnlyCache/);
+  assert.match(localRepo, /WidgetCacheSanitizer\.toDisplayOnlyJson/);
+  assert.match(localRepo, /fun removeProviderSnapshot\(providerId: ProviderId\)/);
+  assert.match(localRepo, /GOOGLE_STALE_REFRESH_TIMEOUT/);
+  assert.match(sanitizer, /sanitizeDisplayOnlyJson/);
+  assert.match(widgetCache, /fun writeLocalDisplaySnapshot/);
+  assert.match(widgetCache, /WidgetCacheSanitizer\.sanitizeDisplayOnlyJson/);
+  assert.match(widgetCache, /readLocalDisplaySnapshot\(\)\.ifBlank/);
+  assert.match(widget, /WidgetSnapshotCache\(context\)\.read\(\)/);
+  assert.match(refreshService, /class ProviderBackgroundRefreshService : Service\(\)/);
+  assert.match(refreshService, /startForeground/);
+  assert.match(refreshService, /ProviderRefreshPlan\.nextAutoRefreshDelayMillis/);
+  assert.match(foregroundController, /ContextCompat\.startForegroundService/);
+  assert.match(foregroundPolicy, /ProviderConnectionState\.CONNECTED/);
+  assert.match(foregroundPolicy, /ProviderConnectionState\.UNAVAILABLE/);
+  assert.match(manifest, /android\.permission\.FOREGROUND_SERVICE_DATA_SYNC/);
+  assert.match(manifest, /ProviderBackgroundRefreshService/);
+  assert.match(manifest, /AIQuotaUnifiedGlanceWidgetReceiver/);
+  assert.match(manifest, /ProviderUsageGlanceWidgetReceiver/);
+});
+
+test("Android web collectors remain for visible-session providers", () => {
+  const webLogin = source("android/app/src/main/java/com/aiquota/mobile/providers/WebLoginActivity.kt");
+  const backgroundRefreshService = source("android/app/src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt");
+  const collectionService = source("android/app/src/main/java/com/aiquota/mobile/providers/ProviderUsageCollectionService.kt");
+  const scriptProviders = source("android/app/src/main/java/com/aiquota/mobile/providers/ProviderScriptProviders.kt");
+  const definitions = source("android/app/src/main/java/com/aiquota/mobile/providers/ProviderDefinitions.kt");
+
+  assert.match(webLogin, /settings\.javaScriptEnabled = true/);
+  assert.match(webLogin, /addJavascriptInterface\(UsageBridge\(\), BRIDGE_NAME\)/);
+  assert.match(webLogin, /ProviderWebCollectorScripts\.build/);
+  assert.match(webLogin, /finishSuccessfulLogin\(rawPayload\)/);
+  assert.match(collectionService, /class ProviderUsageCollectionService : Service\(\)/);
+  assert.match(collectionService, /ProviderUsageNormalizer\.normalize\(providerId, effectivePayload, source\)/);
+  assert.match(backgroundRefreshService, /ProviderWebCollectorScripts\.build/);
+  assert.match(scriptProviders, /class GeminiScriptProvider/);
+  assert.match(scriptProviders, /class AntigravityScriptProvider/);
+  assert.match(definitions, /providerId = ProviderId\.COPILOT,[\s\S]*?collectionKind = ProviderCollectionKind\.WEBVIEW_COLLECTOR/);
+});
+
+test("Google native OAuth routes through Firebase token exchange without client secret", () => {
+  const gradle = source("android/app/build.gradle.kts");
+  const main = source("android/app/src/main/java/com/aiquota/mobile/MainActivity.kt");
+  const debugBootstrap = source("android/app/src/debug/java/com/aiquota/mobile/FirebaseGatewayBootstrap.kt");
+  const releaseBootstrap = source("android/app/src/release/java/com/aiquota/mobile/FirebaseGatewayBootstrap.kt");
+  const geminiGateway = source("android/app/src/main/java/com/aiquota/mobile/providers/GeminiCliFirebaseGateway.kt");
+  const antigravityGateway = source("android/app/src/main/java/com/aiquota/mobile/providers/AntigravityFirebaseGateway.kt");
+  const geminiActivity = source("android/app/src/main/java/com/aiquota/mobile/providers/GeminiCliLoopbackOAuthActivity.kt");
+  const antigravityActivity = source("android/app/src/main/java/com/aiquota/mobile/providers/AntigravityLoopbackOAuthActivity.kt");
+  const geminiRepository = source("android/app/src/main/java/com/aiquota/mobile/providers/GeminiCliOAuthRepository.kt");
+  const antigravityRepository = source("android/app/src/main/java/com/aiquota/mobile/providers/AntigravityOAuthRepository.kt");
+  const definitions = source("android/app/src/main/java/com/aiquota/mobile/providers/ProviderDefinitions.kt");
+  const refreshPlan = source("android/app/src/main/java/com/aiquota/mobile/providers/ProviderRefreshPlan.kt");
+  const appShell = source("android/app/src/main/java/com/aiquota/mobile/ui/AIQuotaAppShell.kt");
+  const refreshService = source("android/app/src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt");
+
+  const geminiBlock = definitions
+    .split("providerId = ProviderId.GEMINI,")[1]
+    .split("ProviderDefinition(")[0];
+  const antigravityBlock = definitions
+    .split("providerId = ProviderId.ANTIGRAVITY,")[1]
+    .split("ProviderDefinition(")[0];
+
+  assert.match(gradle, /com\.google\.gms\.google-services/);
+  assert.match(gradle, /com\.google\.firebase:firebase-auth/);
+  assert.match(gradle, /com\.google\.firebase:firebase-functions/);
+  assert.match(gradle, /com\.google\.firebase:firebase-appcheck-playintegrity/);
+  assert.match(gradle, /com\.google\.firebase:firebase-appcheck-debug/);
+  assert.match(main, /FirebaseGatewayBootstrap\.install\(\)/);
+  assert.match(debugBootstrap, /DebugAppCheckProviderFactory/);
+  assert.match(releaseBootstrap, /PlayIntegrityAppCheckProviderFactory/);
+  assert.match(gradle, /681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j\.apps\.googleusercontent\.com/);
+  assert.match(gradle, /1071006060591-tmhssin2h21lcre235vtolojh4g403ep\.apps\.googleusercontent\.com/);
+  assert.match(geminiGateway, /FirebaseAuth/);
+  assert.match(geminiGateway, /getHttpsCallable\("startGeminiCliOAuth"\)/);
+  assert.match(geminiGateway, /getHttpsCallable\("completeGeminiCliOAuth"\)/);
+  assert.match(geminiGateway, /getHttpsCallable\("refreshGeminiCliAccessToken"\)/);
+  assert.match(antigravityGateway, /FirebaseAuth/);
+  assert.match(antigravityGateway, /getHttpsCallable\("startAntigravityOAuth"\)/);
+  assert.match(antigravityGateway, /getHttpsCallable\("completeAntigravityOAuth"\)/);
+  assert.match(antigravityGateway, /getHttpsCallable\("refreshAntigravityAccessToken"\)/);
+  assert.match(geminiActivity, /WebView/);
+  assert.match(geminiActivity, /GeminiCliFirebaseGateway\(applicationContext\)\.startOAuth\(\)/);
+  assert.match(geminiActivity, /completeOAuth\(url\)/);
+  assert.match(geminiActivity, /fetchUsagePayloadFromGatewayTokenResult/);
+  assert.match(antigravityActivity, /WebView/);
+  assert.match(antigravityActivity, /AntigravityFirebaseGateway\(applicationContext\)\.startOAuth\(\)/);
+  assert.match(antigravityActivity, /completeOAuth\(url\)/);
+  assert.match(antigravityActivity, /fetchUsagePayloadFromGatewayTokenResult/);
+  assert.match(geminiRepository, /GeminiCliFirebaseGateway\(appContext\)\.refreshAccessToken\(refreshToken\)/);
+  assert.match(antigravityRepository, /AntigravityFirebaseGateway\(appContext\)\.refreshAccessToken\(refreshToken\)/);
+  assert.match(geminiBlock, /authStoreKind = ProviderAuthStoreKind\.NATIVE_TOKEN/);
+  assert.match(geminiBlock, /collectionKind = ProviderCollectionKind\.NATIVE_API/);
+  assert.match(antigravityBlock, /authStoreKind = ProviderAuthStoreKind\.NATIVE_TOKEN/);
+  assert.match(antigravityBlock, /collectionKind = ProviderCollectionKind\.NATIVE_API/);
+  assert.match(refreshPlan, /ProviderCollectionKind\.NATIVE_API -> ProviderRefreshMode\.NATIVE_API/);
+  assert.match(appShell, /GeminiCliLoopbackOAuthActivity\.createIntent/);
+  assert.match(appShell, /AntigravityLoopbackOAuthActivity\.createIntent/);
+  assert.match(appShell, /GeminiCliOAuthRepository\(appContext\)\.fetchUsagePayloadFromStoredCredential\(\)/);
+  assert.match(appShell, /AntigravityOAuthRepository\(appContext\)\.fetchUsagePayloadFromStoredCredential\(\)/);
+  assert.match(refreshService, /GeminiCliOAuthRepository\(applicationContext\)\.fetchUsagePayloadFromStoredCredential\(\)/);
+  assert.match(refreshService, /AntigravityOAuthRepository\(applicationContext\)\.fetchUsagePayloadFromStoredCredential\(\)/);
+  assert.doesNotMatch(
+    `${geminiGateway}\n${antigravityGateway}\n${geminiActivity}\n${antigravityActivity}\n${geminiRepository}\n${antigravityRepository}\n${gradle}`,
+    /GEMINI_CLI_GOOGLE_OAUTH_CLIENT_SECRET|ANTIGRAVITY_GOOGLE_OAUTH_CLIENT_SECRET|client_secret|clientSecret/
+  );
+});
+
+test("Antigravity backend Functions expose Secret Manager and AES-GCM-backed gateway only", () => {
+  const index = source("functions/src/index.js");
+  const gateway = source("functions/src/antigravityGateway.js");
+  const core = source("functions/src/core.js");
+  const functionsPackage = source("functions/package.json");
+  const firebase = source("firebase.json");
   const rules = source("firestore.rules");
 
-  assert.match(models, /data class SnapshotRefreshResult/);
-  assert.match(models, /data class SnapshotDevice/);
-  assert.match(models, /data class SnapshotProviderUsage/);
-  assert.match(models, /data class SnapshotUsageLimitLine/);
-  assert.match(models, /remainingText/);
-  assert.match(models, /remainingRatio/);
-  assert.match(status, /Fresh/);
-  assert.match(status, /Stale/);
-  assert.match(status, /Offline/);
-  assert.match(status, /15 \* 60/);
-  assert.match(status, /24 \* 60 \* 60/);
-  assert.match(repo, /FirebaseFirestore/);
-  assert.match(repo, /collection\("users"\)/);
-  assert.match(repo, /collection\("devices"\)/);
-  assert.match(repo, /collection\("snapshots"\)/);
-  assert.match(repo, /resolveSnapshotStatus/);
-  assert.match(repo, /saveForWidget/);
-  assert.match(repo, /updateDeviceName/);
-  assert.match(repo, /deleteDevice/);
-  assert.match(repo, /listDevices/);
-  assert.match(repo, /rememberSignedInUser/);
-  assert.match(repo, /scheduleWidgetRefresh/);
-  assert.match(repo, /5, TimeUnit\.MINUTES/);
-  assert.match(repo, /ExistingWorkPolicy\.REPLACE/);
-  assert.doesNotMatch(repo, /ExistingWorkPolicy\.APPEND_OR_REPLACE/);
-  assert.match(worker, /refreshLatestSnapshot/);
-  assert.match(worker, /inputData\.getString\("uid"\)/);
-  assert.match(worker, /storedUid/);
-  assert.match(worker, /scheduleWidgetRefresh/);
-  assert.doesNotMatch(worker, /write\("\{}"\)/);
-  assert.match(cache, /updatedAt/);
-  assert.match(cache, /status/);
-  assert.doesNotMatch(cache, /"\{}"/);
-  assert.doesNotMatch(cache, /remove\(KEY_LOCAL_DISPLAY_SNAPSHOT\)/);
-  assert.match(repo, /UsageLimitNotificationController\.updateFromCache\(context\)/);
-  assert.match(notificationController, /getBoolean\(KEY_ENABLED,\s*true\)/);
-  assert.match(notificationController, /setCustomContentView\(compactRemoteViews/);
-  assert.match(notificationController, /foregroundNotification/);
-  assert.match(repo, /DecimalFormat\("0\.#"/);
-  assert.match(widgetParser, /DecimalFormat\("0\.#"/);
-  assert.doesNotMatch(repo, /else number\.toString\(\)/);
-  assert.doesNotMatch(widgetParser, /else value\.toString\(\)/);
-  assert.match(manifest, /android\.permission\.FOREGROUND_SERVICE/);
-  assert.match(manifest, /android\.permission\.FOREGROUND_SERVICE_DATA_SYNC/);
-  assert.match(manifest, /ForegroundRefreshService/);
-  assert.match(manifest, /android:foregroundServiceType="dataSync"/);
-  assert.doesNotMatch(manifest, /AIUsageGlanceWidgetReceiver/);
-  assert.doesNotMatch(manifest, /@xml\/ai_usage_widget"/);
-  assert.match(manifest, /AIUsageUnifiedGlanceWidgetReceiver/);
-  assert.match(manifest, /@xml\/ai_usage_widget_large/);
-  assert.match(manifest, /ProviderUsageGlanceWidgetReceiver/);
-  assert.match(manifest, /@xml\/ai_usage_widget_provider/);
-  assert.match(manifest, /ProviderWidgetConfigureActivity/);
-  assert.doesNotMatch(manifest, /AIUsageCircularWidgetProvider/);
-  assert.doesNotMatch(manifest, /@xml\/ai_usage_widget_circular/);
-  assert.equal(existsSync(join(root, "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml")), false);
-  assert.equal(existsSync(join(root, "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml")), false);
-  assert.equal(existsSync(join(root, "android/app/src/main/res/xml/ai_usage_widget.xml")), false);
-  assert.doesNotMatch(strings, /widget_label_1x1/);
-  assert.match(strings, /name="widget_label_unified">AI Usage Dashboard/);
-  assert.match(strings, /name="widget_label_provider">AI Usage Provider/);
-  assert.match(strings, /name="widget_no_data">No data/);
-  assert.match(strings, /name="widget_sign_in_required">Please sign in\./);
-  assert.match(largeWidgetXml, /android:targetCellWidth="2"/);
-  assert.match(largeWidgetXml, /android:targetCellHeight="2"/);
-  assert.match(largeWidgetXml, /android:maxResizeWidth="240dp"/);
-  assert.match(largeWidgetXml, /android:maxResizeHeight="320dp"/);
-  assert.match(largeWidgetXml, /android:initialLayout="@layout\/ai_usage_widget_initial_no_data"/);
-  assert.doesNotMatch(largeWidgetXml, /ai_usage_widget_initial_login/);
-  assert.match(largeWidgetXml, /android:previewLayout="@layout\/ai_usage_widget_preview_3x2"/);
-  assert.match(noDataInitialLayout, /@drawable\/widget_background_rounded/);
-  assert.match(noDataInitialLayout, /@string\/widget_no_data/);
-  assert.doesNotMatch(noDataInitialLayout, /@string\/widget_sign_in_required/);
-  assert.match(providerWidgetXml, /android:targetCellWidth="2"/);
-  assert.match(providerWidgetXml, /android:targetCellHeight="1"/);
-  assert.match(providerWidgetXml, /android:minResizeWidth="110dp"/);
-  assert.match(providerWidgetXml, /android:minResizeHeight="40dp"/);
-  assert.match(providerWidgetXml, /android:maxResizeWidth="240dp"/);
-  assert.match(providerWidgetXml, /android:maxResizeHeight="240dp"/);
-  assert.match(providerWidgetXml, /android:initialLayout="@layout\/ai_usage_widget_initial_no_data"/);
-  assert.doesNotMatch(providerWidgetXml, /ai_usage_widget_initial_login/);
-  assert.match(providerWidgetXml, /android:configure="com\.aiusage\.mobile\.widget\.ProviderWidgetConfigureActivity"/);
-  assert.match(providerWidgetXml, /android:previewLayout="@layout\/ai_usage_widget_preview_2x2"/);
-  assert.match(providerPreviewLayout, /@drawable\/widget_background_rounded/);
-  assert.match(providerPreviewLayout, /android:layout_width="160dp"/);
-  assert.match(providerPreviewLayout, /android:layout_height="160dp"/);
-  assert.match(providerPreviewLayout, /@drawable\/widget_preview_circle_ring/);
-  assert.match(providerPreviewLayout, /android:layout_width="56dp"/);
-  assert.match(providerPreviewLayout, /android:layout_height="56dp"/);
-  assert.match(providerPreviewLayout, /@drawable\/ic_provider_claude/);
-  assert.match(providerPreviewLayout, /@drawable\/ic_provider_copilot/);
-  assert.match(largePreviewLayout, /@drawable\/widget_background_rounded/);
-  assert.match(largePreviewLayout, /@drawable\/widget_preview_bar_track/);
-  assert.match(largePreviewLayout, /@drawable\/ic_provider_openai/);
-  assert.match(largePreviewLayout, /@drawable\/ic_provider_gemini/);
-  assert.match(widget, /widgetBackgroundColor/);
-  assert.doesNotMatch(widget, /FirebaseAuth\.getInstance\(\)\.currentUser/);
-  assert.doesNotMatch(widget, /SignInRequiredWidgetContent/);
-  assert.doesNotMatch(widget, /val isSignedIn/);
-  assert.doesNotMatch(widget, /widget_sign_in_required/);
-  assert.match(widget, /WidgetSnapshotCache\(context\)\.read\(\)/);
-  assert.match(widget, /parseUnifiedWidgetPayload/);
-  assert.match(widget, /unifiedWidgetLayoutSpec/);
-  assert.match(widget, /widgetSize\.width\.toWidgetCells\(min = 2, max = 3\)/);
-  assert.match(widget, /widgetSize\.height\.toWidgetCells\(min = 2, max = 4\)/);
-  assert.match(widget, /DpSize\(width = 160\.dp, height = 160\.dp\)/);
-  assert.match(widget, /DpSize\(width = 240\.dp, height = 320\.dp\)/);
-  assert.doesNotMatch(widget, /DpSize\(width = 64\.dp, height = 64\.dp\)/);
-  assert.doesNotMatch(widget, /DpSize\(width = 480\.dp, height = 180\.dp\)/);
-  assert.doesNotMatch(widget, /DpSize\(width = 520\.dp, height = 180\.dp\)/);
-  assert.doesNotMatch(widget, /val isCompact = false/);
-  assert.match(widget, /\.background\(widgetBackgroundColor\(\)\)/);
-  assert.match(widget, /cornerRadius\(24\.dp\)/);
-  assert.match(widget, /ColorProvider\(R\.color\.widget_background\)/);
-  assert.match(widget, /ColorProvider\(R\.color\.widget_caption\)/);
-  assert.match(widget, /val homeAction = actionStartActivity\(/);
-  assert.match(widget, /RouteActionKey\.to\(AppRoute\.ROUTE_HOME\)/);
-  assert.match(widget, /\.clickable\(onClick = homeAction\)/);
-  assert.match(colors, /name="widget_background">#B3FFFFFF/);
-  assert.match(colors, /name="widget_caption">#475569/);
-  assert.match(nightColors, /name="widget_background">#B30F172A/);
-  assert.match(nightColors, /name="widget_caption">#CBD5E1/);
-  assert.match(widgetLayout, /data class UnifiedWidgetLayoutSpec/);
-  assert.match(widgetLayout, /fun unifiedWidgetLayoutSpec\(cellWidth: Int, cellHeight: Int\)/);
-  assert.match(widgetLayout, /val normalizedCellWidth = cellWidth\.coerceIn\(2, 3\)/);
-  assert.match(widgetLayout, /val normalizedCellHeight = cellHeight\.coerceIn\(2, 4\)/);
-  assert.match(widgetLayout, /UNIFIED_HEADER_HEIGHT_DP/);
-  assert.match(widgetLayout, /maxProviderCount = maxProviderCount/);
-  assert.match(widgetLayout, /rowHeightDp = availableRowHeightDp\.coerceAtLeast/);
-  assert.doesNotMatch(widget, /horizontalAlignment = Alignment\.Horizontal\.CenterHorizontally/);
-  assert.match(widget, /UnifiedProviderRow\(provider, layoutSpec\)/);
-  assert.match(widget, /ProviderWidgetPayload/);
-  assert.match(widget, /UnifiedWidgetLayoutSpec/);
-  assert.match(widget, /layoutSpec\.gaugeWidthDp/);
-  assert.doesNotMatch(widgetLayout, /gaugeWidthDp = 41/);
-  assert.doesNotMatch(widgetLayout, /gaugeWidthDp = 42/);
-  assert.doesNotMatch(widgetLayout, /gaugeWidthDp = 220/);
-  assert.match(rules, /allow delete: if isOwner\(userId\);/);
-  assert.match(widget, /AIUsageUnifiedGlanceWidget/);
-  assert.match(widget, /AIUsageUnifiedGlanceWidgetReceiver/);
-  assert.match(widget, /AIUsageLargeGlanceWidget/);
-  assert.doesNotMatch(widget, /class AIUsageGlanceWidgetReceiver/);
-  assert.match(repo, /AIUsageUnifiedGlanceWidget\(\)\.updateAll\(context\)/);
-  assert.match(repo, /ProviderUsageGlanceWidget\(\)\.updateAll\(context\)/);
-  assert.doesNotMatch(repo, /AIUsageLargeGlanceWidget\(\)\.updateAll\(context\)/);
-  assert.doesNotMatch(repo, /AIUsageCircularWidgetProvider\.updateAll\(context\)/);
-  assert.match(providerWidget, /class ProviderUsageGlanceWidget : GlanceAppWidget/);
-  assert.match(providerWidget, /providerWidgetPayload/);
-  assert.match(providerWidget, /ProviderPreferencesRepository/);
-  assert.match(providerWidget, /providerWidgetLayoutSpec/);
-  assert.match(providerWidget, /val providerAction = actionStartActivity\(/);
-  assert.match(providerWidget, /RouteActionKey\.to\(AppRoute\.ROUTE_PROVIDER\)/);
-  assert.match(providerWidget, /ProviderActionKey\.to\(payload\.providerId\)/);
-  assert.match(providerWidget, /LegacyProviderActionKey\.to\(payload\.providerId\)/);
-  assert.match(providerWidget, /providerWidgetSelection/);
-  assert.match(providerWidget, /\.clickable\(onClick = providerAction\)/);
-  assert.match(notificationController, /MainActivity\.createHomeIntent\(context\)/);
-  assert.match(appRoute, /EXTRA_PROVIDER_ID_LEGACY = "provider_id"/);
-  assert.match(mainActivity, /putExtra\(AppRoute\.EXTRA_PROVIDER_ID_LEGACY, providerIdStorageId\)/);
-  assert.match(providerWidget, /class ProviderUsageGlanceWidgetReceiver : GlanceAppWidgetReceiver/);
-  assert.match(providerWidgetConfig, /class ProviderWidgetConfigureActivity : ComponentActivity/);
-  assert.match(providerWidgetConfig, /saveProviderWidgetSelection\(appWidgetId, providerId\)/);
-  assert.match(providerWidgetConfig, /AppWidgetManager\.EXTRA_APPWIDGET_ID/);
-  assert.match(appShell, /AIUsageUnifiedGlanceWidget\(\)\.updateAll\(appContext\)/);
-  assert.match(appShell, /ProviderUsageGlanceWidget\(\)\.updateAll\(appContext\)/);
-  assert.match(providerWidget, /GaugeBar\(/);
-  assert.match(providerWidget, /ImageProvider\(providerIconRes\(payload\.providerId\)\)/);
-  assert.match(providerWidget, /providerIconRes/);
-  assert.match(providerPreviewLayout, /@drawable\/widget_background_rounded/);
-  assert.match(foregroundController, /KEY_PRECISE_REFRESH_ENABLED/);
-  assert.match(foregroundController, /KEY_PRECISE_REFRESH_PROMPT_SEEN/);
-  assert.match(foregroundController, /startForegroundService/);
-  assert.match(foregroundController, /stopService/);
-  assert.match(foregroundService, /class ForegroundRefreshService/);
-  assert.match(foregroundService, /startForeground/);
-  assert.match(foregroundService, /delay\(60_000\)/);
-  assert.match(foregroundService, /refreshLatestSnapshot/);
-  assert.match(compactNotificationLayout, /notification_compact_summary/);
-  assert.match(compactNotificationLayout, /android:maxLines="2"/);
-  assert.doesNotMatch(compactNotificationLayout, /notification_compact_title/);
-  assert.doesNotMatch(compactNotificationLayout, /notification_compact_icon/);
-  assert.match(compactNotificationLayout, /android:textSize="14sp"/);
+  assert.match(index, /defineSecret\("ANTIGRAVITY_GOOGLE_OAUTH_CLIENT_ID"\)/);
+  assert.match(index, /defineSecret\("ANTIGRAVITY_GOOGLE_OAUTH_CLIENT_SECRET"\)/);
+  assert.match(index, /defineSecret\("ANTIGRAVITY_GOOGLE_OAUTH_REDIRECT_URI"\)/);
+  assert.match(index, /defineSecret\("ANTIGRAVITY_TOKEN_MASTER_KEY"\)/);
+  assert.match(index, /startAntigravityOAuth/);
+  assert.match(index, /completeAntigravityOAuth/);
+  assert.match(index, /refreshAntigravityAccessToken/);
+  assert.match(index, /collectAntigravityUsage/);
+  assert.match(index, /disconnectAntigravity/);
+  assert.match(gateway, /encryptRefreshToken/);
+  assert.match(gateway, /decryptRefreshToken/);
+  assert.match(gateway, /createCipheriv\("aes-256-gcm"/);
+  assert.match(gateway, /tokenEncryptionProvider/);
+  assert.match(gateway, /BACKEND_API_FORBIDDEN/);
+  assert.match(gateway, /access_type", "offline"/);
+  assert.match(gateway, /prompt", "consent"/);
+  assert.match(core, /assertNoPlaintextProviderSecret/);
+  assert.doesNotMatch(functionsPackage, /@google-cloud\/kms/);
+  assert.match(firebase, /"functions"/);
+  assert.match(rules, /providerSecrets/);
+  assert.match(rules, /antigravityOAuthStates/);
 });
 
-test("Android local provider shell localizes Korean-first UI and scales layout metrics", () => {
-  const appLanguage = source("android/app/src/main/java/com/aiusage/mobile/localization/AppLanguage.kt");
-  const mainActivity = source("android/app/src/main/java/com/aiusage/mobile/MainActivity.kt");
-  const providerWidgetConfig = source("android/app/src/main/java/com/aiusage/mobile/widget/ProviderWidgetConfigureActivity.kt");
-  const appShell = source("android/app/src/main/java/com/aiusage/mobile/ui/AIUsageAppShell.kt");
-  const webLoginActivity = source("android/app/src/main/java/com/aiusage/mobile/providers/WebLoginActivity.kt");
-  const providerUsageCollectionService = source("android/app/src/main/java/com/aiusage/mobile/providers/ProviderUsageCollectionService.kt");
-  const dashboard = source("android/app/src/main/java/com/aiusage/mobile/ui/dashboard/UnifiedDashboardScreen.kt");
-  const providerDetail = source("android/app/src/main/java/com/aiusage/mobile/ui/provider/ProviderDetailScreen.kt");
-  const providerIcon = source("android/app/src/main/java/com/aiusage/mobile/ui/provider/ProviderIcon.kt");
-  const settingsPanel = source("android/app/src/main/java/com/aiusage/mobile/ui/settings/SettingsPanel.kt");
-  const designTokens = source("android/app/src/main/java/com/aiusage/mobile/ui/AIUsageDesignTokens.kt");
-  const layoutMetrics = source("android/app/src/main/java/com/aiusage/mobile/ui/AppLayoutMetrics.kt");
-  const appTheme = source("android/app/src/main/java/com/aiusage/mobile/local/AppTheme.kt");
-  const strings = source("android/app/src/main/res/values/strings.xml");
-  const koreanStrings = source("android/app/src/main/res/values-ko/strings.xml");
-  const fontPaths = [
-    "android/app/src/main/res/font/pretendard_regular.otf",
-    "android/app/src/main/res/font/pretendard_medium.otf",
-    "android/app/src/main/res/font/pretendard_semibold.otf",
-    "android/app/src/main/res/font/pretendard_bold.otf"
-  ];
+test("Gemini CLI OAuth token exchange uses Firebase Functions secrets", () => {
+  const index = source("functions/src/index.js");
+  const gateway = source("functions/src/geminiCliGateway.js");
+  const androidGateway = source("android/app/src/main/java/com/aiquota/mobile/providers/GeminiCliFirebaseGateway.kt");
+  const activity = source("android/app/src/main/java/com/aiquota/mobile/providers/GeminiCliLoopbackOAuthActivity.kt");
+  const appShell = source("android/app/src/main/java/com/aiquota/mobile/ui/AIQuotaAppShell.kt");
+  const rules = source("firestore.rules");
 
-  assert.match(appLanguage, /fun appLanguageForDeviceLanguage\(language: String\?\): AppLanguage/);
-  assert.match(appLanguage, /language\.equals\("ko", ignoreCase = true\)/);
-  assert.match(appLanguage, /Locale\.KOREAN/);
-  assert.match(appLanguage, /Locale\.ENGLISH/);
-  assert.match(mainActivity, /override fun attachBaseContext\(newBase: Context\)/);
-  assert.match(mainActivity, /newBase\.withAppLanguageForDeviceLanguage\(\)/);
-  assert.match(providerWidgetConfig, /override fun attachBaseContext\(newBase: Context\)/);
-  assert.match(providerWidgetConfig, /newBase\.withAppLanguageForDeviceLanguage\(\)/);
-  for (const path of fontPaths) {
-    assert.equal(existsSync(join(root, path)), true, `${path} should exist`);
-  }
-  assert.equal(existsSync(join(root, "android/app/src/main/res/drawable/ic_nav_home.png")), true, "home nav icon should exist");
-  assert.match(mainActivity, /PretendardFontFamily/);
-  assert.match(mainActivity, /Font\(R\.font\.pretendard_regular,\s*FontWeight\.Normal\)/);
-  assert.match(mainActivity, /typography = AIUsageTypography/);
-  assert.match(mainActivity, /window\.statusBarColor = AIUsageColors\.MacOSCanvas\.toArgb\(\)/);
-  assert.match(mainActivity, /window\.navigationBarColor = AIUsageColors\.MacOSCanvas\.toArgb\(\)/);
-  assert.match(mainActivity, /SYSTEM_UI_FLAG_LIGHT_STATUS_BAR/);
-  assert.match(mainActivity, /SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR/);
-  assert.match(designTokens, /BorderDefault = Color\(0xFF1C293C\)/);
-  assert.match(designTokens, /SurfaceMuted = Color\(0xFFFFFFFF\)/);
-  assert.match(designTokens, /SurfaceRaised = Color\(0xFFFDC800\)/);
-  assert.match(designTokens, /SurfaceStrong = Color\(0xFF432DD7\)/);
-  assert.match(designTokens, /MacOSCanvas = Color\(0xFFFAF9F5\)/);
-  assert.match(designTokens, /MacOSPrimary = Color\(0xFFCC785C\)/);
-  assert.match(designTokens, /MacOSSurfaceDark = Color\(0xFF181715\)/);
-  assert.match(designTokens, /cardChrome = AIUsageColors\.MacOSSurfaceCard/);
-  assert.match(designTokens, /titleBar = AIUsageColors\.MacOSSurfaceSoft/);
-  assert.match(designTokens, /content = AIUsageColors\.MacOSCanvas/);
-  assert.match(designTokens, /contentAlt = AIUsageColors\.MacOSSurfaceSoft/);
-  assert.doesNotMatch(designTokens, /cardChrome = AIUsageColors\.MacOSSurfaceDark/);
-  assert.match(appShell, /CompositionLocalProvider\(LocalAIUsageThemeColors provides themeColors\)/);
-  assert.match(appShell, /MaterialTheme\(colorScheme = aiUsageMaterialColorScheme\(themeColors\)\)/);
-  assert.match(appShell, /containerColor = themeColors\.appBackground/);
-  assert.match(appShell, /color = colors\.appBackground,\s*tonalElevation = 0\.dp/);
-  assert.match(appTheme, /enum class AppTheme\(val storageId: String\)/);
-  assert.match(appTheme, /WINDOWS\("windows"\)/);
-  assert.match(appTheme, /MACOS\("macos"\)/);
-  assert.match(appTheme, /DEFAULT = MACOS/);
-  assert.match(appTheme, /fun selectableThemes\(\): List<AppTheme>/);
-  assert.match(appTheme, /shouldMigrateLegacyWindowsDefault/);
-  assert.match(appTheme, /KEY_MACOS_DEFAULT_MIGRATED = "macos_default_migrated"/);
-  assert.match(appTheme, /putBoolean\(KEY_MACOS_DEFAULT_MIGRATED, true\)/);
-  assert.match(appTheme, /class ThemePreferencesRepository/);
-  assert.match(appShell, /ThemePreferencesRepository\(appContext\)/);
-  assert.match(appShell, /var currentTheme by remember/);
-  assert.match(appShell, /fun applyTheme\(theme: AppTheme\)/);
-  assert.match(appShell, /onThemeSelected = ::applyTheme/);
-  assert.doesNotMatch(appShell, /settings_theme_coming_soon/);
-
-  assert.match(appShell, /getString\(\s*R\.string\.provider_login_unavailable_message/);
-  assert.match(appShell, /getString\(\s*R\.string\.provider_login_opened_message\)/);
-  assert.match(appShell, /getString\(\s*R\.string\.provider_login_open_failed_message\)/);
-  assert.match(appShell, /getString\(\s*R\.string\.provider_refresh_started_message\)/);
-  assert.match(webLoginActivity, /settings\.javaScriptEnabled = true/);
-  assert.match(webLoginActivity, /settings\.javaScriptCanOpenWindowsAutomatically = true/);
-  assert.match(webLoginActivity, /settings\.setSupportMultipleWindows\(true\)/);
-  assert.match(webLoginActivity, /settings\.domStorageEnabled = true/);
-  assert.match(webLoginActivity, /settings\.databaseEnabled = true/);
-  assert.match(webLoginActivity, /settings\.allowFileAccess = true/);
-  assert.match(webLoginActivity, /settings\.userAgentString = MOBILE_CHROME_USER_AGENT/);
-  assert.match(webLoginActivity, /Chrome\/119\.0\.0\.0 Mobile Safari\/537\.36/);
-  assert.doesNotMatch(webLoginActivity, /settings\.userAgentString\.replace\("; wv", ""\)/);
-  assert.match(webLoginActivity, /setContentView\(createLoginContainer\(loginView\)\)/);
-  assert.match(webLoginActivity, /WEB_LOGIN_TOP_SAFE_PADDING_DP/);
-  assert.match(webLoginActivity, /status_bar_height/);
-  assert.match(webLoginActivity, /navigation_bar_height/);
-  assert.match(webLoginActivity, /setAcceptThirdPartyCookies\(this, true\)/);
-  assert.match(webLoginActivity, /addJavascriptInterface\(/);
-  assert.match(webLoginActivity, /class UsageBridge/);
-  assert.match(webLoginActivity, /@JavascriptInterface/);
-  assert.match(webLoginActivity, /fun onUsagePayload/);
-  assert.match(webLoginActivity, /WebChromeClient/);
-  assert.match(webLoginActivity, /onCreateWindow/);
-  assert.match(webLoginActivity, /onCloseWindow/);
-  assert.match(webLoginActivity, /view\.onBlockedMainFrame\([^)]*\)\s*return true/);
-  assert.match(webLoginActivity, /installProviderUsageHooks\(providerId, view\)/);
-  assert.match(webLoginActivity, /ProviderLocalUsageCollector\.hookScriptFor\(providerId\)/);
-  assert.match(webLoginActivity, /ProviderLocalUsageCollector\.scriptFor\(providerId\)/);
-  assert.match(webLoginActivity, /TextUsageExtractor\.extract\(providerId, localUsagePayload\)/);
-  const collectProviderUsageBody = webLoginActivity.match(
-    /private fun collectProviderUsage\([\s\S]*?\n    private fun handleLocalUsagePayload/
-  )?.[0] ?? "";
-  assert.match(collectProviderUsageBody, /ProviderLocalUsageCollector\.scriptFor\(providerId\)/);
-  assert.doesNotMatch(collectProviderUsageBody, /LOGIN_STATE_SCRIPT/);
-  assert.match(collectProviderUsageBody, /attempt < MAX_USAGE_CAPTURE_ATTEMPTS/);
-  assert.doesNotMatch(collectProviderUsageBody, /&&\s*!loginCompletionRecorded\s*&&\s*attempt < MAX_USAGE_CAPTURE_ATTEMPTS/);
-  assert.match(webLoginActivity, /finishConnectedCaptureWithoutUsage\(providerId\)/);
-  assert.match(webLoginActivity, /if \(!finishWhenNoUsage\) return/);
-  assert.match(webLoginActivity, /startBackgroundUsageCollection\(providerId\)/);
-  assert.match(webLoginActivity, /ProviderUsageCollectionService\.start\(/);
-  assert.match(webLoginActivity, /ProviderUsageCollectionService\.SOURCE_LOGIN/);
-  assert.match(webLoginActivity, /if \(isFinishing\) \{\s*saveCancelledSnapshotIfNeeded\(\)\s*\}/);
-  assert.match(webLoginActivity, /if \(isChangingConfigurations \|\| connectionRecorded \|\| usageRecorded \|\| cancellationRecorded\) return/);
-  assert.match(webLoginActivity, /provider_login_cancelled_message/);
-  assert.match(webLoginActivity, /finishAfterProviderCapture\(\)/);
-  assert.match(webLoginActivity, /saveUsageSnapshot\(extractedSnapshot\)\s*finishAfterProviderCapture\(\)/);
-  assert.doesNotMatch(webLoginActivity, /startUsageProbe|loadNextUsageProbe|pendingProbeUrls/);
-  assert.match(source("android/app/src/main/AndroidManifest.xml"), /ProviderUsageCollectionService/);
-  assert.match(providerUsageCollectionService, /class ProviderUsageCollectionService : Service\(\)/);
-  assert.match(providerUsageCollectionService, /startForeground\(NOTIFICATION_ID, notification/);
-  assert.match(providerUsageCollectionService, /FOREGROUND_SERVICE_TYPE_DATA_SYNC/);
-  assert.match(providerUsageCollectionService, /settings\.javaScriptEnabled = true/);
-  assert.match(providerUsageCollectionService, /settings\.domStorageEnabled = true/);
-  assert.match(providerUsageCollectionService, /settings\.databaseEnabled = true/);
-  assert.match(providerUsageCollectionService, /settings\.userAgentString = MOBILE_CHROME_USER_AGENT/);
-  assert.match(providerUsageCollectionService, /setAcceptThirdPartyCookies\(this, true\)/);
-  assert.match(providerUsageCollectionService, /addJavascriptInterface\(UsageBridge/);
-  assert.match(providerUsageCollectionService, /AIUsageLocalCollector/);
-  assert.match(providerUsageCollectionService, /ProviderUsageProbeTargets\.urls\(nextProviderId\)/);
-  assert.match(providerUsageCollectionService, /installUsageHooks\(currentUrl\)/);
-  assert.match(providerUsageCollectionService, /ProviderLocalUsageCollector\.hookScriptFor\(provider\)/);
-  assert.match(providerUsageCollectionService, /ProviderLocalUsageCollector\.scriptFor\(provider\)/);
-  assert.match(providerUsageCollectionService, /TextUsageExtractor\.extract\(provider, payload\)/);
-  assert.match(providerUsageCollectionService, /ProviderLoginCompletionDetector\.isLoginComplete\(provider, url, payload\)/);
-  assert.match(providerUsageCollectionService, /provider_usage_not_found_message/);
-  assert.match(providerUsageCollectionService, /WidgetSnapshotCache\(applicationContext\)\.writeLocalDisplaySnapshot/);
-  assert.match(providerUsageCollectionService, /UsageLimitNotificationController\.updateFromCache\(applicationContext\)/);
-  assert.match(appShell, /ProviderUsageCollectionService\.start\(/);
-  assert.match(appShell, /ProviderUsageCollectionService\.SOURCE_REFRESH/);
-  assert.match(source("android/app/src/main/java/com/aiusage/mobile/providers/ProviderLocalUsageCollector.kt"), /AIUsageLocalCollector/);
-  assert.match(source("android/app/src/main/java/com/aiusage/mobile/providers/ProviderLocalUsageCollector.kt"), /fetchProviderEndpoints/);
-  assert.match(source("android/app/src/main/java/com/aiusage/mobile/providers/ProviderLocalUsageCollector.kt"), /credentials: 'include'/);
-  assert.match(source("android/app/src/main/java/com/aiusage/mobile/providers/ProviderLocalUsageCollector.kt"), /\/backend-api\/accounts\/check\/v4-2023-04-27/);
-  assert.match(source("android/app/src/main/java/com/aiusage/mobile/providers/ProviderLocalUsageCollector.kt"), /\/api\/bootstrap/);
-  assert.match(source("android/app/src/main/java/com/aiusage/mobile/providers/ProviderLoginCompletionDetector.kt"), /로그인|\\ub85c\\uadf8\\uc778/);
-  assert.match(source("android/app/src/main/java/com/aiusage/mobile/providers/ProviderLocalUsageCollector.kt"), /회원가입|\\ud68c\\uc6d0\\uac00\\uc785/);
-  assert.doesNotMatch(source("android/app/src/main/java/com/aiusage/mobile/providers/ProviderUsageProbeTargets.kt"), /platform\.openai\.com/);
-  assert.doesNotMatch(source("android/app/src/main/java/com/aiusage/mobile/providers/ProviderHostAllowlist.kt"), /"platform\.openai\.com"/);
-  assert.doesNotMatch(appShell, /Local web login is unavailable|Opened local web login|Could not open provider login|Open Connect to capture visible usage text first/);
-  assert.match(strings, /name="provider_login_unavailable_message">Local web login is unavailable for %1\$s\./);
-  assert.match(koreanStrings, /name="provider_login_unavailable_message">%1\$s 로컬 웹 로그인을 사용할 수 없습니다\./);
-  assert.match(koreanStrings, /name="nav_home">홈/);
-  assert.match(koreanStrings, /name="dashboard_title">Dashboard/);
-
-  assert.match(layoutMetrics, /fun appLayoutMetrics\(\s*screenWidthDp: Int,\s*screenHeightDp: Int\s*\): AppLayoutMetrics/);
-  assert.match(layoutMetrics, /widthScale/);
-  assert.match(layoutMetrics, /heightScale/);
-  assert.match(layoutMetrics, /navBarMinHeightDp/);
-  assert.match(layoutMetrics, /navBarMaxWidthDp/);
-  assert.match(layoutMetrics, /navBottomExtraPaddingDp/);
-  assert.match(layoutMetrics, /topBarTopExtraPaddingDp/);
-  assert.match(layoutMetrics, /mainContentTopLiftDp/);
-  assert.match(layoutMetrics, /topBarSettingsYOffsetDp/);
-  assert.match(layoutMetrics, /dashboardVisibleProviderCount/);
-  assert.match(layoutMetrics, /dashboardGridColumnCount/);
-  assert.match(layoutMetrics, /dashboardProviderCardHeightDp/);
-  assert.match(layoutMetrics, /fluidChipWidth\.coerceIn/);
-  assert.match(layoutMetrics, /narrowPhone/);
-  assert.match(appShell, /heightIn\(min = layoutMetrics\.navBarMinHeightDp\.dp\)/);
-  assert.match(appShell, /widthIn\(max = layoutMetrics\.navBarMaxWidthDp\.dp\)/);
-  assert.match(appShell, /Arrangement\.spacedBy\(layoutMetrics\.navGapDp\.dp, Alignment\.CenterHorizontally\)/);
-  assert.match(appShell, /\.width\(layoutMetrics\.navChipWidthDp\.dp\)/);
-  assert.match(appShell, /ProviderNavigationChip/);
-  assert.match(appShell, /R\.drawable\.ic_nav_home/);
-  assert.match(appShell, /contentScale = ContentScale\.Fit/);
-  assert.match(appShell, /topBarSettingsYOffsetDp\.dp/);
-  assert.match(appShell, /providerNavigationLabel/);
-  assert.match(appShell, /Text\(\s*text = providerNavigationLabel\(providerId\)/);
-  assert.match(appShell, /IconButton\(\s*modifier = Modifier/);
-  assert.match(appShell, /ProviderId\.defaultOrder\(\)\.forEach/);
-  assert.doesNotMatch(appShell, /providerOrder\.forEach/);
-  assert.doesNotMatch(appShell, /AppNavigationBar\([\s\S]*ProviderPreferencesCodec\.visibleProviders\(providerOrder, hiddenProviders\)/);
-  assert.doesNotMatch(appShell, /legacyWindowsSyncContent/);
-  assert.doesNotMatch(appShell, /route\.title\(\)/);
-  assert.match(dashboard, /detectDragGesturesAfterLongPress/);
-  assert.match(dashboard, /onGloballyPositioned/);
-  assert.match(dashboard, /dragTargetIndexFromCenter/);
-  assert.match(dashboard, /DashboardCardCenter/);
-  assert.match(dashboard, /visibleProviders\.chunked\(gridColumnCount\)/);
-  assert.match(dashboard, /BoxWithConstraints/);
-  assert.match(dashboard, /dashboardProviderCardHeightDp/);
-  assert.match(dashboard, /stringResource\(R\.string\.dashboard_title\)/);
-  assert.doesNotMatch(dashboard, /dashboard_description/);
-  assert.doesNotMatch(dashboard, /84\.dp/);
-  assert.match(dashboard, /ProviderIconImage\(/);
-  assert.match(dashboard, /Column\(modifier = Modifier\.fillMaxSize\(\)\)/);
-  assert.match(dashboard, /\.weight\(1f\)\s*\.padding\(start = 4\.dp, end = 4\.dp, bottom = 4\.dp\)/);
-  assert.doesNotMatch(dashboard, /ic_windows_folder/);
-  assert.equal(existsSync(join(root, "android/app/src/main/res/drawable/ic_windows_folder.xml")), false);
-  assert.match(providerIcon, /ProviderId\.CURSOR -> R\.drawable\.ic_provider_cursor/);
-  assert.match(providerIcon, /fun providerIconVisualScale\(providerId: ProviderId\): Float/);
-  assert.match(providerIcon, /Modifier\.fillMaxSize\(providerIconVisualScale\(providerId\)\)/);
-  assert.match(providerIcon, /ProviderId\.CLAUDE -> 0\.85f/);
-  assert.match(providerIcon, /ProviderId\.CODEX -> 0\.85f/);
-  assert.match(providerIcon, /ProviderId\.COPILOT -> 0\.64f/);
-  assert.match(providerIcon, /ProviderId\.CURSOR -> 0\.73f/);
-  assert.match(source("android/app/src/main/java/com/aiusage/mobile/local/ProviderModels.kt"), /COPILOT\("copilot", "Copilot"\)/);
-  assert.match(source("android/app/src/main/java/com/aiusage/mobile/local/LocalUsageRepository.kt"), /normalizedDisplayName/);
-  assert.match(source("android/app/src/main/java/com/aiusage/mobile/widget/WidgetGaugeParser.kt"), /"copilot" -> "Copilot"/);
-  assert.match(source("android/app/src/main/java/com/aiusage/mobile/providers/ProviderHostAllowlist.kt"), /authenticator\.cursor\.sh/);
-  assert.match(providerDetail, /ClassicProviderWindow/);
-  assert.match(providerDetail, /ProviderIconImage\(/);
-  assert.match(providerDetail, /UsageAnalysisSection/);
-  assert.match(providerDetail, /provider_analysis_title/);
-  assert.match(providerDetail, /snapshot\.lines\.forEach/);
-  assert.match(providerDetail, /ProviderSummaryBlock/);
-  assert.match(providerDetail, /ClassicInfoLineWithRefresh/);
-  assert.match(providerDetail, /RefreshIconButton/);
-  assert.match(providerDetail, /IconButton\(\s*onClick = onRefresh/);
-  assert.match(providerDetail, /Button\(\s*onClick = if \(isConnected\) onDisconnect else onConnect/);
-  assert.doesNotMatch(providerDetail, /OutlinedButton\(\s*onClick = if \(isHidden\)/);
-  assert.match(strings, /name="settings_theme_title">Theme/);
-  assert.match(strings, /name="settings_theme_body">Current theme: %1\$s/);
-  assert.match(strings, /name="settings_theme_windows">Windows theme/);
-  assert.match(strings, /name="settings_theme_macos">MacOS theme/);
-  assert.match(strings, /name="settings_theme_applied">%1\$s applied\./);
-  assert.match(settingsPanel, /rememberSaveable/);
-  assert.match(settingsPanel, /showThemeOptions/);
-  assert.match(settingsPanel, /OutlinedButton\(onClick = \{ showThemeOptions = !showThemeOptions \}\)/);
-  assert.match(settingsPanel, /ThemePickerDialog\(/);
-  assert.match(settingsPanel, /Dialog\(\s*onDismissRequest = onDismissRequest/);
-  assert.match(settingsPanel, /AnimatedVisibility\(/);
-  assert.match(settingsPanel, /fadeIn\(/);
-  assert.match(settingsPanel, /scaleIn\(/);
-  assert.match(strings, /name="settings_theme_picker_title">Choose theme/);
-  assert.match(settingsPanel, /onThemeSelected\(AppTheme\.WINDOWS\)/);
-  assert.match(settingsPanel, /onThemeSelected\(AppTheme\.MACOS\)/);
-  assert.match(strings, /name="provider_analysis_title">Usage analysis/);
-  assert.match(koreanStrings, /name="provider_analysis_title">사용량 분석/);
-  assert.doesNotMatch(strings, /dashboard_description/);
-  assert.doesNotMatch(koreanStrings, /dashboard_description/);
-  assert.match(koreanStrings, /name="settings_theme_title">/);
-  assert.doesNotMatch(strings, /settings_legacy_windows_sync|settings_preserved_windows_sync|settings_legacy_content_unavailable/);
-  assert.doesNotMatch(appShell, /RouteChip\(\s*label = providerId\.displayName/);
-  assert.doesNotMatch(appShell, /RouteChip\(\s*label = stringResource\(R\.string\.nav_settings\)/);
-});
-
-test("Android main UI uses Firebase auth with device list, rename flow, and snapshot refresh", () => {
-  const main = source("android/app/src/main/java/com/aiusage/mobile/MainActivity.kt");
-  const manifest = source("android/app/src/main/AndroidManifest.xml");
-  const styles = source("android/app/src/main/res/values/styles.xml");
-  const strings = source("android/app/src/main/res/values/strings.xml");
-  const koreanStrings = source("android/app/src/main/res/values-ko/strings.xml");
-  const gradle = source("android/app/build.gradle.kts");
-  const privacyPolicy = source("docs/privacy-policy.md");
-
-  assert.match(manifest, /android:theme="@style\/Theme\.AIUsage"/);
-  assert.match(manifest, /uses-permission android:name="android\.permission\.INTERNET"/);
-  assert.match(styles, /windowActionBar">false/);
-  assert.match(styles, /windowNoTitle">true/);
-  assert.match(main, /Continue with Google/);
-  assert.match(main, /LoginScreen/);
-  assert.match(main, /painterResource\(R\.mipmap\.ic_launcher_foreground\)/);
-  assert.equal((main.match(/painterResource\(R\.drawable\.ic_google_g\)/g) || []).length, 1);
-  assert.match(main, /GoogleButtonSurface/);
-  assert.match(main, /contentDescription = "AI Usage icon"/);
-  assert.match(main, /contentDescription = "Google"/);
-  assert.doesNotMatch(main, /modifier = Modifier\.size\(48\.dp\)[\s\S]*?R\.drawable\.ic_google_g/);
-  assert.match(main, /FirebaseAuth/);
-  assert.match(main, /GoogleSignInOptions/);
-  assert.match(main, /GoogleAuthProvider/);
-  assert.match(main, /auth\.currentUser/);
-  assert.match(main, /refreshLatestSnapshot/);
-  assert.match(main, /deviceList/);
-  assert.match(main, /LimitDashboard/);
-  assert.match(main, /ProviderLimitCard/);
-  assert.match(main, /ProviderLimitLine/);
-  assert.match(main, /AppHeader/);
-  assert.match(main, /AppHeader\(showSettings = showSettings, onToggleSettings = onToggleSettings\)/);
-  assert.doesNotMatch(main, /AppHeader\([^)]*snapshotResult/);
-  assert.doesNotMatch(main, /AppHeader\([^)]*deviceList/);
-  assert.match(main, /HeaderTopOffset/);
-  assert.match(main, /WindowsAppBackground/);
-  assert.match(main, /BrandPurple/);
-  assert.match(main, /PlanPill/);
-  assert.match(main, /BorderStroke\(1\.dp, DividerColor\)/);
-  assert.match(main, /SettingsPanel/);
-  assert.match(main, /stringResource\(R\.string\.settings_rename_selected_device\)/);
-  assert.match(main, /stringResource\(R\.string\.settings_save_device_name\)/);
-  assert.match(main, /stringResource\(R\.string\.settings_delete_device\)/);
-  assert.match(main, /combinedClickable/);
-  assert.match(main, /onLongClick/);
-  assert.match(main, /deleteCandidateDeviceId/);
-  assert.match(main, /stringResource\(R\.string\.settings_selected_device\)/);
-  assert.match(main, /stringResource\(R\.string\.settings_connected_devices\)/);
-  assert.match(main, /Usage Limits/);
-  assert.match(main, /stringResource\(R\.string\.settings_refreshing_snapshot\)/);
-  assert.match(main, /stringResource\(R\.string\.settings_snapshot_status\)/);
-  assert.match(main, /stringResource\(R\.string\.settings_no_pc_linked\)/);
-  assert.match(main, /remainingRatio/);
-  assert.match(main, /delay\(60_000\)/);
-  assert.match(main, /isActive/);
-  assert.match(main, /rememberSignedInUser/);
-  assert.match(main, /scheduleWidgetRefresh/);
-  assert.match(main, /Signing in\.\.\./);
-  assert.match(main, /stringResource\(R\.string\.settings_sign_out\)/);
-  assert.match(strings, /name="settings_connected_devices">Connected devices/);
-  assert.match(strings, /name="settings_delete_device">Delete device/);
-  assert.match(strings, /name="widget_sign_in_required">Please sign in\./);
-  assert.match(koreanStrings, /name="settings_connected_devices">연결된 장치/);
-  assert.match(koreanStrings, /name="settings_delete_device">장치 삭제/);
-  assert.match(koreanStrings, /name="widget_sign_in_required">로그인을 진행해주세요/);
-  assert.match(main, /ForegroundRefreshController/);
-  assert.match(main, /preciseRefreshEnabled/);
-  assert.match(main, /preciseRefreshPromptSeen/);
-  assert.match(main, /settings_precise_refresh/);
-  assert.match(main, /precise_refresh_prompt_title/);
-  assert.match(main, /stopPreciseRefresh/);
-  assert.doesNotMatch(main, /Intent\.ACTION_SENDTO/);
-  assert.doesNotMatch(main, /settings_request_account_deletion/);
-  assert.match(strings, /name="settings_precise_refresh">1-minute pinned refresh/);
-  assert.match(strings, /name="precise_refresh_prompt_title">Keep widgets closer to real time\?/);
-  assert.doesNotMatch(strings, /name="settings_request_account_deletion">Request account deletion/);
-  assert.match(koreanStrings, /name="settings_precise_refresh">1분 고정 갱신/);
-  assert.match(koreanStrings, /name="precise_refresh_prompt_title">위젯을 더 실시간에 가깝게 유지할까요\?/);
-  assert.doesNotMatch(koreanStrings, /name="settings_request_account_deletion">계정 삭제 요청/);
-  assert.match(privacyPolicy, /datell1357@naver\.com/);
-  assert.match(main, /providers\.forEach/);
-  assert.doesNotMatch(main, /Text\(\s*"Windows PC"/);
-  assert.doesNotMatch(main, /Continue with GitHub/);
-  assert.doesNotMatch(main, /OAuthProvider\.newBuilder\("github\.com"\)/);
-  assert.doesNotMatch(main, /signedIn = true/);
-  assert.doesNotMatch(main, /482 193/);
-  assert.doesNotMatch(main, /Generate PC Link Code/);
-  assert.doesNotMatch(main, /Latest Snapshot/);
-  assert.doesNotMatch(main, /Save sample snapshot/);
-  assert.match(gradle, /play-services-auth/);
-  assert.match(gradle, /lifecycle-runtime-ktx/);
-  assert.match(gradle, /kotlinx-coroutines-play-services/);
-  assert.match(gradle, /buildConfig = true/);
-});
-
-test("Android app uses one consent-gated AdMob dashboard banner and updates Play disclosures", () => {
-  const main = source("android/app/src/main/java/com/aiusage/mobile/MainActivity.kt");
-  const consentManager = source("android/app/src/main/java/com/aiusage/mobile/ads/AdConsentManager.kt");
-  const gradle = source("android/app/build.gradle.kts");
-  const manifest = source("android/app/src/main/AndroidManifest.xml");
-  const strings = source("android/app/src/main/res/values/strings.xml");
-  const privacyPolicy = source("docs/privacy-policy.md");
-  const dataSafety = source("store-assets/google-play/data-safety-draft.md");
-  const storeListingEn = source("store-assets/google-play/store-listing-en.md");
-  const storeListingKo = source("store-assets/google-play/store-listing-ko.md");
-
-  assert.match(gradle, /com\.google\.android\.gms:play-services-ads/);
-  assert.match(gradle, /com\.google\.android\.ump:user-messaging-platform/);
-  assert.match(gradle, /ADMOB_BANNER_AD_UNIT_ID/);
-  assert.match(gradle, /ADS_ENABLED/);
-  assert.match(gradle, /ca-app-pub-3940256099942544\/9214589741/);
-
-  assert.match(manifest, /com\.google\.android\.gms\.permission\.AD_ID/);
-  assert.match(manifest, /com\.google\.android\.gms\.ads\.APPLICATION_ID/);
-  assert.match(manifest, /\$\{adMobApplicationId\}/);
-
-  assert.match(consentManager, /UserMessagingPlatform\.getConsentInformation/);
-  assert.match(consentManager, /requestConsentInfoUpdate/);
-  assert.match(consentManager, /loadAndShowConsentFormIfRequired/);
-  assert.match(consentManager, /showPrivacyOptionsForm/);
-  assert.match(consentManager, /PrivacyOptionsRequirementStatus\.REQUIRED/);
-
-  assert.match(main, /MobileAds\.initialize/);
-  assert.match(main, /AdBanner/);
-  assert.match(main, /AndroidView/);
-  assert.match(main, /AdView\(context\)/);
-  assert.match(main, /AdSize\.getCurrentOrientationAnchoredAdaptiveBannerAdSize/);
-  assert.match(main, /AdRequest\.Builder\(\)/);
-  assert.match(main, /Bundle\(\)\.apply/);
-  assert.match(main, /putString\("npa", "1"\)/);
-  assert.match(main, /AdMobAdapter::class\.java/);
-  assert.match(main, /adView\.destroy\(\)/);
-  assert.match(main, /onPrivacyChoices/);
-  assert.match(main, /settings_privacy_choices/);
-  assert.match(main, /showPrivacyOptionsForm/);
-  assert.match(main, /val showFixedAdBanner = !showSettings && canRequestAds && mobileAdsInitialized/);
-  assert.match(main, /Modifier\.align\(Alignment\.BottomCenter\)/);
-  assert.match(main, /AdBannerBottomBar/);
-  assert.match(main, /bottom = if \(showFixedAdBanner\) 96\.dp else 20\.dp/);
-  assert.equal((main.match(/AdBannerBottomBar\(\s*modifier = Modifier/g) || []).length, 1);
-  assert.equal((main.match(/AdBanner\(\s*modifier = Modifier\.fillMaxWidth\(\)/g) || []).length, 1);
-  assert.doesNotMatch(main, /showAdBanner/);
-  assert.doesNotMatch(main, /InterstitialAd/);
-  assert.doesNotMatch(main, /RewardedAd/);
-  assert.doesNotMatch(main, /NativeAd/);
-
-  assert.match(strings, /name="settings_privacy_choices">Privacy choices/);
-  assert.match(privacyPolicy, /Google AdMob/);
-  assert.match(privacyPolicy, /Google Mobile Ads SDK/);
-  assert.match(privacyPolicy, /User Messaging Platform/);
-  assert.match(dataSafety, /Advertising ID/);
-  assert.match(dataSafety, /IP address/);
-  assert.match(dataSafety, /App interactions/);
-  assert.match(dataSafety, /Diagnostic information/);
-  assert.match(dataSafety, /Advertising or marketing/);
-  assert.match(storeListingEn, /AI Usage may show ads inside the Android app\./);
-  assert.match(storeListingEn, /Home screen widgets and the pinned notification do not contain ads\./);
-  assert.match(storeListingKo, /AI Usage는 Android 앱 안에 광고를 표시할 수 있습니다\./);
-  assert.match(storeListingKo, /홈 화면 위젯과 고정 알림에는 광고가 표시되지 않습니다\./);
+  assert.match(index, /defineSecret\("GEMINI_CLI_GOOGLE_OAUTH_CLIENT_ID"\)/);
+  assert.match(index, /defineSecret\("GEMINI_CLI_GOOGLE_OAUTH_CLIENT_SECRET"\)/);
+  assert.match(index, /defineSecret\("GEMINI_CLI_GOOGLE_OAUTH_REDIRECT_URI"\)/);
+  assert.match(index, /startGeminiCliOAuth/);
+  assert.match(index, /completeGeminiCliOAuth/);
+  assert.match(index, /refreshGeminiCliAccessToken/);
+  assert.match(gateway, /client_secret: oauthClientSecret/);
+  assert.match(gateway, /refreshGeminiCliAccessToken/);
+  assert.match(gateway, /geminiCliOAuthStates/);
+  assert.match(androidGateway, /getHttpsCallable\("startGeminiCliOAuth"\)/);
+  assert.match(androidGateway, /getHttpsCallable\("completeGeminiCliOAuth"\)/);
+  assert.match(androidGateway, /getHttpsCallable\("refreshGeminiCliAccessToken"\)/);
+  assert.match(activity, /GeminiCliFirebaseGateway/);
+  assert.match(activity, /completeOAuth\(url\)/);
+  assert.match(appShell, /providerId == ProviderId\.GEMINI/);
+  assert.doesNotMatch(`${androidGateway}\n${activity}`, /GEMINI_CLI_GOOGLE_OAUTH_CLIENT_SECRET|client_secret/);
+  assert.match(rules, /geminiCliOAuthStates/);
 });
 
 test("iOS main UI exposes pre-production mobile flow up to snapshot display", () => {
-  const content = source("ios/AIUsageMobile/ContentView.swift");
-  const store = source("ios/AIUsageMobile/SnapshotStore.swift");
+  const content = source("ios/AIQuotaMobile/ContentView.swift");
+  const store = source("ios/AIQuotaMobile/SnapshotStore.swift");
 
   assert.match(content, /Continue with Google/);
   assert.match(content, /Continue with GitHub/);

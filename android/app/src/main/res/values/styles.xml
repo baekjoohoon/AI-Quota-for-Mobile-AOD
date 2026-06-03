@@ -1,5 +1,5 @@
-<resources>
-  <style name="Theme.AIUsage" parent="android:style/Theme.Material.Light.NoActionBar">
+﻿<resources>
+  <style name="Theme.AIQuota" parent="android:style/Theme.Material.Light.NoActionBar">
     <item name="android:windowActionBar">false</item>
     <item name="android:windowNoTitle">true</item>
   </style>

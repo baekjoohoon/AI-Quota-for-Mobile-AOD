@@ -1,4 +1,4 @@
-# AI Usage Mobile Sync Phases
+# AI Quota Mobile Sync Phases
 
 ## Phase 1: Free-plan Android MVP
 
@@ -29,7 +29,7 @@ Definition of done:
 
 Goal:
 
-- let AI Usage for Windows sign in with the same Firebase account and write snapshots directly
+- let AI Quota for Windows sign in with the same Firebase account and write snapshots directly
 
 Scope:
 

@@ -25,6 +25,18 @@ service cloud.firestore {
           allow delete: if isOwner(userId);
         }
       }
+
+      match /providerSecrets/{providerId} {
+        allow read, write: if false;
+      }
+    }
+
+    match /antigravityOAuthStates/{stateHash} {
+      allow read, write: if false;
+    }
+
+    match /geminiCliOAuthStates/{stateHash} {
+      allow read, write: if false;
     }
 
     match /{document=**} {

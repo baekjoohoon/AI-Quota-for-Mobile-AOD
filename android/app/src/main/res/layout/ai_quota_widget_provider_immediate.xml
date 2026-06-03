@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/provider_immediate_root"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:background="@drawable/widget_background_macos_rounded"
+  android:gravity="center_vertical"
+  android:orientation="vertical"
+  android:paddingStart="10dp"
+  android:paddingTop="10dp"
+  android:paddingEnd="10dp"
+  android:paddingBottom="10dp">
+
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="24dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <ImageView
+      android:id="@+id/provider_immediate_icon"
+      android:layout_width="18dp"
+      android:layout_height="18dp"
+      android:contentDescription="@null"
+      android:scaleType="fitCenter" />
+
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="8dp"
+      android:layout_weight="1"
+      android:orientation="vertical">
+
+      <TextView
+        android:id="@+id/provider_immediate_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_caption"
+        android:textSize="12sp" />
+
+      <TextView
+        android:id="@+id/provider_immediate_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_caption"
+        android:textSize="9sp" />
+    </LinearLayout>
+
+    <ImageView
+      android:id="@+id/provider_immediate_refresh"
+      android:layout_width="20dp"
+      android:layout_height="20dp"
+      android:layout_marginStart="6dp"
+      android:contentDescription="@string/widget_refresh"
+      android:scaleType="center" />
+  </LinearLayout>
+
+  <LinearLayout
+    android:id="@+id/provider_immediate_line_1"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="5dp"
+    android:orientation="vertical">
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="16dp"
+      android:gravity="center_vertical"
+      android:orientation="horizontal">
+
+      <TextView
+        android:id="@+id/provider_immediate_label"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_caption"
+        android:textSize="10sp" />
+
+      <TextView
+        android:id="@+id/provider_immediate_remaining"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="1dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_caption"
+        android:textSize="10sp" />
+    </LinearLayout>
+
+    <ProgressBar
+      android:id="@+id/provider_immediate_progress"
+      style="?android:attr/progressBarStyleHorizontal"
+      android:layout_width="match_parent"
+      android:layout_height="8dp"
+      android:layout_marginTop="3dp"
+      android:indeterminate="false"
+      android:max="100"
+      android:maxHeight="24dp"
+      android:minHeight="0dp"
+      android:progressDrawable="@drawable/widget_provider_progress" />
+
+    <TextView
+      android:id="@+id/provider_immediate_reset"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="2dp"
+      android:ellipsize="end"
+      android:gravity="end"
+      android:maxLines="1"
+      android:textColor="@color/widget_caption"
+      android:textSize="9sp" />
+  </LinearLayout>
+
+  <LinearLayout
+    android:id="@+id/provider_immediate_line_2"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="3dp"
+    android:orientation="vertical"
+    android:visibility="gone">
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="16dp"
+      android:gravity="center_vertical"
+      android:orientation="horizontal">
+
+      <TextView
+        android:id="@+id/provider_immediate_label_2"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_caption"
+        android:textSize="10sp" />
+
+      <TextView
+        android:id="@+id/provider_immediate_remaining_2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="1dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_caption"
+        android:textSize="10sp" />
+    </LinearLayout>
+
+    <ProgressBar
+      android:id="@+id/provider_immediate_progress_2"
+      style="?android:attr/progressBarStyleHorizontal"
+      android:layout_width="match_parent"
+      android:layout_height="8dp"
+      android:layout_marginTop="3dp"
+      android:indeterminate="false"
+      android:max="100"
+      android:maxHeight="24dp"
+      android:minHeight="0dp"
+      android:progressDrawable="@drawable/widget_provider_progress" />
+
+    <TextView
+      android:id="@+id/provider_immediate_reset_2"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="2dp"
+      android:ellipsize="end"
+      android:gravity="end"
+      android:maxLines="1"
+      android:textColor="@color/widget_caption"
+      android:textSize="9sp" />
+  </LinearLayout>
+
+  <LinearLayout
+    android:id="@+id/provider_immediate_line_3"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="3dp"
+    android:orientation="vertical"
+    android:visibility="gone">
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="16dp"
+      android:gravity="center_vertical"
+      android:orientation="horizontal">
+
+      <TextView
+        android:id="@+id/provider_immediate_label_3"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_caption"
+        android:textSize="10sp" />
+
+      <TextView
+        android:id="@+id/provider_immediate_remaining_3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="1dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_caption"
+        android:textSize="10sp" />
+    </LinearLayout>
+
+    <ProgressBar
+      android:id="@+id/provider_immediate_progress_3"
+      style="?android:attr/progressBarStyleHorizontal"
+      android:layout_width="match_parent"
+      android:layout_height="8dp"
+      android:layout_marginTop="3dp"
+      android:indeterminate="false"
+      android:max="100"
+      android:maxHeight="24dp"
+      android:minHeight="0dp"
+      android:progressDrawable="@drawable/widget_provider_progress" />
+
+    <TextView
+      android:id="@+id/provider_immediate_reset_3"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="2dp"
+      android:ellipsize="end"
+      android:gravity="end"
+      android:maxLines="1"
+      android:textColor="@color/widget_caption"
+      android:textSize="9sp" />
+  </LinearLayout>
+
+  <LinearLayout
+    android:id="@+id/provider_immediate_line_4"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="3dp"
+    android:orientation="vertical"
+    android:visibility="gone">
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="16dp"
+      android:gravity="center_vertical"
+      android:orientation="horizontal">
+
+      <TextView
+        android:id="@+id/provider_immediate_label_4"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_caption"
+        android:textSize="10sp" />
+
+      <TextView
+        android:id="@+id/provider_immediate_remaining_4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="1dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_caption"
+        android:textSize="10sp" />
+    </LinearLayout>
+
+    <ProgressBar
+      android:id="@+id/provider_immediate_progress_4"
+      style="?android:attr/progressBarStyleHorizontal"
+      android:layout_width="match_parent"
+      android:layout_height="8dp"
+      android:layout_marginTop="3dp"
+      android:indeterminate="false"
+      android:max="100"
+      android:maxHeight="24dp"
+      android:minHeight="0dp"
+      android:progressDrawable="@drawable/widget_provider_progress" />
+
+    <TextView
+      android:id="@+id/provider_immediate_reset_4"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="2dp"
+      android:ellipsize="end"
+      android:gravity="end"
+      android:maxLines="1"
+      android:textColor="@color/widget_caption"
+      android:textSize="9sp" />
+  </LinearLayout>
+
+  <LinearLayout
+    android:id="@+id/provider_immediate_line_5"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="3dp"
+    android:orientation="vertical"
+    android:visibility="gone">
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="16dp"
+      android:gravity="center_vertical"
+      android:orientation="horizontal">
+
+      <TextView
+        android:id="@+id/provider_immediate_label_5"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_caption"
+        android:textSize="10sp" />
+
+      <TextView
+        android:id="@+id/provider_immediate_remaining_5"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="1dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_caption"
+        android:textSize="10sp" />
+    </LinearLayout>
+
+    <ProgressBar
+      android:id="@+id/provider_immediate_progress_5"
+      style="?android:attr/progressBarStyleHorizontal"
+      android:layout_width="match_parent"
+      android:layout_height="8dp"
+      android:layout_marginTop="3dp"
+      android:indeterminate="false"
+      android:max="100"
+      android:maxHeight="24dp"
+      android:minHeight="0dp"
+      android:progressDrawable="@drawable/widget_provider_progress" />
+
+    <TextView
+      android:id="@+id/provider_immediate_reset_5"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="2dp"
+      android:ellipsize="end"
+      android:gravity="end"
+      android:maxLines="1"
+      android:textColor="@color/widget_caption"
+      android:textSize="9sp" />
+  </LinearLayout>
+</LinearLayout>

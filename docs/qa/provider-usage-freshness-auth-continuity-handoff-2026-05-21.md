@@ -1,84 +1,83 @@
-# Provider Usage Freshness/Auth Continuity Handoff
+﻿# Provider Usage Freshness/Auth Continuity Handoff
 
 Date: 2026-05-21
 
-## 새 세션 목적
+## ???몄뀡 紐⑹쟻
 
-`D:/Vibe Project/AI Usage for Mobile`에서 provider usage freshness와 auth continuity를 구현한다. 핵심은 세션 유지 자체가 아니라, 사용자가 보는 usage 데이터가 stale/expired/current 상태를 정확히 반영하도록 만드는 것이다.
+`D:/Vibe Project/AI Quota for Mobile`?먯꽌 provider usage freshness? auth continuity瑜?援ы쁽?쒕떎. ?듭떖? ?몄뀡 ?좎? ?먯껜媛 ?꾨땲?? ?ъ슜?먭? 蹂대뒗 usage ?곗씠?곌? stale/expired/current ?곹깭瑜??뺥솗??諛섏쁺?섎룄濡?留뚮뱶??寃껋씠??
 
-## 필수 지침
+## ?꾩닔 吏移?
+- ?ъ슜??facing ?듬?怨?臾몄꽌???쒓뎅?대줈 ?묒꽦?쒕떎.
+- ?ъ슜?섏? ?딅뒗 MCP???몄텧?섏? ?딅뒗??
+- ???뚯씪 ?쎄린, 寃?? shell? 媛?ν븯硫?lean-ctx瑜??ъ슜?쒕떎.
+- Store APK provider implementation-ready媛 ?꾨땶 ?곹깭?먯꽌 Store APK collector parity 援ы쁽??二쇱옣?섏? ?딅뒗??
+- raw token, raw cookie, OAuth secret/callback code, auth header value, account identifier, email, username, full provider HTML??臾몄꽌???곗? ?딅뒗??
+- 援ы쁽 以?吏꾪뻾/?ㅽ뙣/?몃윭釉붿뒋?낆? `docs/qa/provider-usage-freshness-auth-continuity-progress-2026-05-21.md`???④릿??
 
-- 사용자-facing 답변과 문서는 한국어로 작성한다.
-- 사용하지 않는 MCP는 호출하지 않는다.
-- 큰 파일 읽기, 검색, shell은 가능하면 lean-ctx를 사용한다.
-- Store APK provider implementation-ready가 아닌 상태에서 Store APK collector parity 구현을 주장하지 않는다.
-- raw token, raw cookie, OAuth secret/callback code, auth header value, account identifier, email, username, full provider HTML을 문서에 쓰지 않는다.
-- 구현 중 진행/실패/트러블슈팅은 `docs/qa/provider-usage-freshness-auth-continuity-progress-2026-05-21.md`에 남긴다.
-
-## 기준 문서
+## 湲곗? 臾몄꽌
 
 Spec:
 
-`D:/Vibe Project/AI Usage for Mobile/docs/superpowers/specs/2026-05-21-provider-usage-freshness-auth-continuity-spec.md`
+`D:/Vibe Project/AI Quota for Mobile/docs/superpowers/specs/2026-05-21-provider-usage-freshness-auth-continuity-spec.md`
 
 Plan:
 
-`D:/Vibe Project/AI Usage for Mobile/docs/superpowers/plans/2026-05-21-provider-usage-freshness-auth-continuity.md`
+`D:/Vibe Project/AI Quota for Mobile/docs/superpowers/plans/2026-05-21-provider-usage-freshness-auth-continuity.md`
 
 Progress/troubleshooting:
 
-`D:/Vibe Project/AI Usage for Mobile/docs/qa/provider-usage-freshness-auth-continuity-progress-2026-05-21.md`
+`D:/Vibe Project/AI Quota for Mobile/docs/qa/provider-usage-freshness-auth-continuity-progress-2026-05-21.md`
 
 New-session prompt:
 
-`D:/Vibe Project/AI Usage for Mobile/docs/qa/provider-usage-freshness-auth-continuity-new-session-prompt-2026-05-21.md`
+`D:/Vibe Project/AI Quota for Mobile/docs/qa/provider-usage-freshness-auth-continuity-new-session-prompt-2026-05-21.md`
 
 Related Store APK handoff:
 
-`D:/Vibe Project/AI Usage for Mobile/docs/qa/store-apk-context-handoff-2026-05-20.md`
+`D:/Vibe Project/AI Quota for Mobile/docs/qa/store-apk-context-handoff-2026-05-20.md`
 
-## 결정된 방향
+## 寃곗젙??諛⑺뼢
 
-가장 중요한 목표:
+媛??以묒슂??紐⑺몴:
 
-- 이전 usage를 최신 usage처럼 보여주지 않는다.
-- 과거 값을 표시할 수는 있지만 stale/last-known 표시가 반드시 필요하다.
-- reset이 지난 volatile row는 제거한다.
+- ?댁쟾 usage瑜?理쒖떊 usage泥섎읆 蹂댁뿬二쇱? ?딅뒗??
+- 怨쇨굅 媛믪쓣 ?쒖떆???섎뒗 ?덉?留?stale/last-known ?쒖떆媛 諛섎뱶???꾩슂?섎떎.
+- reset??吏??volatile row???쒓굅?쒕떎.
 
-Provider별 방향:
+Provider蹂?諛⑺뼢:
 
-| Provider | 권장 구조 | 이유 |
+| Provider | 沅뚯옣 援ъ“ | ?댁쑀 |
 | --- | --- | --- |
-| Claude | WebView session 유지 | Claude usage는 web session/cookie collector가 현실적이다. |
-| Codex | WebView session 유지 | ChatGPT session 기반 usage probe/collector가 필요하다. |
-| Copilot | OAuth/token 기반 native API 우선 | GitHub WebView cookie만으로 inline quota가 안정적이지 않다. Chrome/Custom Tab login은 app WebView cookie를 만들지 않는다. |
-| Gemini | AppAuth + Code Assist quota API | WebView scraping보다 token/API 구조가 맞다. |
-| Cursor | token/API 우선, 안 되면 same WebView profile fallback | dashboard cookie/API 접근이 불안정하다. |
+| Claude | WebView session ?좎? | Claude usage??web session/cookie collector媛 ?꾩떎?곸씠?? |
+| Codex | WebView session ?좎? | ChatGPT session 湲곕컲 usage probe/collector媛 ?꾩슂?섎떎. |
+| Copilot | OAuth/token 湲곕컲 native API ?곗꽑 | GitHub WebView cookie留뚯쑝濡?inline quota媛 ?덉젙?곸씠吏 ?딅떎. Chrome/Custom Tab login? app WebView cookie瑜?留뚮뱾吏 ?딅뒗?? |
+| Gemini | AppAuth + Code Assist quota API | WebView scraping蹂대떎 token/API 援ъ“媛 留욌떎. |
+| Cursor | token/API ?곗꽑, ???섎㈃ same WebView profile fallback | dashboard cookie/API ?묎렐??遺덉븞?뺥븯?? |
 
-핵심 구조:
+?듭떖 援ъ“:
 
-- login 완료 조건은 URL 도착이 아니라 trusted usage row 저장 성공이다.
-- connected는 trusted usage payload 저장 후에만 된다.
-- refresh 전 provider별 auth/session probe를 먼저 실행한다.
-- probe 실패 시 collector를 돌리지 않는다.
-- WebView collector provider는 login과 collection이 같은 app WebView profile을 써야 한다.
-- token/API provider는 native token store와 native HTTP collection을 사용한다.
+- login ?꾨즺 議곌굔? URL ?꾩갑???꾨땲??trusted usage row ????깃났?대떎.
+- connected??trusted usage payload ????꾩뿉留??쒕떎.
+- refresh ??provider蹂?auth/session probe瑜?癒쇱? ?ㅽ뻾?쒕떎.
+- probe ?ㅽ뙣 ??collector瑜??뚮━吏 ?딅뒗??
+- WebView collector provider??login怨?collection??媛숈? app WebView profile???⑥빞 ?쒕떎.
+- token/API provider??native token store? native HTTP collection???ъ슜?쒕떎.
 
-## 현재 코드 상태 요약
+## ?꾩옱 肄붾뱶 ?곹깭 ?붿빟
 
-현재 relevant files:
+?꾩옱 relevant files:
 
-- `android/app/src/main/java/com/aiusage/mobile/local/ProviderModels.kt`
-- `android/app/src/main/java/com/aiusage/mobile/local/LocalUsageRepository.kt`
-- `android/app/src/main/java/com/aiusage/mobile/providers/ProviderDefinitions.kt`
-- `android/app/src/main/java/com/aiusage/mobile/providers/ProviderRefreshPlan.kt`
-- `android/app/src/main/java/com/aiusage/mobile/providers/ProviderUsageCollectionService.kt`
-- `android/app/src/main/java/com/aiusage/mobile/providers/ProviderUsageNormalizer.kt`
-- `android/app/src/main/java/com/aiusage/mobile/providers/CopilotNativeUsageFetcher.kt`
-- `android/app/src/main/java/com/aiusage/mobile/ui/BackgroundProviderWebCollector.kt`
-- `android/app/src/main/java/com/aiusage/mobile/ui/AIUsageAppShell.kt`
-- `android/app/src/main/java/com/aiusage/mobile/ui/dashboard/UnifiedDashboardScreen.kt`
-- `android/app/src/main/java/com/aiusage/mobile/ui/provider/ProviderDetailScreen.kt`
+- `android/app/src/main/java/com/aiquota/mobile/local/ProviderModels.kt`
+- `android/app/src/main/java/com/aiquota/mobile/local/LocalUsageRepository.kt`
+- `android/app/src/main/java/com/aiquota/mobile/providers/ProviderDefinitions.kt`
+- `android/app/src/main/java/com/aiquota/mobile/providers/ProviderRefreshPlan.kt`
+- `android/app/src/main/java/com/aiquota/mobile/providers/ProviderUsageCollectionService.kt`
+- `android/app/src/main/java/com/aiquota/mobile/providers/ProviderUsageNormalizer.kt`
+- `android/app/src/main/java/com/aiquota/mobile/providers/CopilotNativeUsageFetcher.kt`
+- `android/app/src/main/java/com/aiquota/mobile/ui/BackgroundProviderWebCollector.kt`
+- `android/app/src/main/java/com/aiquota/mobile/ui/AIQuotaAppShell.kt`
+- `android/app/src/main/java/com/aiquota/mobile/ui/dashboard/UnifiedDashboardScreen.kt`
+- `android/app/src/main/java/com/aiquota/mobile/ui/provider/ProviderDetailScreen.kt`
 
 Known current behavior:
 
@@ -93,7 +92,7 @@ Known current behavior:
 
 Start with plan Task 1:
 
-`D:/Vibe Project/AI Usage for Mobile/docs/superpowers/plans/2026-05-21-provider-usage-freshness-auth-continuity.md`
+`D:/Vibe Project/AI Quota for Mobile/docs/superpowers/plans/2026-05-21-provider-usage-freshness-auth-continuity.md`
 
 Recommended sequence:
 

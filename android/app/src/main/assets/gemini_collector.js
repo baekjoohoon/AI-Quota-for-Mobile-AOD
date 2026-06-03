@@ -51,9 +51,86 @@
     return null;
   }
 
+  function detectPlanBadgeFromText(text) {
+    var lines = safeText(text).split(/\n+/).map(function(line) {
+      return safeText(line).trim();
+    }).filter(Boolean);
+    for (var index = 0; index < lines.length; index += 1) {
+      var plan = normalizePlan(lines[index]);
+      if (plan) return plan;
+    }
+    return null;
+  }
+
   function detectEmail(text) {
     var match = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.exec(text || "");
     return match ? match[0] : null;
+  }
+
+  function labelFromPlan(plan) {
+    if (plan === "GEMINI_PRO" || plan === "GEMINI_PLUS" || plan === "GEMINI_ULTRA") return "5-hour limit";
+    return null;
+  }
+
+  function isWeeklyWindowText(value) {
+    var text = safeText(value).toLowerCase();
+    return text.indexOf("주간") >= 0 || text.indexOf("weekly") >= 0 || text.indexOf("7 day") >= 0 || text.indexOf("seven day") >= 0;
+  }
+
+  function nearbyResetText(lines, index) {
+    for (var offset = 1; offset <= 4; offset += 1) {
+      var after = safeText(lines[index + offset]);
+      if (after && (after.indexOf("초기화") >= 0 || /reset/i.test(after))) return after;
+    }
+    for (var beforeOffset = 1; beforeOffset <= 3; beforeOffset += 1) {
+      var before = safeText(lines[index - beforeOffset]);
+      if (before && (before.indexOf("초기화") >= 0 || /reset/i.test(before))) return before;
+    }
+    return null;
+  }
+
+  function nearbyWindowText(lines, index) {
+    for (var offset = 1; offset <= 4; offset += 1) {
+      var value = safeText(lines[index - offset]);
+      if (!value) continue;
+      if (/%/.test(value) || value.indexOf("초기화") >= 0 || /reset/i.test(value)) continue;
+      return value;
+    }
+    return null;
+  }
+
+  function collectUsagePageText(combinedText, limits, plan) {
+    var text = safeText(combinedText);
+    var added = 0;
+    if (!text) return added;
+    if (
+      text.indexOf("사용량 한도") < 0 &&
+      text.indexOf("현재 사용량") < 0 &&
+      !/usage\s+limit|current\s+usage/i.test(text)
+    ) {
+      return added;
+    }
+    var label = labelFromPlan(plan) || "5-hour limit";
+    var lines = text.split(/\n+/).map(function(line) { return safeText(line).trim(); }).filter(Boolean);
+    for (var index = 0; index < lines.length; index += 1) {
+      var line = lines[index];
+      var match = /(\d+(?:[.,]\d+)?)\s*%\s*(?:사용됨|used)/i.exec(line);
+      if (!match) continue;
+      var usedRate = parseNumber(match[1].replace(",", "."));
+      if (!isNumber(usedRate)) continue;
+      var windowText = nearbyWindowText(lines, index);
+      var lineLabel = isWeeklyWindowText(windowText) ? "Weekly limit" : label;
+      limits.push({
+        l: lineLabel,
+        u: Math.max(0, Math.min(1, usedRate / 100)),
+        t: nearbyResetText(lines, index),
+        windowText: windowText,
+        source: "gemini_usage_page_text",
+        confidence: 0.78
+      });
+      added += 1;
+    }
+    return added;
   }
 
   function normalizeLabel(value) {
@@ -61,9 +138,11 @@
     var key = compact(label);
     if (key.indexOf("deepresearch") >= 0) return "Gemini Deep Research";
     if (key.indexOf("gemini") >= 0 && key.indexOf("flash") >= 0) return "Gemini Flash";
-    if (key.indexOf("gemini") >= 0 && key.indexOf("pro") >= 0) return "Gemini Pro";
+    if (key.indexOf("weekly") >= 0 || key.indexOf("sevenday") >= 0) return "Weekly limit";
+    if (key.indexOf("5hour") >= 0 || key.indexOf("fivehour") >= 0) return "5-hour limit";
+    if (key.indexOf("gemini") >= 0 && key.indexOf("pro") >= 0) return "5-hour limit";
     if (key === "flash" || key.indexOf("flash") >= 0) return "Gemini Flash";
-    if (key === "pro" || key.indexOf("pro") >= 0) return "Gemini Pro";
+    if (key === "pro" || key.indexOf("pro") >= 0) return "5-hour limit";
     return null;
   }
 
@@ -88,16 +167,22 @@
     return null;
   }
 
+  function numberValue(object, keys) {
+    var value = firstValue(object, keys);
+    if (value === null || value === undefined || value === "") return null;
+    return parseNumber(value);
+  }
+
   function usedRateFromLimit(limit) {
-    var cap = parseNumber(firstValue(limit, ["limit", "limitAmount", "limit_amount"]));
-    var remaining = parseNumber(firstValue(limit, ["remaining", "remainingAmount", "remaining_amount"]));
-    var used = parseNumber(firstValue(limit, ["used", "usedAmount", "used_amount"]));
+    var cap = numberValue(limit, ["limit", "limitAmount", "limit_amount"]);
+    var remaining = numberValue(limit, ["remaining", "remainingAmount", "remaining_amount"]);
+    var used = numberValue(limit, ["used", "usedAmount", "used_amount"]);
     if (isNumber(cap) && cap > 0) {
       if (!isNumber(used) && isNumber(remaining)) used = cap - remaining;
       if (isNumber(used)) return Math.max(0, Math.min(1, used / cap));
     }
-    var rawRate = parseNumber(firstValue(limit, ["u", "usage", "usageRate", "usedRate", "usedPercent"]));
-    var remainingFraction = parseNumber(firstValue(limit, ["remainingFraction", "remaining_fraction", "remainingPercent", "remaining_percent"]));
+    var rawRate = numberValue(limit, ["u", "usage", "usageRate", "usedRate", "usedPercent"]);
+    var remainingFraction = numberValue(limit, ["remainingFraction", "remaining_fraction", "remainingPercent", "remaining_percent"]);
     if (isNumber(remainingFraction)) {
       var remainingRate = remainingFraction <= 1 ? remainingFraction : remainingFraction / 100;
       return Math.max(0, Math.min(1, 1 - remainingRate));
@@ -129,9 +214,10 @@
 
   function dedupeLines(lines) {
     var order = {
-      "Gemini Pro": 0,
-      "Gemini Flash": 1,
-      "Gemini Deep Research": 2
+      "5-hour limit": 0,
+      "Weekly limit": 1,
+      "Gemini Flash": 2,
+      "Gemini Deep Research": 3
     };
     var byLabel = {};
     function lineScore(line) {
@@ -140,6 +226,7 @@
       if (isNumber(usedRate) && usedRate > 0.0001) score += 64;
       if (isNumber(usedRate)) score += 8;
       if (line && (line.r || line.t)) score += 4;
+      if (line && line.source === "gemini_usage_page_text") score += 128;
       if (line && line.source) score += 1;
       if (line && /checkgeminiquota/i.test(line.source || "") && isNumber(usedRate) && usedRate <= 0.0001) score -= 8;
       if (line && /starts when a message is sent/i.test(line.t || "")) score -= 16;
@@ -204,12 +291,20 @@
     var limits = (context.limits || []).slice(0);
     collectJsonQuotaRows(rows, limits);
 
+    var usagePage = !!context.usagePage;
+    var pageText = safeText(context.pageText);
     var combinedText = safeText(context.combinedText || rows.join("\n"));
-    var plan = normalizePlan(context.plan) || detectPlanFromText(combinedText);
+    var explicitPlan = normalizePlan(context.plan);
+    var pagePlan = detectPlanBadgeFromText(pageText);
+    var plan = explicitPlan || pagePlan || (usagePage ? "GEMINI_FREE" : detectPlanFromText(combinedText));
     var account = {};
     if (plan) account.p = plan;
-    var email = detectEmail(combinedText);
+    var email = detectEmail(pageText) || detectEmail(combinedText);
     if (email) account.e = email;
+    var pageUsageLineCount = collectUsagePageText(pageText, limits, plan);
+    if (pageUsageLineCount === 0) {
+      collectUsagePageText(combinedText, limits, plan);
+    }
 
     var usageLines = dedupeLines(limits.map(lineFromLimit).filter(Boolean));
     if (usageLines.length > 0) {

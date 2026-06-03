@@ -3,7 +3,7 @@
   android:layout_width="match_parent"
   android:layout_height="wrap_content"
   android:gravity="center_vertical"
-  android:orientation="horizontal"
+  android:orientation="vertical"
   android:paddingStart="12dp"
   android:paddingTop="6dp"
   android:paddingEnd="12dp"
@@ -13,11 +13,10 @@
     android:id="@+id/notification_compact_summary"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:ellipsize="end"
     android:includeFontPadding="false"
     android:lineSpacingExtra="1dp"
     android:maxLines="2"
     android:text="Claude 100% | Codex 90%\nGemini 100% | Copilot 100%"
     android:textColor="#111827"
-    android:textSize="14sp" />
+    android:textSize="13sp" />
 </LinearLayout>

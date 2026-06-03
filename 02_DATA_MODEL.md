@@ -1,4 +1,4 @@
-# AI Usage Mobile Sync Data Model
+# AI Quota Mobile Sync Data Model
 
 ## Overview
 
@@ -41,7 +41,7 @@ Example fields:
   "deviceId": "home-pc",
   "name": "Home PC",
   "platform": "windows",
-  "appName": "AI Usage for Windows",
+  "appName": "AI Quota for Windows",
   "appVersion": "1.4.0",
   "linkedAt": "2026-04-29T10:04:00.000Z",
   "lastSeenAt": "2026-04-29T10:12:00.000Z",
@@ -69,7 +69,7 @@ Example fields:
   "schemaVersion": 1,
   "fetchedAt": "2026-04-29T10:00:00.000Z",
   "uploadedAt": "2026-04-29T10:00:05.000Z",
-  "source": "ai-usage-windows",
+  "source": "ai-quota-windows",
   "providers": [
     {
       "providerId": "codex",

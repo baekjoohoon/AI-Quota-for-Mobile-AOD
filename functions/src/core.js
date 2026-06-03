@@ -18,6 +18,15 @@ const forbiddenKeys = new Set([
   "authFile"
 ]);
 
+const forbiddenProviderSecretKeys = new Set([
+  "accessToken",
+  "refreshToken",
+  "token",
+  "clientSecret",
+  "cookie",
+  "authorization"
+]);
+
 const validProviderStatuses = new Set(["ok", "error", "unknown"]);
 const validFormatKinds = new Set(["percent", "count", "time", "text"]);
 
@@ -87,7 +96,7 @@ export function buildDeviceRecord({
     deviceId,
     name: deviceName.trim(),
     platform,
-    appName: "AI Usage for Windows",
+    appName: "AI Quota for Windows",
     appVersion: appVersion.trim(),
     linkedAt: timestamp,
     lastSeenAt: timestamp,
@@ -136,7 +145,7 @@ export function assertSnapshotIsSafe(snapshot) {
   if (snapshot.uploadedAt !== undefined) {
     assertIsoString(snapshot.uploadedAt, "SNAPSHOT_UPLOADED_AT_INVALID");
   }
-  if (snapshot.source !== "ai-usage-windows") {
+  if (snapshot.source !== "ai-quota-windows") {
     throw new Error("SNAPSHOT_SOURCE_INVALID");
   }
   if (!Array.isArray(snapshot.providers)) {
@@ -147,6 +156,29 @@ export function assertSnapshotIsSafe(snapshot) {
     assertProvider(provider);
   }
 
+  return true;
+}
+
+export function hashOAuthState(state) {
+  if (!state || typeof state !== "string") {
+    throw new Error("OAUTH_STATE_REQUIRED");
+  }
+  return crypto.createHash("sha256").update(state).digest("base64url");
+}
+
+export function antigravityTokenAad({ uid, oauthClientId }) {
+  if (!uid || !oauthClientId) {
+    throw new Error("TOKEN_AAD_INPUT_REQUIRED");
+  }
+  return `uid:${uid}:provider:antigravity:oauthClient:${oauthClientId}:aad:v1`;
+}
+
+export function assertNoPlaintextProviderSecret(record) {
+  for (const key of forbiddenProviderSecretKeys) {
+    if (Object.prototype.hasOwnProperty.call(record ?? {}, key)) {
+      throw new Error(`PROVIDER_SECRET_FORBIDDEN_FIELD:${key}`);
+    }
+  }
   return true;
 }
 
@@ -245,4 +277,3 @@ function assertIsoString(value, code) {
     throw new Error(code);
   }
 }
-

@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "com-aiquota-mobile",
     "public": "docs",
     "ignore": [
       "firebase.json",
@@ -11,9 +12,16 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs22"
+  },
   "emulators": {
     "auth": {
       "port": 9099
+    },
+    "functions": {
+      "port": 5001
     },
     "firestore": {
       "port": 8080

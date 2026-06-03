@@ -2,7 +2,7 @@
 
 Last updated: 2026-05-19
 
-이 문서는 AI Usage for Mobile 디버깅/구현 세션에 넘기기 위한 provider별 로그인 및 사용량 수집 와이어프레임이다.
+이 문서는 AI Quota for Mobile 디버깅/구현 세션에 넘기기 위한 provider별 로그인 및 사용량 수집 와이어프레임이다.
 
 목표:
 
@@ -841,4 +841,3 @@ provider API, network response, app-state JSON, APK-style structured payload 근
 - provider별 plan이 실제 근거가 있을 때만 표시된다.
 - provider별 usage line이 generic DOM fallback으로 만들어지지 않는다.
 - dashboard, widget, notification이 같은 `ProviderUsageSnapshot`을 읽는다.
-

@@ -10,18 +10,23 @@
     h1, h2 { line-height: 1.2; }
     section { margin-top: 28px; }
     li { margin: 6px 0; }
-    code { background: #f1f5f9; padding: 2px 5px; border-radius: 4px; }
+    a { color: #4f46e5; }
   </style>
 </head>
 <body>
 <main>
-  <h1>개인정보 처리방침</h1>
-  <p>최종 업데이트: 2026년 5월 26일</p>
+  <h1>AI Quota 개인정보 처리방침</h1>
+  <p>최종 업데이트: 2026년 6월 1일</p>
   <p>AI Quota는 Android 기기에서 AI provider의 남은 사용량과 reset 시간을 확인하기 위한 앱입니다.</p>
 
   <section>
+    <h2>개발자 연락처</h2>
+    <p>개인정보 문의 또는 데이터 삭제 요청은 <a href="mailto:datell1357@naver.com">datell1357@naver.com</a> 으로 보낼 수 있습니다.</p>
+  </section>
+
+  <section>
     <h2>앱이 처리하는 정보</h2>
-    <p>AI Quota는 사용자가 직접 연결한 provider 세션 또는 OAuth 연결을 사용해 quota snapshot을 확인합니다. 앱은 표시를 위해 다음 정보를 기기 안에 저장할 수 있습니다.</p>
+    <p>AI Quota는 사용자가 직접 시작한 provider 세션 또는 OAuth 연결을 사용해 quota snapshot을 확인합니다. 앱은 표시를 위해 다음 정보를 기기 안에 저장할 수 있습니다.</p>
     <ul>
       <li>provider ID와 provider 이름</li>
       <li>plan label</li>
@@ -29,58 +34,66 @@
       <li>남은 사용량 비율</li>
       <li>reset time</li>
       <li>마지막 수집 시각</li>
-      <li>stale, auth-required 같은 표시 상태</li>
+      <li>stale, collecting, auth-required 같은 표시 상태</li>
+      <li>홈 화면 위젯 및 상태 표시줄 알림 표시 cache</li>
       <li>provider별 WebView 세션 데이터 또는 OAuth 기반 로컬 세션 상태</li>
     </ul>
-    <p>Gemini 또는 Antigravity 연결에 Google OAuth가 사용되는 경우, AI Quota는 사용자가 승인한 범위 안에서 Google 계정의 기본 프로필, 이메일 주소, Google Cloud 또는 Code Assist 관련 사용량 확인에 필요한 응답을 처리할 수 있습니다. 이 정보는 provider 연결 상태 표시와 사용량 snapshot 생성을 위해 사용됩니다.</p>
+    <p>Gemini 또는 Antigravity 연결에 Google OAuth가 사용되는 경우, AI Quota는 사용자가 승인한 범위 안에서 Google 계정의 기본 프로필, 이메일 주소, OAuth callback data, OAuth token, Google Cloud 또는 Code Assist 관련 사용량 응답을 처리할 수 있습니다. 이 정보는 provider 로그인 완료, 세션 refresh, provider 연결 상태 표시, 사용량 snapshot 생성을 위해 사용됩니다.</p>
   </section>
 
   <section>
-    <h2>개발자 서버로 전송하지 않는 정보</h2>
-    <p>AI Quota는 다음 정보를 개발자 서버로 전송하지 않습니다.</p>
+    <h2>Firebase token gateway</h2>
+    <p>Gemini와 Antigravity의 경우 AI Quota는 Firebase Functions를 token gateway로 사용할 수 있습니다. 이 gateway는 사용자가 요청한 provider 연결을 완료하기 위해 OAuth callback URL 또는 authorization code, token refresh 요청, provider 사용량 응답, Firebase 인증 사용자 식별자를 처리할 수 있습니다.</p>
+    <p>Antigravity의 경우 사용자의 quota monitoring 기능을 유지하기 위해 암호화된 provider refresh token이 Firebase에 저장될 수 있습니다. provider 연결 해제를 실행하면 지원되는 경우 server-side provider secret record가 삭제됩니다.</p>
+  </section>
+
+  <section>
+    <h2>개발자 서버로 의도적으로 전송하지 않는 정보</h2>
+    <p>AI Quota는 다음 정보를 개발자 서버로 의도적으로 전송하지 않습니다.</p>
     <ul>
-      <li>raw token</li>
-      <li>raw cookie</li>
-      <li>OAuth secret</li>
-      <li>OAuth callback code</li>
-      <li>auth header value</li>
+      <li>raw WebView cookie</li>
+      <li>raw auth header value</li>
       <li>provider API key</li>
       <li>provider credential file</li>
       <li>full provider HTML</li>
       <li>raw provider response log</li>
     </ul>
+    <p>Firebase token gateway에서 사용하는 OAuth token과 authorization code는 앱의 로그인, refresh, quota collection 기능 제공을 위해서만 처리됩니다. 해당 정보는 판매되지 않으며, 광고 목적으로 사용되지 않고, diagnostic log에 노출되지 않습니다.</p>
+  </section>
+
+  <section>
+    <h2>정보의 사용 목적</h2>
+    <p>AI Quota는 로컬 표시 데이터와 provider 연결 데이터를 다음 목적으로 사용합니다.</p>
+    <ul>
+      <li>앱에서 현재 AI quota 정보 표시</li>
+      <li>홈 화면 위젯 표시</li>
+      <li>사용자가 선택한 상태 표시줄 고정 알림 표시</li>
+      <li>사용자가 라이브 모니터링을 켠 경우 provider 사용량 refresh</li>
+      <li>provider collection이 일시적으로 실패한 경우 재시도</li>
+      <li>사용자가 요청한 provider 연결 해제 처리</li>
+    </ul>
   </section>
 
   <section>
     <h2>provider 및 제3자 서비스</h2>
-    <p>AI Quota는 사용자가 선택한 provider의 웹사이트 또는 API에 연결될 수 있습니다. 이 과정에서 provider는 자체 개인정보 처리방침에 따라 계정 식별 정보, 세션 쿠키, OAuth 토큰 등을 처리할 수 있습니다.</p>
-    <p>AI Quota는 각 provider의 공식 앱이 아니며, 각 provider와 제휴되어 있지 않습니다.</p>
-  </section>
-
-  <section>
-    <h2>알림과 위젯</h2>
-    <p>AI Quota는 사용자가 활성화한 경우 홈 화면 위젯과 상태 표시줄 알림에 quota snapshot을 표시합니다. 이 정보는 기기에 저장된 표시용 cache를 기반으로 합니다.</p>
+    <p>AI Quota는 사용자가 선택한 provider의 웹사이트 또는 API에 연결될 수 있습니다. 이 과정에서 provider는 자체 개인정보 처리방침에 따라 계정 식별 정보, 세션 쿠키, OAuth token 또는 이와 유사한 데이터를 처리할 수 있습니다.</p>
+    <p>AI Quota는 지원 provider의 공식 앱이 아니며, 해당 provider와 제휴되어 있지 않습니다.</p>
   </section>
 
   <section>
     <h2>데이터 보안</h2>
-    <p>provider 및 OAuth 통신은 HTTPS 기반 연결을 사용합니다. 로컬 cache, WebView 세션 데이터, OAuth 기반 로컬 세션 상태는 Android 앱 저장소에 보관됩니다. AI Quota는 Google 사용자 데이터를 판매하지 않으며, 앱 기능 제공 목적 외로 공유하지 않습니다.</p>
+    <p>provider 및 OAuth 통신은 HTTPS 기반 연결을 사용합니다. 로컬 cache, WebView 세션 데이터, OAuth 기반 로컬 세션 상태는 Android 앱 저장소에 보관됩니다. Firebase-hosted token gateway record는 Firebase security rules 및 Firebase App Check로 보호되며, 적용 가능한 경우 암호화된 provider secret storage로 보호됩니다. AI Quota는 Google 사용자 데이터를 판매하지 않으며, 앱 기능 제공에 필요한 경우 외에는 공유하지 않습니다.</p>
   </section>
 
   <section>
     <h2>데이터 보관 및 삭제</h2>
-    <p>로컬 snapshot과 세션 데이터는 앱의 연결 해제, 앱 데이터 삭제, provider 연결 해제, 또는 앱 제거를 통해 삭제할 수 있습니다.</p>
-    <p>데이터 삭제 요청은 Google Play에 표시된 개발자 연락처를 통해 요청할 수 있습니다. 요청 시 계정 확인에 필요한 정보를 제공해야 할 수 있습니다.</p>
+    <p>로컬 snapshot과 세션 데이터는 provider 연결 해제, 앱 데이터 삭제 또는 앱 제거를 통해 삭제할 수 있습니다. 지원되는 OAuth provider를 위해 생성된 server-side provider secret record는 지원되는 경우 provider 연결 해제 또는 삭제 요청을 통해 삭제할 수 있습니다.</p>
+    <p>삭제 요청은 <a href="mailto:datell1357@naver.com">datell1357@naver.com</a> 으로 보낼 수 있습니다. 요청 확인 및 관련 Firebase 인증 record 확인을 위해 이메일 주소 또는 제한적인 추가 정보가 필요할 수 있습니다.</p>
   </section>
 
   <section>
     <h2>아동</h2>
     <p>AI Quota는 아동을 대상으로 하지 않습니다.</p>
-  </section>
-
-  <section>
-    <h2>문의</h2>
-    <p>개인정보 관련 문의는 Google Play에 표시된 개발자 연락처를 통해 요청할 수 있습니다.</p>
   </section>
 </main>
 </body>

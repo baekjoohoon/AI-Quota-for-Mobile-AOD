@@ -1,16 +1,14 @@
-# AI Usage for Mobile
+﻿# AI Quota for Mobile
 
-[English](#english) | [한국어](#한국어)
+[English](#english) | [?쒓뎅??(#korean)
 
 ---
 
 ## English
 
-AI Usage for Mobile is the Android companion app for [AI Usage for Windows](https://github.com/datell1357/AI-Usage-for-Windows). It shows AI usage limit snapshots synced from the Windows app, with an Android dashboard, home screen widgets, and a pinned silent notification.
+AI Quota for Mobile is an Android app for checking AI provider usage limits from one place. It supports a local-first dashboard, home screen widgets, and an optional pinned foreground refresh notification.
 
-![AI Usage Android widget](English_Screenshot.png)
-
-### Download
+### Current Status
 
 The Android app is being prepared for Google Play internal testing.
 
@@ -20,152 +18,73 @@ Current upload artifact:
 android/app/build/outputs/bundle/release/app-release.aab
 ```
 
-For now, install from source with the Android debug or release build commands below.
-
-### What This App Does
-
-AI Usage for Mobile does not collect provider credentials directly. The Windows app signs in with Google, reads provider usage locally on the Windows PC, sanitizes the snapshot, and uploads the latest display data to Firebase. The Android app signs in with the same Google account and displays the synced snapshot.
-
 ### Features
 
-- Android-first mobile viewer for AI Usage snapshots.
-- Google sign-in with Firebase Authentication.
-- Firestore-backed device list and latest snapshot sync.
-- Home dashboard focused on remaining AI usage limits.
-- Settings panel for connected devices, selected device, device rename, manual refresh, notification toggle, and sign out.
-- Android home screen widgets in compact and expanded sizes.
-- Pinned silent notification with provider summaries and expandable gauge rows.
-- Automatic refresh while the app is open.
-- Best-effort background refresh for widget and notification cache.
-- Korean UI strings for settings when the device language is Korean.
+- Local-first provider usage dashboard.
+- Home screen widgets for quick quota checks.
+- Optional pinned notification for foreground refresh.
+- Manual and foreground-service refresh paths.
+- Provider hide/reorder settings.
+- Korean and English UI strings.
 - Google Play release signing and store listing assets prepared.
 
 ### Supported Providers
 
-The mobile app displays the active providers included in the synced Windows snapshot. Provider visibility and order are controlled by the Windows app settings.
+| Provider | Status |
+| --- | --- |
+| Claude | Supported |
+| Codex | Supported |
+| Gemini | Supported |
+| GitHub Copilot | Supported |
+| Antigravity | Supported |
+| Cursor | Supported |
 
-| Provider | Mobile Status | Notes |
-| --- | --- | --- |
-| Claude | Available | Remaining session, weekly, and related limits when uploaded by Windows. |
-| Codex | Available | Remaining session, weekly, Spark, credits, and related limits when uploaded by Windows. |
-| Gemini | Available | Gemini Pro / Flash limits when uploaded by Windows. |
-| GitHub Copilot | Available | Copilot limits or provider error state when uploaded by Windows. |
-| Antigravity | Available | Antigravity limits or provider error state when uploaded by Windows. |
-| Cursor | Available | Cursor limits or provider error state when uploaded by Windows. |
+### Android Package
 
-Providers marked disabled in the Windows app are hidden from the Android dashboard, widgets, and pinned notification.
-
-### App Flow
-
-1. Sign in with Google.
-2. Load the signed-in user's Windows device list from Firestore.
-3. Select the most recent active device by default.
-4. Read `/users/{uid}/devices/{deviceId}/snapshots/latest`.
-5. Render only active providers from that snapshot.
-6. Cache display-only snapshot data locally for widgets and pinned notification.
-7. Refresh the selected snapshot every 60 seconds while the app is open.
-8. Schedule best-effort background refresh every 5 minutes.
-
-### Firebase Model
-
-This mobile implementation uses the free Firebase-friendly model. It does not require Cloud Functions, Secret Manager, Blaze billing, or pairing codes.
-
-Required Firebase services:
-
-- Firebase Authentication with Google provider enabled.
-- Cloud Firestore.
-- Android Firebase app registered with package name `com.aiusage.mobile`.
-- `google-services.json` placed at `android/app/google-services.json`.
-- Debug, release upload, and Play App Signing SHA fingerprints registered for Google sign-in.
-
-Firestore paths:
+Google Play package name:
 
 ```text
-/users/{uid}
-/users/{uid}/devices/{deviceId}
-/users/{uid}/devices/{deviceId}/snapshots/latest
+com.aiquota.mobile
 ```
 
-### Data Safety
+The Kotlin namespace is still `com.aiquota.mobile` internally. That is an implementation detail and does not change the Google Play package name.
 
-The mobile app is designed to display sanitized usage snapshots only.
+### Privacy
 
-It must not store:
-
-- Provider access tokens.
-- Refresh tokens.
-- API keys.
-- Local file paths.
-- Raw logs.
-- Authentication file contents.
-- Provider credential files.
-
-See:
-
-- [Privacy Policy](docs/privacy-policy.md)
-
-### Documentation
-
-- [Privacy Policy](docs/privacy-policy.md)
-- [Privacy Policy HTML](docs/privacy-policy.html)
-- [AI Usage for Windows](https://github.com/datell1357/AI-Usage-for-Windows)
+- [Privacy Policy](docs/privacy-policy.html)
+- [Account and Data Deletion](docs/account-deletion.html)
 
 ### Build From Source
 
-#### Requirements
+Requirements:
 
 - Windows development machine.
 - Android Studio with Android SDK.
 - JDK 17. Android Studio JBR works.
-- Firebase project configured for Android package `com.aiusage.mobile`.
+- Firebase project configured for Android package `com.aiquota.mobile`.
 - `android/app/google-services.json`.
 - Existing Gradle wrapper distribution or Gradle 8.10.2.
 
-#### Test
+Run tests:
 
 ```powershell
 npm.cmd test
 ```
 
 ```powershell
-$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
-& 'C:\Users\datell1357\.gradle\wrapper\dists\gradle-8.10.2-bin\a04bxjujx95o3nb99gddekhwo\gradle-8.10.2\bin\gradle.bat' -p android :app:testDebugUnitTest
+& '.\.tmp\tools\gradle-8.10.2\bin\gradle.bat' -p android :app:testDebugUnitTest
 ```
 
-#### Build Debug APK
+Build debug APK:
 
 ```powershell
-$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
-& 'C:\Users\datell1357\.gradle\wrapper\dists\gradle-8.10.2-bin\a04bxjujx95o3nb99gddekhwo\gradle-8.10.2\bin\gradle.bat' -p android :app:assembleDebug
+& '.\.tmp\tools\gradle-8.10.2\bin\gradle.bat' -p android :app:assembleDebug
 ```
 
-#### Install Debug APK on Emulator
+Build Google Play AAB:
 
 ```powershell
-$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
-& 'C:\Users\datell1357\.gradle\wrapper\dists\gradle-8.10.2-bin\a04bxjujx95o3nb99gddekhwo\gradle-8.10.2\bin\gradle.bat' -p android :app:installDebug
-```
-
-#### Build Google Play AAB
-
-Create local signing files first:
-
-```text
-android/keystore.properties
-android/keystores/ai-usage-upload.jks
-```
-
-These files are intentionally ignored by Git.
-
-Build:
-
-```powershell
-$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
-& 'C:\Users\datell1357\.gradle\wrapper\dists\gradle-8.10.2-bin\a04bxjujx95o3nb99gddekhwo\gradle-8.10.2\bin\gradle.bat' -p android :app:lintRelease :app:bundleRelease
+& '.\.tmp\tools\gradle-8.10.2\bin\gradle.bat' -p android :app:bundleRelease
 ```
 
 Output:
@@ -174,208 +93,101 @@ Output:
 android/app/build/outputs/bundle/release/app-release.aab
 ```
 
-### Current Scope
-
-- Android app: active.
-- Android widgets: active.
-- Pinned Android notification: active.
-- Google Play internal testing preparation: active.
-- iOS app and Apple sign-in: on hold until explicitly resumed.
-- Cloud Functions pairing flow: legacy design, not required for the current free Firebase plan.
-
-### Credits
-
-Built as the Android mobile companion for [AI Usage for Windows](https://github.com/datell1357/AI-Usage-for-Windows).
-
 ### License
 
 MIT
 
 ---
 
-## 한국어
+## Korean
 
-AI Usage for Mobile은 [AI Usage for Windows](https://github.com/datell1357/AI-Usage-for-Windows)의 Android 동반 앱입니다. Windows 앱이 Firebase에 동기화한 AI 사용 한도 snapshot을 Android 앱, 홈 화면 위젯, 고정 무음 알림에서 확인할 수 있습니다.
+AI Quota for Mobile? ?щ윭 AI provider???⑥? ?ъ슜?됱쓣 ?쒓납?먯꽌 ?뺤씤?섍린 ?꾪븳 Android ?깆엯?덈떎. ????쒕낫?? ???붾㈃ ?꾩젽, ?좏깮 媛?ν븳 怨좎젙 ?뚮┝ 湲곕컲 foreground refresh瑜??쒓났?⑸땲??
 
-![AI Usage Android 위젯](Korean_Screenshot.png)
+### ?꾩옱 ?곹깭
 
-### 다운로드
+Android ?깆? Google Play ?대? ?뚯뒪???깅줉??以鍮?以묒엯?덈떎.
 
-Android 앱은 현재 Google Play 내부 테스트 업로드를 준비 중입니다.
-
-현재 업로드 산출물:
+?꾩옱 ?낅줈???곗텧臾?
 
 ```text
 android/app/build/outputs/bundle/release/app-release.aab
 ```
 
-아직 공개 Play Store 릴리즈 전이므로, 현재는 아래 소스 빌드 명령으로 설치할 수 있습니다.
+### 二쇱슂 湲곕뒫
 
-### 앱 동작 방식
+- 濡쒖뺄 ?곗꽑 provider ?ъ슜????쒕낫??
+- 鍮좊Ⅸ quota ?뺤씤???꾪븳 ???붾㈃ ?꾩젽.
+- foreground refresh瑜??꾪븳 ?좏깮??怨좎젙 ?뚮┝.
+- ?섎룞 refresh? foreground service refresh.
+- provider ?④? 諛??쒖꽌 蹂寃??ㅼ젙.
+- ?쒓뎅?댁? ?곸뼱 UI 臾몄옄??
+- Google Play release signing 諛??ㅽ넗???깅줉 asset 以鍮?
 
-AI Usage for Mobile은 provider credential을 직접 수집하지 않습니다. Windows 앱이 Google 계정으로 로그인한 뒤 Windows PC 로컬에서 provider 사용량을 읽고, 민감 정보를 제거한 표시용 snapshot만 Firebase에 업로드합니다. Android 앱은 같은 Google 계정으로 로그인해 해당 snapshot을 표시합니다.
+### 吏??Provider
 
-### 주요 기능
+| Provider | ?곹깭 |
+| --- | --- |
+| Claude | 吏??|
+| Codex | 吏??|
+| Gemini | 吏??|
+| GitHub Copilot | 吏??|
+| Antigravity | 吏??|
+| Cursor | 吏??|
 
-- AI Usage snapshot을 확인하는 Android 우선 모바일 앱.
-- Firebase Authentication 기반 Google 로그인.
-- Firestore 기반 연결 장치 목록 및 최신 snapshot 동기화.
-- 남은 AI 사용 한도 중심의 홈 대시보드.
-- 설정 화면에서 연결 장치, 선택 장치, 장치 이름 변경, 수동 새로고침, 알림 토글, 로그아웃 관리.
-- Android 홈 화면 1x1 / 3x2 위젯.
-- provider 요약과 확장 게이지를 제공하는 고정 무음 알림.
-- 앱 실행 중 60초마다 자동 새로고침.
-- 위젯과 알림 cache를 위한 5분 단위 best-effort 백그라운드 새로고침.
-- 휴대폰 언어가 한국어일 때 설정 UI 한국어 표시.
-- Google Play release signing 및 스토어 등록 asset 준비.
+### Android ?⑦궎吏
 
-### 지원 Provider
-
-모바일 앱은 Windows snapshot에 포함된 활성 provider만 표시합니다. 표시 여부와 순서는 Windows 앱 설정을 따릅니다.
-
-| Provider | 모바일 상태 | 설명 |
-| --- | --- | --- |
-| Claude | 지원 | Windows에서 업로드한 세션, 주간, 관련 남은 한도 표시. |
-| Codex | 지원 | Windows에서 업로드한 세션, 주간, Spark, credits 등 표시. |
-| Gemini | 지원 | Windows에서 업로드한 Gemini Pro / Flash 한도 표시. |
-| GitHub Copilot | 지원 | Windows에서 업로드한 Copilot 한도 또는 provider error 상태 표시. |
-| Antigravity | 지원 | Windows에서 업로드한 Antigravity 한도 또는 provider error 상태 표시. |
-| Cursor | 지원 | Windows에서 업로드한 Cursor 한도 또는 provider error 상태 표시. |
-
-Windows 앱에서 disabled 상태인 provider는 Android 홈 화면, 위젯, 고정 알림에서 숨겨집니다.
-
-### 앱 흐름
-
-1. Google 계정으로 로그인합니다.
-2. Firestore에서 로그인 사용자의 Windows 장치 목록을 불러옵니다.
-3. 가장 최근 활성 장치를 기본 선택합니다.
-4. `/users/{uid}/devices/{deviceId}/snapshots/latest`를 읽습니다.
-5. snapshot 안의 활성 provider만 렌더링합니다.
-6. 위젯과 고정 알림 표시를 위해 표시 전용 snapshot cache를 로컬에 저장합니다.
-7. 앱이 열려 있는 동안 선택된 snapshot을 60초마다 새로고침합니다.
-8. 백그라운드에서는 5분 단위 best-effort 새로고침을 예약합니다.
-
-### Firebase 모델
-
-현재 모바일 구현은 무료 Firebase 운영 모델을 기준으로 합니다. Cloud Functions, Secret Manager, Blaze 결제, pairing code가 필요하지 않습니다.
-
-필수 Firebase 설정:
-
-- Firebase Authentication에서 Google provider 활성화.
-- Cloud Firestore.
-- 패키지명 `com.aiusage.mobile` Android Firebase 앱 등록.
-- `android/app/google-services.json` 배치.
-- Google 로그인용 debug, release upload, Play App Signing SHA 지문 등록.
-
-Firestore 경로:
+Google Play ?⑦궎吏 ?대쫫:
 
 ```text
-/users/{uid}
-/users/{uid}/devices/{deviceId}
-/users/{uid}/devices/{deviceId}/snapshots/latest
+com.aiquota.mobile
 ```
 
-### 데이터 안전
+Kotlin namespace???대? 援ы쁽 ?몃??ы빆?쇰줈 `com.aiquota.mobile`???좎??⑸땲?? Google Play ?⑦궎吏 ?대쫫怨쇰뒗 蹂꾧컻?낅땲??
 
-모바일 앱은 민감 정보가 제거된 표시용 사용량 snapshot만 표시하도록 설계되어 있습니다.
+### 媛쒖씤?뺣낫 諛??곗씠????젣
 
-저장하면 안 되는 데이터:
+- [媛쒖씤?뺣낫 泥섎━諛⑹묠](docs/privacy-policy.html)
+- [怨꾩젙 諛??곗씠????젣 ?덈궡](docs/account-deletion.html)
 
-- Provider access token.
-- Refresh token.
-- API key.
-- 로컬 파일 경로.
-- 원본 로그.
-- 인증 파일 내용.
-- Provider credential 파일.
+### ?뚯뒪?먯꽌 鍮뚮뱶
 
-관련 문서:
+?꾩닔 議곌굔:
 
-- [개인정보 처리방침](docs/privacy-policy.md)
-
-### 문서
-
-- [개인정보 처리방침](docs/privacy-policy.md)
-- [개인정보 처리방침 HTML](docs/privacy-policy.html)
-- [AI Usage for Windows](https://github.com/datell1357/AI-Usage-for-Windows)
-
-### 소스에서 빌드
-
-#### 요구사항
-
-- Windows 개발 환경.
-- Android Studio 및 Android SDK.
-- JDK 17. Android Studio JBR 사용 가능.
-- Android 패키지 `com.aiusage.mobile`로 설정된 Firebase 프로젝트.
+- Windows 媛쒕컻 ?섍꼍.
+- Android Studio 諛?Android SDK.
+- JDK 17. Android Studio JBR ?ъ슜 媛??
+- Android ?⑦궎吏 `com.aiquota.mobile`濡??ㅼ젙??Firebase ?꾨줈?앺듃.
 - `android/app/google-services.json`.
-- 기존 Gradle wrapper 배포본 또는 Gradle 8.10.2.
+- 湲곗〈 Gradle wrapper 諛고룷蹂??먮뒗 Gradle 8.10.2.
 
-#### 테스트
+?뚯뒪??
 
 ```powershell
 npm.cmd test
 ```
 
 ```powershell
-$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
-& 'C:\Users\datell1357\.gradle\wrapper\dists\gradle-8.10.2-bin\a04bxjujx95o3nb99gddekhwo\gradle-8.10.2\bin\gradle.bat' -p android :app:testDebugUnitTest
+& '.\.tmp\tools\gradle-8.10.2\bin\gradle.bat' -p android :app:testDebugUnitTest
 ```
 
-#### Debug APK 빌드
+Debug APK 鍮뚮뱶:
 
 ```powershell
-$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
-& 'C:\Users\datell1357\.gradle\wrapper\dists\gradle-8.10.2-bin\a04bxjujx95o3nb99gddekhwo\gradle-8.10.2\bin\gradle.bat' -p android :app:assembleDebug
+& '.\.tmp\tools\gradle-8.10.2\bin\gradle.bat' -p android :app:assembleDebug
 ```
 
-#### 에뮬레이터에 Debug APK 설치
+Google Play AAB 鍮뚮뱶:
 
 ```powershell
-$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
-& 'C:\Users\datell1357\.gradle\wrapper\dists\gradle-8.10.2-bin\a04bxjujx95o3nb99gddekhwo\gradle-8.10.2\bin\gradle.bat' -p android :app:installDebug
+& '.\.tmp\tools\gradle-8.10.2\bin\gradle.bat' -p android :app:bundleRelease
 ```
 
-#### Google Play AAB 빌드
-
-먼저 로컬 서명 파일이 필요합니다.
-
-```text
-android/keystore.properties
-android/keystores/ai-usage-upload.jks
-```
-
-이 파일들은 Git에 포함하지 않습니다.
-
-빌드:
-
-```powershell
-$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
-& 'C:\Users\datell1357\.gradle\wrapper\dists\gradle-8.10.2-bin\a04bxjujx95o3nb99gddekhwo\gradle-8.10.2\bin\gradle.bat' -p android :app:lintRelease :app:bundleRelease
-```
-
-출력:
+異쒕젰:
 
 ```text
 android/app/build/outputs/bundle/release/app-release.aab
 ```
 
-### 현재 범위
-
-- Android 앱: 활성.
-- Android 위젯: 활성.
-- Android 고정 알림: 활성.
-- Google Play 내부 테스트 준비: 활성.
-- iOS 앱 및 Apple 로그인: 명시적으로 재개하기 전까지 보류.
-- Cloud Functions pairing flow: 현재 무료 Firebase 모델에서는 필요하지 않은 legacy 설계.
-
-### 크레딧
-
-[AI Usage for Windows](https://github.com/datell1357/AI-Usage-for-Windows)의 Android 모바일 동반 앱으로 제작되었습니다.
-
-### 라이선스
+### ?쇱씠?좎뒪
 
 MIT
