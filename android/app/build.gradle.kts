@@ -50,7 +50,7 @@ android {
         applicationId = "com.aiquota.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 14
+        versionCode = 15
         versionName = "1.0.0"
         buildConfigField("String", "GOOGLE_ANDROID_OAUTH_CLIENT_ID", "\"$googleAndroidOAuthClientId\"")
         buildConfigField("String", "GOOGLE_ANDROID_OAUTH_REDIRECT_SCHEME", "\"$googleAndroidOAuthRedirectScheme\"")
@@ -88,8 +88,12 @@ android {
             if (hasReleaseKeystore) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 

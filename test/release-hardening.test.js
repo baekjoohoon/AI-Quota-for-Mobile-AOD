@@ -101,3 +101,21 @@ test("widget configure screens use edge-to-edge instead of deprecated system bar
   assert.doesNotMatch(style, /setStatusBarColor/);
   assert.doesNotMatch(style, /setNavigationBarColor/);
 });
+
+test("release builds obfuscate internal classes while preserving runtime entry points", () => {
+  const gradle = source("android/app/build.gradle.kts");
+  const rules = source("android/app/proguard-rules.pro");
+
+  assert.match(gradle, /release \{[\s\S]*isMinifyEnabled = true[\s\S]*proguardFiles\(/);
+  assert.match(gradle, /getDefaultProguardFile\("proguard-android\.txt"\)/);
+  assert.match(gradle, /"proguard-rules\.pro"/);
+  assert.match(gradle, /isShrinkResources = false/);
+  assert.match(rules, /-dontshrink/);
+  assert.match(rules, /-dontoptimize/);
+  assert.match(rules, /-keepattributes \*Annotation\*,Signature,InnerClasses,EnclosingMethod/);
+  assert.match(rules, /extends android\.app\.Activity/);
+  assert.match(rules, /extends android\.app\.Service/);
+  assert.match(rules, /extends android\.content\.BroadcastReceiver/);
+  assert.match(rules, /ForegroundRefreshHealthWorker/);
+  assert.match(rules, /@android\.webkit\.JavascriptInterface <methods>;/);
+});

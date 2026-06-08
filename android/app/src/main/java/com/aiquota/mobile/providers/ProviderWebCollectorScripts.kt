@@ -1061,7 +1061,53 @@ object ProviderWebCollectorScripts {
                 if (!Number.isFinite(parsed)) return null;
                 return Math.max(0, Math.min(100, parsed));
               }
-              function resetTextFromCodexWindow(text) {
+              function codexMeridiemHour(meridiem, value) {
+                var hour = Number(value);
+                if (!Number.isFinite(hour) || hour < 1 || hour > 12) return null;
+                if (meridiem === KO_CODEX_PM && hour < 12) hour += 12;
+                if (meridiem === KO_CODEX_AM && hour === 12) hour = 0;
+                return hour;
+              }
+              function codexRelativeResetText(resetDate) {
+                if (!resetDate || !Number.isFinite(resetDate.getTime())) return null;
+                var nowMs = Date.now ? Date.now() : new Date().getTime();
+                var diffMinutes = Math.floor((resetDate.getTime() - nowMs) / 60000);
+                if (!Number.isFinite(diffMinutes) || diffMinutes < 0) return null;
+                var days = Math.floor(diffMinutes / 1440);
+                var hours = Math.floor((diffMinutes % 1440) / 60);
+                var minutes = diffMinutes % 60;
+                if (days > 0) return "Resets in " + days + "d " + hours + "h";
+                if (hours > 0) return "Resets in " + hours + "h " + minutes + "m";
+                return "Resets in " + minutes + "m";
+              }
+              function normalizeCodexKoreanResetText(raw, allowTimeOnly) {
+                var text = String(raw || "").replace(/\s+/g, " ").trim();
+                var reset = codexEscapeRegex(KO_CODEX_RESET);
+                var am = codexEscapeRegex(KO_CODEX_AM);
+                var pm = codexEscapeRegex(KO_CODEX_PM);
+                var absolute = new RegExp("^(\\d{4})\\.\\s*(\\d{1,2})\\.\\s*(\\d{1,2})\\.\\s*(" + am + "|" + pm + ")\\s*(\\d{1,2}):(\\d{2})\\s*" + reset + "$").exec(text);
+                if (absolute) {
+                  var absoluteHour = codexMeridiemHour(absolute[4], absolute[5]);
+                  var absoluteMinute = Number(absolute[6]);
+                  if (absoluteHour !== null && Number.isFinite(absoluteMinute)) {
+                    return codexRelativeResetText(new Date(Number(absolute[1]), Number(absolute[2]) - 1, Number(absolute[3]), absoluteHour, absoluteMinute, 0, 0));
+                  }
+                }
+                if (!allowTimeOnly) return null;
+                var timeOnly = new RegExp("^(" + am + "|" + pm + ")\\s*(\\d{1,2}):(\\d{2})\\s*" + reset + "$").exec(text);
+                if (!timeOnly) return null;
+                var hour = codexMeridiemHour(timeOnly[1], timeOnly[2]);
+                var minute = Number(timeOnly[3]);
+                if (hour === null || !Number.isFinite(minute)) return null;
+                var nowMs = Date.now ? Date.now() : new Date().getTime();
+                var now = new Date(nowMs);
+                var resetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0, 0);
+                if (resetDate.getTime() <= nowMs) {
+                  resetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, hour, minute, 0, 0);
+                }
+                return codexRelativeResetText(resetDate);
+              }
+              function resetTextFromCodexWindow(text, allowTimeOnly) {
                 var day = codexEscapeRegex(KO_CODEX_DAY);
                 var hour = codexEscapeRegex(KO_CODEX_HOUR);
                 var minute = codexEscapeRegex(KO_CODEX_MINUTE);
@@ -1070,9 +1116,16 @@ object ProviderWebCollectorScripts {
                 var am = codexEscapeRegex(KO_CODEX_AM);
                 var pm = codexEscapeRegex(KO_CODEX_PM);
                 var koreanReset = "(?:\\d+\\s*" + day + "\\s*)?(?:\\d+\\s*" + hour + "\\s*)?(?:\\d+\\s*" + minute + "\\s*)?" + after + "\\s*" + reset;
+                var koreanAbsoluteClockReset = "\\d{4}\\.\\s*\\d{1,2}\\.\\s*\\d{1,2}\\.\\s*(?:" + am + "|" + pm + ")\\s*\\d{1,2}:\\d{2}\\s*" + reset;
                 var koreanClockReset = "(?:(?:" + am + "|" + pm + ")\\s*)?\\d{1,2}:\\d{2}\\s*" + reset;
-                var match = new RegExp("(" + koreanClockReset + "|" + koreanReset + "|resets?[^.\\n]{0,80}|reset[^.\\n]{0,80})", "i").exec(text);
-                return match ? match[1].replace(/\s+/g, " ").trim() : null;
+                var resetAlternates = [koreanAbsoluteClockReset, koreanReset];
+                if (allowTimeOnly) resetAlternates.push(koreanClockReset);
+                resetAlternates.push("resets?[^.\\n]{0,80}");
+                resetAlternates.push("reset[^.\\n]{0,80}");
+                var match = new RegExp("(" + resetAlternates.join("|") + ")", "i").exec(text);
+                if (!match) return null;
+                var rawResetText = match[1].replace(/\s+/g, " ").trim();
+                return normalizeCodexKoreanResetText(rawResetText, !!allowTimeOnly) || rawResetText;
               }
               function codexPercentNumber(value) {
                 if (value === null || value === undefined || value === "") return null;
@@ -1133,7 +1186,7 @@ object ProviderWebCollectorScripts {
                     remaining_percent: remainingPercent,
                     used_percent: usedPercent
                   };
-                  var resetText = resetTextFromCodexWindow(windowText);
+                  var resetText = resetTextFromCodexWindow(windowText, type === "primary" || type === "spark_primary");
                   if (resetText) line.reset_text = resetText;
                   return line;
                 }
@@ -1189,7 +1242,7 @@ object ProviderWebCollectorScripts {
                 if (credits) payload.usage.credits = credits;
                 return payload;
               }
-              function codexTextLine(text, labels, fallbackLabel) {
+              function codexTextLine(text, labels, fallbackLabel, allowTimeOnly) {
                 var lower = text.toLowerCase();
                 for (var i = 0; i < labels.length; i += 1) {
                   var label = labels[i];
@@ -1202,7 +1255,7 @@ object ProviderWebCollectorScripts {
                     l: fallbackLabel,
                     u: Math.max(0, Math.min(1, 1 - remainingPercent / 100)),
                     remaining_percent: remainingPercent,
-                    t: resetTextFromCodexWindow(windowText)
+                    t: resetTextFromCodexWindow(windowText, allowTimeOnly)
                   };
                 }
                 return null;
@@ -1214,13 +1267,15 @@ object ProviderWebCollectorScripts {
                 var sessionLine = codexTextLine(
                   text,
                   ["Codex 5" + KO_CODEX_HOUR + " " + KO_CODEX_SESSION, "5" + KO_CODEX_HOUR + " " + KO_CODEX_SESSION, "Codex Session", "Codex 5h Session", "5h Session", "5-hour Session", "Codex " + KO_CODEX_SESSION],
-                  "Codex Session"
+                  "Codex Session",
+                  true
                 );
                 if (sessionLine) rows.push(sessionLine);
                 var weeklyLine = codexTextLine(
                   text,
                   ["Codex " + KO_CODEX_WEEKLY + " " + KO_CODEX_SESSION, KO_CODEX_WEEKLY + " " + KO_CODEX_SESSION, "Codex Weekly", "Codex Weekly Session", "Weekly Session"],
-                  "Codex Weekly"
+                  "Codex Weekly",
+                  false
                 );
                 if (weeklyLine) rows.push(weeklyLine);
                 if (rows.length === 0) return null;

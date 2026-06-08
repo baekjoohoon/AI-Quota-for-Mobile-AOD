@@ -1507,10 +1507,11 @@ class ProviderWebCollectorScriptsTest {
               "Codex 사용량은 공유 에이전틱 사용 한도에서 차감됩니다",
               "5" + hour + " " + usage + " " + limit,
               "99% " + remaining,
-              "오전 5:24 " + reset,
+              "오전 10:14 " + reset,
               weekly + " " + usage + " " + limit,
               "100% " + remaining,
-              "오후 3:23 " + reset,
+              "오전 10:14 " + reset,
+              "2026. 6. 11. 오전 09:59 " + reset,
               "GPT-5.3-Codex-Spark 5" + hour + " " + usage + " " + limit,
               "100% " + remaining,
               "GPT-5.3-Codex-Spark " + weekly + " " + usage + " " + limit,
@@ -1568,6 +1569,7 @@ class ProviderWebCollectorScriptsTest {
               return timers.length;
             };
             global.clearTimeout = function() {};
+            Date.now = function() { return new Date(2026, 5, 7, 6, 59, 0, 0).getTime(); };
             $codex
             (async function() {
               for (let i = 0; i < 12 && posted.length === 0 && errors.length === 0; i += 1) {
@@ -1593,7 +1595,7 @@ class ProviderWebCollectorScriptsTest {
                 console.error(JSON.stringify(limits.primary_window));
                 process.exit(1);
               }
-              if (limits.primary_window.reset_text !== "오전 5:24 " + reset) {
+              if (limits.primary_window.reset_text !== "Resets in 3h 15m") {
                 console.error(JSON.stringify(limits.primary_window));
                 process.exit(1);
               }
@@ -1601,7 +1603,7 @@ class ProviderWebCollectorScriptsTest {
                 console.error(JSON.stringify(limits.secondary_window));
                 process.exit(1);
               }
-              if (limits.secondary_window.reset_text !== "오후 3:23 " + reset) {
+              if (limits.secondary_window.reset_text !== "Resets in 4d 3h") {
                 console.error(JSON.stringify(limits.secondary_window));
                 process.exit(1);
               }
@@ -1609,7 +1611,7 @@ class ProviderWebCollectorScriptsTest {
                 console.error(JSON.stringify(limits.spark_primary_window));
                 process.exit(1);
               }
-              if (limits.spark_primary_window.reset_text !== "오전 5:24 " + reset) {
+              if (limits.spark_primary_window.reset_text !== "Resets in 3h 15m") {
                 console.error(JSON.stringify(limits.spark_primary_window));
                 process.exit(1);
               }
@@ -1617,7 +1619,7 @@ class ProviderWebCollectorScriptsTest {
                 console.error(JSON.stringify(limits.spark_secondary_window));
                 process.exit(1);
               }
-              if (limits.spark_secondary_window.reset_text !== "오후 3:23 " + reset) {
+              if (limits.spark_secondary_window.reset_text !== "Resets in 4d 3h") {
                 console.error(JSON.stringify(limits.spark_secondary_window));
                 process.exit(1);
               }

@@ -42,4 +42,12 @@ class ProviderUsageDisplayTextTest {
         assertEquals("GPT-5.3-Spark 5시간", displayUsageLabel("codex", "ChatGPT-5.3-Codex-Spark 5h", 2, locale))
         assertEquals("GPT-5.3-Spark 주간", displayUsageLabel("codex", "ChatGPT-5.3-Codex-Spark Weekly", 3, locale))
     }
+
+    @Test
+    fun koreanResetTextTranslatesCodexRelativeDurations() {
+        val locale = Locale.KOREAN
+
+        assertEquals("4일 3시간 후 초기화", displayResetTextForLocale("Resets in 4d 3h", locale))
+        assertEquals("3시간 15분 후 초기화", displayResetTextForLocale("Resets in 3h 15m", locale))
+    }
 }
