@@ -21,7 +21,9 @@ import com.aiquota.mobile.widget.WidgetSnapshotCache
 
 object UsageLimitNotificationController {
     private const val CHANNEL_ID = "usage_limits"
+    private const val LIVE_REFRESH_ISSUE_CHANNEL_ID = "live_refresh_health"
     const val NOTIFICATION_ID = 1001
+    const val LIVE_REFRESH_ISSUE_NOTIFICATION_ID = 1002
     private const val PREFS = "ai_quota_notifications"
     private const val KEY_ENABLED = "status_bar_summary_enabled"
     private const val KEY_PERMISSION_REQUESTED = "post_notifications_permission_requested"
@@ -87,6 +89,30 @@ object UsageLimitNotificationController {
         NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
     }
 
+    @SuppressLint("MissingPermission")
+    fun notifyLiveRefreshIssue(context: Context) {
+        if (!canPostNotifications(context)) return
+
+        createLiveRefreshIssueChannel(context)
+        val notification = NotificationCompat.Builder(context, LIVE_REFRESH_ISSUE_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_ai_quota)
+            .setContentTitle(context.getString(R.string.live_refresh_issue_title))
+            .setContentText(context.getString(R.string.live_refresh_issue_body))
+            .setContentIntent(contentIntent(context))
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+
+        runCatching {
+            NotificationManagerCompat.from(context).notify(LIVE_REFRESH_ISSUE_NOTIFICATION_ID, notification)
+        }
+    }
+
+    fun cancelLiveRefreshIssue(context: Context) {
+        NotificationManagerCompat.from(context).cancel(LIVE_REFRESH_ISSUE_NOTIFICATION_ID)
+    }
+
     private fun createChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
@@ -97,6 +123,18 @@ object UsageLimitNotificationController {
             description = "Pinned AI quota limit gauges"
             setSound(null, null)
             enableVibration(false)
+        }
+        context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+    }
+
+    private fun createLiveRefreshIssueChannel(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val channel = NotificationChannel(
+            LIVE_REFRESH_ISSUE_CHANNEL_ID,
+            "Live monitoring alerts",
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = "Alerts when live monitoring may have stopped"
         }
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }

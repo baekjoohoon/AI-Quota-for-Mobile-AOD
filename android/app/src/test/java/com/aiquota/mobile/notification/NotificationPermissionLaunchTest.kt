@@ -23,20 +23,21 @@ class NotificationPermissionLaunchTest {
     }
 
     @Test
-    fun liveMonitoringCopyMentionsSixtySecondsAndPinnedNotification() {
+    fun liveMonitoringCopyExplainsNotificationPermission() {
         val english = File("src/main/res/values/strings.xml").readText()
         val korean = File("src/main/res/values-ko/strings.xml").readText()
 
         assertTrue(english.contains("Status bar notification"))
-        assertTrue(korean.contains("상태 표시줄 알람"))
+        assertTrue(korean.contains("상태 표시줄 알림"))
         assertTrue(!korean.contains("상태 표시줄 게이지"))
-        assertTrue(english.contains("about every 60 seconds"))
+        assertTrue(!english.contains("about every 60 seconds"))
+        assertTrue(!korean.contains("약 60초마다"))
         assertTrue(english.contains("notification shade"))
         assertTrue(korean.contains("AI 남은 사용량을 알림창을 통해 확인 가능합니다."))
-        assertTrue(korean.contains("약 60초마다"))
         assertTrue(english.contains("Turn on live refresh?"))
         assertTrue(korean.contains("라이브 갱신을 켤까요?"))
-        assertTrue(korean.contains("AI Quota는 상태 표시줄 알람을 활성화해야 지속적으로 사용량 데이터를 수집할 수 있습니다. 자동으로 사용량을 수집하기 위해 알림 권한을 허용해주세요."))
+        assertTrue(korean.contains("라이브 모니터링을 이용하기 위해서는 알림 권한이 필요합니다.\\n라이브 모니터링을 위해 알림 권한을 허용해주세요."))
+        assertTrue(korean.contains("<string name=\"live_refresh_prompt_enable\">알림 권한 허용</string>"))
     }
 
     @Test

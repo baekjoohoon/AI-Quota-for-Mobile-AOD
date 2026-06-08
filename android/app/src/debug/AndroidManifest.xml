@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <receiver
+      android:name=".debug.LiveRefreshIssueDebugReceiver"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="com.aiquota.mobile.debug.SHOW_LIVE_REFRESH_ISSUE" />
+      </intent-filter>
+    </receiver>
+  </application>
+</manifest>

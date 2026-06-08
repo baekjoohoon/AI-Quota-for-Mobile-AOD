@@ -206,7 +206,7 @@ class ProviderBackgroundRefreshService : Service() {
                 startForeground(
                     UsageLimitNotificationController.NOTIFICATION_ID,
                     UsageLimitNotificationController.foregroundNotification(this),
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
                 )
             } else {
                 startForeground(

@@ -8,17 +8,20 @@ import com.aiquota.mobile.providers.ProviderBackgroundRefreshService
 class ForegroundRefreshController {
     private val serviceStarter: ServiceStarter
     private val preferences: ForegroundRefreshPreferences
+    private val healthScheduler: HealthScheduler
     private var preciseRefreshRequested = false
 
     constructor(context: Context) {
         val appContext = context.applicationContext
         serviceStarter = AndroidServiceStarter(appContext)
         preferences = AndroidForegroundRefreshPreferences(appContext)
+        healthScheduler = AndroidHealthScheduler(appContext)
     }
 
     internal constructor(serviceStarter: ServiceStarter) {
         this.serviceStarter = serviceStarter
         this.preferences = InMemoryForegroundRefreshPreferences()
+        this.healthScheduler = NoOpHealthScheduler
     }
 
     internal constructor(
@@ -27,6 +30,17 @@ class ForegroundRefreshController {
     ) {
         this.serviceStarter = serviceStarter
         this.preferences = preferences
+        this.healthScheduler = NoOpHealthScheduler
+    }
+
+    internal constructor(
+        serviceStarter: ServiceStarter,
+        preferences: ForegroundRefreshPreferences,
+        healthScheduler: HealthScheduler
+    ) {
+        this.serviceStarter = serviceStarter
+        this.preferences = preferences
+        this.healthScheduler = healthScheduler
     }
 
     fun liveMonitoringEnabled(): Boolean {
@@ -43,12 +57,14 @@ class ForegroundRefreshController {
     }
 
     fun startPreciseRefresh() {
+        healthScheduler.schedule()
         if (preciseRefreshRequested) return
         preciseRefreshRequested = true
         serviceStarter.start(ProviderBackgroundRefreshService.ACTION_START)
     }
 
     fun stopPreciseRefresh() {
+        healthScheduler.cancel()
         if (!preciseRefreshRequested) return
         preciseRefreshRequested = false
         serviceStarter.start(ProviderBackgroundRefreshService.ACTION_STOP)
@@ -63,6 +79,11 @@ class ForegroundRefreshController {
         fun setLiveMonitoringEnabled(enabled: Boolean)
     }
 
+    internal interface HealthScheduler {
+        fun schedule()
+        fun cancel()
+    }
+
     private class AndroidServiceStarter(
         private val context: Context
     ) : ServiceStarter {
@@ -75,6 +96,23 @@ class ForegroundRefreshController {
                 context.startService(intent)
             }
         }
+    }
+
+    private class AndroidHealthScheduler(
+        private val context: Context
+    ) : HealthScheduler {
+        override fun schedule() {
+            ForegroundRefreshHealthScheduler.schedule(context)
+        }
+
+        override fun cancel() {
+            ForegroundRefreshHealthScheduler.cancel(context)
+        }
+    }
+
+    private object NoOpHealthScheduler : HealthScheduler {
+        override fun schedule() = Unit
+        override fun cancel() = Unit
     }
 
     private class AndroidForegroundRefreshPreferences(

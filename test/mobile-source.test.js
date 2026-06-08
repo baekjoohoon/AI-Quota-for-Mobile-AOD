@@ -40,6 +40,19 @@ test("iOS app has a real sync API client and typed UI state model", () => {
   assert.match(status, /24 \* 60 \* 60/);
 });
 
+test("Android live monitoring foreground service uses specialUse usage monitor", () => {
+  const manifest = source("android/app/src/main/AndroidManifest.xml");
+  const refreshService = source("android/app/src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt");
+
+  assert.match(manifest, /android\.permission\.FOREGROUND_SERVICE_SPECIAL_USE/);
+  assert.doesNotMatch(manifest, /android\.permission\.FOREGROUND_SERVICE_DATA_SYNC/);
+  assert.match(manifest, /android:foregroundServiceType="specialUse"/);
+  assert.match(manifest, /android\.app\.PROPERTY_SPECIAL_USE_FGS_SUBTYPE/);
+  assert.match(manifest, /android:value="usage_monitor"/);
+  assert.match(refreshService, /ServiceInfo\.FOREGROUND_SERVICE_TYPE_SPECIAL_USE/);
+  assert.doesNotMatch(refreshService, /ServiceInfo\.FOREGROUND_SERVICE_TYPE_DATA_SYNC/);
+});
+
 test("Android local-first shell keeps provider snapshots in local display cache", () => {
   const requiredPaths = [
     "android/app/src/main/java/com/aiquota/mobile/MainActivity.kt",
@@ -91,7 +104,11 @@ test("Android local-first shell keeps provider snapshots in local display cache"
   assert.match(foregroundController, /ContextCompat\.startForegroundService/);
   assert.match(foregroundPolicy, /ProviderConnectionState\.CONNECTED/);
   assert.match(foregroundPolicy, /ProviderConnectionState\.UNAVAILABLE/);
-  assert.match(manifest, /android\.permission\.FOREGROUND_SERVICE_DATA_SYNC/);
+  assert.match(manifest, /android\.permission\.FOREGROUND_SERVICE_SPECIAL_USE/);
+  assert.doesNotMatch(manifest, /android\.permission\.FOREGROUND_SERVICE_DATA_SYNC/);
+  assert.match(manifest, /android:foregroundServiceType="specialUse"/);
+  assert.match(manifest, /android\.app\.PROPERTY_SPECIAL_USE_FGS_SUBTYPE/);
+  assert.match(manifest, /android:value="usage_monitor"/);
   assert.match(manifest, /ProviderBackgroundRefreshService/);
   assert.match(manifest, /AIQuotaUnifiedGlanceWidgetReceiver/);
   assert.match(manifest, /ProviderUsageGlanceWidgetReceiver/);

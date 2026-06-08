@@ -178,6 +178,40 @@ class ProviderUsageNormalizerTest {
     }
 
     @Test
+    fun codexVisibleDomPayloadKeepsOnePercentRemainingAsOnePercent() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.CODEX,
+            """
+            {
+              "source": "visible-dom",
+              "usage": {
+                "rate_limits": {
+                  "secondary_window": {
+                    "label": "Codex Weekly",
+                    "remaining_percent": 1,
+                    "used_percent": 99,
+                    "reset_text": "2026. 6. 11. 오전 9:59 초기화"
+                  },
+                  "spark_secondary_window": {
+                    "label": "GPT-5.3-Codex-Spark Weekly",
+                    "remaining_percent": 100,
+                    "used_percent": 0
+                  }
+                }
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.STRUCTURED_SCRIPT
+        )!!
+
+        val weekly = snapshot.lines.single { it.key == "codex:secondary_window" }
+        val sparkWeekly = snapshot.lines.single { it.key == "codex:spark_secondary_window" }
+        assertEquals(0.01f, weekly.remainingPercent ?: 0f, 0.001f)
+        assertEquals(99, weekly.usedPercent)
+        assertEquals(1.0f, sparkWeekly.remainingPercent ?: 0f, 0.001f)
+    }
+
+    @Test
     fun codexVisibleDomSparkWindowsInheritMatchingResetTextWhenMissing() {
         val snapshot = ProviderUsageNormalizer.normalize(
             ProviderId.CODEX,

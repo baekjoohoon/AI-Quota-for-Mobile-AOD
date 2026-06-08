@@ -442,12 +442,14 @@ object ProviderUsageNormalizer {
             ?: optionalNumber("percentRemaining")
             ?: optionalNumber("remaining_percent")
             ?: optionalNumber("remainingPercent")
-            ?: optionalNumber("remaining_fraction")
+        val remainingFraction = optionalNumber("remaining_fraction")
             ?: optionalNumber("remainingFraction")
+        val remainingValue = remainingPercent
+            ?: remainingFraction?.let { percent(it).toDouble() }
             ?: remainingPercentFromAmounts()
             ?: if (optionalBoolean("unlimited") == true) 100.0 else null
             ?: return null
-        val line = JSONObject().put("remaining_percent", remainingPercent)
+        val line = JSONObject().put("remaining_percent", remainingValue)
         (optionalString("reset_date") ?: optionalString("resetDate") ?: resetDate)?.let { line.put("resetAt", it) }
         return line.toLine(key, label, source)
     }
@@ -1067,8 +1069,8 @@ object ProviderUsageNormalizer {
     }
 
     private fun JSONObject.remainingBasedUsedPercent(): Int? {
-        optionalNumber("remaining_percent")?.let { return 100 - percent(it) }
-        optionalNumber("remainingPercent")?.let { return 100 - percent(it) }
+        optionalNumber("remaining_percent")?.let { return 100 - percentScale(it) }
+        optionalNumber("remainingPercent")?.let { return 100 - percentScale(it) }
         optionalNumber("remainingFraction")?.let { return 100 - percent(it) }
         optionalNumber("remaining_fraction")?.let { return 100 - percent(it) }
         return null
@@ -1089,6 +1091,10 @@ object ProviderUsageNormalizer {
     private fun percent(value: Double): Int {
         val normalized = if (value in 0.0..1.0) value * 100.0 else value
         return normalized.roundToInt().coerceIn(0, 100)
+    }
+
+    private fun percentScale(value: Double): Int {
+        return value.roundToInt().coerceIn(0, 100)
     }
 
     private fun formatNumber(value: Double): String {
