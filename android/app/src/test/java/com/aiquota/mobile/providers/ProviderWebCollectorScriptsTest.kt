@@ -21,17 +21,27 @@ class ProviderWebCollectorScriptsTest {
         assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.COPILOT, "https://github.com/settings/billing/premium_requests_usage", emptyMap(), ""))
         assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.ANTIGRAVITY, "about:blank", emptyMap(), ""))
         assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CURSOR, "https://cursor.com/dashboard", emptyMap(), ""))
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.GLM, "https://z.ai/manage-apikey/coding-plan/personal/my-plan", emptyMap(), ""))
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.GLM, "https://chat.z.ai/", emptyMap(), "Coding Plan Usage"))
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.OPENCODE, "https://opencode.ai/auth", emptyMap(), "OpenCode Go usage limits"))
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.OPENCODE, "https://opencode.ai/zen/go/usage", emptyMap(), "Weekly limit"))
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.OPENCODE, "https://opencode.ai/workspace/wrk_123/go", emptyMap(), "롤링 사용량"))
 
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CLAUDE, "https://claude.ai/login", emptyMap(), ""))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CLAUDE, "https://claude.ai/login", mapOf("lastActiveOrg" to "org_123"), "Claude"))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CODEX, "https://chatgpt.com/auth/login", emptyMap(), "ChatGPT"))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CODEX, "https://chatgpt.com/", emptyMap(), "로그인 또는 회원가입\nGoogle 계정으로 계속하기"))
+        assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CODEX, "https://admin.openai.com/analytics/codex", emptyMap(), "Codex token usage"))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.GEMINI, "https://accounts.google.com/signin", emptyMap(), ""))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.COPILOT, "https://github.com/login", emptyMap(), ""))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.COPILOT, "https://github.com/", mapOf("logged_in" to "yes"), ""))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.ANTIGRAVITY, "https://accounts.google.com/signin", emptyMap(), ""))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.ANTIGRAVITY, "https://antigravity.google/docs/plans", emptyMap(), "Antigravity"))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CURSOR, "https://api.workos.com/sso/authorize", emptyMap(), ""))
+        assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.GLM, "https://z.ai/login", emptyMap(), "Login"))
+        assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.OPENCODE, "https://opencode.ai/docs/go/", emptyMap(), "OpenCode Go"))
+        assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.OPENCODE, "https://opencode.ai/auth", emptyMap(), ""))
+        assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.OPENCODE, "https://opencode.ai/auth", emptyMap(), "Sign in to OpenCode"))
     }
 
     @Test
@@ -45,12 +55,331 @@ class ProviderWebCollectorScriptsTest {
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.ANTIGRAVITY, "https://accounts.google.com/signin"))
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CURSOR, "https://api.workos.com/sso/authorize"))
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CURSOR, "https://github.com/login"))
+        assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.GLM, "https://z.ai/login"))
+        assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.OPENCODE, "https://opencode.ai/auth", "Sign in to OpenCode"))
 
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CLAUDE, "https://claude.ai/new"))
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CODEX, "https://chatgpt.com/"))
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.COPILOT, "https://github.com/settings/copilot"))
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.ANTIGRAVITY, "https://antigravity.google/docs/plans"))
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CURSOR, "https://cursor.com/dashboard"))
+        assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.GLM, "https://z.ai/manage-apikey/coding-plan/personal/my-plan"))
+        assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.OPENCODE, "https://opencode.ai/auth", "OpenCode Go usage limits"))
+    }
+
+    @Test
+    fun glmCollectorConvertsPageStateLimitsToTrustedPayload() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected GLM runtime checks", node != null)
+
+        val glm = ProviderWebCollectorScripts.build(ProviderId.GLM, emptyMap(), "")
+        val path = Files.createTempFile("ai-quota-glm-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            global.window = global;
+            global.location = {
+              hostname: "z.ai",
+              pathname: "/manage-apikey/coding-plan/personal/my-plan",
+              href: "https://z.ai/manage-apikey/coding-plan/personal/my-plan"
+            };
+            const quota = {
+              productName: "GLM Coding Pro",
+              data: {
+                limits: [
+                  { type: "TOKENS_LIMIT", unit: 3, number: 5, usage: 1000, currentValue: 250, percentage: 25, nextResetTime: 1792537200000 },
+                  { type: "TOKENS_LIMIT", unit: 6, number: 7, usage: 1000, currentValue: 400, percentage: 40 },
+                  { type: "TIME_LIMIT", unit: 5, number: 1, usage: 500, currentValue: 125, percentage: 25 }
+                ]
+              }
+            };
+            global.document = {
+              title: "My Coding Plan",
+              body: { innerText: "GLM Coding Plan Usage" },
+              documentElement: { innerText: "GLM Coding Plan Usage" },
+              scripts: [{ textContent: JSON.stringify(quota) }],
+              querySelectorAll: () => []
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.fetch = async function() {
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => "" }; },
+                text: async () => ""
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn) {
+              timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $glm
+            (async function() {
+              for (let i = 0; i < 8 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              const limits = posted[0] && posted[0].data && posted[0].data.limits;
+              if (posted[0].provider !== "glm" || !Array.isArray(limits) || limits.length !== 3) {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              if (limits[0].type !== "TOKENS_LIMIT" || limits[1].number !== 7 || limits[2].type !== "TIME_LIMIT") {
+                console.error(JSON.stringify(limits));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("GLM collector did not post trusted quota payload:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun opencodeCollectorConvertsVisibleDomUsageToTrustedPayload() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected OpenCode runtime checks", node != null)
+
+        val opencode = ProviderWebCollectorScripts.build(ProviderId.OPENCODE, emptyMap(), "")
+        val path = Files.createTempFile("ai-quota-opencode-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            const pageText = [
+              "OpenCode Go",
+              "Usage limits",
+              "5 hour limit",
+              "${'$'}3 of ${'$'}12 used",
+              "75% remaining",
+              "Resets in 2h",
+              "Weekly limit",
+              "${'$'}12 of ${'$'}30 used",
+              "60% remaining",
+              "Monthly limit",
+              "${'$'}6 of ${'$'}60 used",
+              "90% remaining",
+              "Zen balance",
+              "${'$'}4.50 credits"
+            ].join("\n");
+            global.window = global;
+            global.location = {
+              hostname: "opencode.ai",
+              pathname: "/auth",
+              href: "https://opencode.ai/auth"
+            };
+            global.document = {
+              title: "OpenCode",
+              body: { innerText: pageText },
+              documentElement: { innerText: pageText },
+              scripts: [],
+              querySelectorAll: () => []
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.fetch = async function() {
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => "" }; },
+                text: async () => ""
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn) {
+              timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $opencode
+            (async function() {
+              for (let i = 0; i < 10 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              const payload = posted[0];
+              const limits = payload && payload.data && payload.data.limits;
+              const credits = payload && payload.data && payload.data.credits;
+              if (payload.provider !== "opencode" || payload.source !== "visible-dom") {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              if (!Array.isArray(limits) || limits.length !== 3) {
+                console.error(JSON.stringify(payload));
+                process.exit(1);
+              }
+              if (limits[0].label !== "Go 5 hour limit" || limits[0].remaining_percent !== 75) {
+                console.error(JSON.stringify(limits[0]));
+                process.exit(1);
+              }
+              if (limits[1].label !== "Go weekly limit" || limits[1].remaining_percent !== 60) {
+                console.error(JSON.stringify(limits[1]));
+                process.exit(1);
+              }
+              if (limits[2].label !== "Go monthly limit" || limits[2].remaining_percent !== 90) {
+                console.error(JSON.stringify(limits[2]));
+                process.exit(1);
+              }
+              if (!credits || credits.balance !== 4.5) {
+                console.error(JSON.stringify(credits));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("OpenCode visible usage DOM was not converted to usage payload:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun opencodeCollectorConvertsKoreanGoUsagePageToTrustedPayload() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected OpenCode runtime checks", node != null)
+
+        val opencode = ProviderWebCollectorScripts.build(ProviderId.OPENCODE, emptyMap(), "")
+        val path = Files.createTempFile("ai-quota-opencode-ko-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            const pageText = [
+              "현재 OpenCode Go를 구독 중입니다.",
+              "롤링 사용량",
+              "0%",
+              "초기화까지 남은 시간: 5 시간 0 분",
+              "주간 사용량",
+              "0%",
+              "초기화까지 남은 시간: 3 일 18 시간",
+              "월간 사용량",
+              "0%",
+              "초기화까지 남은 시간: 29 일 23 시간"
+            ].join("\n");
+            global.window = global;
+            global.location = {
+              hostname: "opencode.ai",
+              pathname: "/workspace/wrk_123/go",
+              href: "https://opencode.ai/workspace/wrk_123/go"
+            };
+            global.document = {
+              title: "OpenCode",
+              body: { innerText: pageText },
+              documentElement: { innerText: pageText },
+              scripts: [],
+              querySelectorAll: () => []
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.fetch = async function() {
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => "" }; },
+                text: async () => ""
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn) {
+              timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $opencode
+            (async function() {
+              for (let i = 0; i < 10 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              const payload = posted[0];
+              const limits = payload && payload.data && payload.data.limits;
+              if (payload.provider !== "opencode" || payload.source !== "visible-dom") {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              if (!Array.isArray(limits) || limits.length !== 3) {
+                console.error(JSON.stringify(payload));
+                process.exit(1);
+              }
+              if (limits[0].label !== "Go 5 hour limit" || limits[0].used_percent !== 0 || limits[0].reset_text !== "Resets in 5h 0m") {
+                console.error(JSON.stringify(limits[0]));
+                process.exit(1);
+              }
+              if (limits[1].label !== "Go weekly limit" || limits[1].used_percent !== 0 || limits[1].reset_text !== "Resets in 3d 18h") {
+                console.error(JSON.stringify(limits[1]));
+                process.exit(1);
+              }
+              if (limits[2].label !== "Go monthly limit" || limits[2].used_percent !== 0 || limits[2].reset_text !== "Resets in 29d 23h") {
+                console.error(JSON.stringify(limits[2]));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("OpenCode Korean Go DOM was not converted to usage payload:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
     }
 
     @Test
@@ -62,6 +391,18 @@ class ProviderWebCollectorScriptsTest {
 
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.GEMINI, "https://accounts.google.com/signin", emptyMap(), ""))
         assertFalse(ProviderWebCollectorScripts.shouldAcceptCollectorPayload(ProviderId.GEMINI, "https://accounts.google.com/signin"))
+    }
+
+    @Test
+    fun opencodeCollectorRunsOnConsoleUsageResourcesOnly() {
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.OPENCODE, "https://opencode.ai/zen/go/usage"))
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.OPENCODE, "https://opencode.ai/workspace/wrk_123/go"))
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.OPENCODE, "https://opencode.ai/billing/credits"))
+        assertTrue(ProviderWebCollectorScripts.shouldAcceptCollectorPayload(ProviderId.OPENCODE, "https://opencode.ai/workspace/wrk_123/go"))
+
+        assertFalse(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.OPENCODE, "https://opencode.ai/docs/go/"))
+        assertFalse(ProviderWebCollectorScripts.shouldAcceptCollectorPayload(ProviderId.OPENCODE, "https://opencode.ai/auth"))
+        assertFalse(ProviderWebCollectorScripts.shouldAcceptCollectorPayload(ProviderId.OPENCODE, "https://opencode.ai/docs/go/"))
     }
 
     @Test
@@ -242,6 +583,190 @@ class ProviderWebCollectorScriptsTest {
             val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
             val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
             assertTrue("Gemini usage page text was not converted to usage payload:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun geminiCollectorTreatsUsedPercentOneAsOnePercent() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected Gemini runtime checks", node != null)
+
+        val asset = java.io.File("src/main/assets/gemini_collector.js").readText()
+        val gemini = ProviderWebCollectorScripts.build(ProviderId.GEMINI, emptyMap(), asset)
+        val path = Files.createTempFile("ai-quota-gemini-used-percent-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            global.window = global;
+            global.location = {
+              hostname: "gemini.google.com",
+              pathname: "/app",
+              href: "https://gemini.google.com/app"
+            };
+            global.document = {
+              title: "Gemini",
+              body: { innerText: "Gemini" },
+              documentElement: { innerText: "Gemini" },
+              scripts: [],
+              querySelectorAll: () => []
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({
+              quota: JSON.stringify({ modelId: "gemini-2.5-pro", usedPercent: 1, resetTime: "2026-06-10T00:00:00Z" })
+            });
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.fetch = async function(url) {
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => "" }; },
+                text: async () => ""
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn) {
+              timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $gemini
+            (async function() {
+              for (let i = 0; i < 8 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              const rows = posted[0] && posted[0].usage && posted[0].usage.x;
+              if (!Array.isArray(rows) || rows.length === 0) {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              if (rows[0].u !== 0.01) {
+                console.error(JSON.stringify(rows[0]));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("Gemini collector treated usedPercent=1 as 100% used:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun geminiUsagePageDoesNotBorrowWeeklyResetForIdleFiveHourLimit() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected Gemini runtime checks", node != null)
+
+        val asset = java.io.File("src/main/assets/gemini_collector.js").readText()
+        val gemini = ProviderWebCollectorScripts.build(ProviderId.GEMINI, emptyMap(), asset)
+        val path = Files.createTempFile("ai-quota-gemini-idle-reset-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            global.window = global;
+            global.location = {
+              hostname: "gemini.google.com",
+              pathname: "/app",
+              href: "https://gemini.google.com/app"
+            };
+            global.document = {
+              title: "Gemini",
+              body: { innerText: "Gemini" },
+              documentElement: { innerText: "Gemini" },
+              scripts: [],
+              querySelectorAll: () => []
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.fetch = async function(url) {
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => "" }; },
+                text: async () => ""
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn) {
+              timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $gemini
+            const payload = window.SAGE_USAGE_EXTRACTOR.buildGeminiUsagePayload({
+              usagePage: true,
+              pageText: [
+                "Gemini",
+                "사용량 한도",
+                "PRO",
+                "현재 사용량",
+                "0% 사용됨",
+                "주간 한도",
+                "6월 4일 오후 12:36에 초기화",
+                "0% 사용됨"
+              ].join("\n"),
+              combinedText: "Gemini Google AI Pro hidden state",
+              limits: []
+            });
+            const rows = payload && payload.usage && payload.usage.x;
+            if (!payload.account || payload.account.p !== "GEMINI_PRO") {
+              console.error(JSON.stringify(payload.account));
+              process.exit(1);
+            }
+            if (!Array.isArray(rows) || rows.length !== 2) {
+              console.error(JSON.stringify(payload));
+              process.exit(1);
+            }
+            if (rows[0].l !== "5-hour limit" || rows[0].u !== 0 || Object.prototype.hasOwnProperty.call(rows[0], "t")) {
+              console.error(JSON.stringify(rows[0]));
+              process.exit(1);
+            }
+            if (rows[1].l !== "Weekly limit" || rows[1].u !== 0 || rows[1].t !== "6월 4일 오후 12:36에 초기화") {
+              console.error(JSON.stringify(rows[1]));
+              process.exit(1);
+            }
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("Gemini usage page should not borrow weekly reset for idle 5-hour limit:\n$output", process.waitFor() == 0)
         } finally {
             Files.deleteIfExists(path)
         }
@@ -527,7 +1052,11 @@ class ProviderWebCollectorScriptsTest {
                 console.error(JSON.stringify(usage));
                 process.exit(1);
               }
-              if (payload.plan !== "Claude Pro") {
+              if (usage.session.resetText !== "resets in 2h 10m" || usage.weekly.resetText !== "resets in 4d 12h") {
+                console.error(JSON.stringify(usage));
+                process.exit(1);
+              }
+              if (payload.plan !== "Pro") {
                 console.error(JSON.stringify(payload));
                 process.exit(1);
               }
@@ -538,6 +1067,408 @@ class ProviderWebCollectorScriptsTest {
             val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
             val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
             assertTrue("Claude WebView reset text was not converted to usage payload:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun claudeCollectorPostsAdditionalUsageContainersFromUsageApi() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected Claude runtime checks", node != null)
+
+        val claude = ProviderWebCollectorScripts.build(ProviderId.CLAUDE, mapOf("lastActiveOrg" to "org_test"), "")
+        val path = Files.createTempFile("ai-quota-claude-extra-buckets-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            global.window = global;
+            global.location = { pathname: "/new" };
+            global.document = {
+              title: "Claude",
+              documentElement: { innerText: "Claude" },
+              scripts: [],
+              querySelector: () => ({})
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.fetch = async function(url) {
+              const value = String(url);
+              if (value.includes("/api/organizations/") && value.includes("/usage")) {
+                return {
+                  ok: true,
+                  status: 200,
+                  text: async () => JSON.stringify({
+                    models: {
+                      "claude-haiku-4-5": { displayName: "Claude Haiku 4.5", remaining_percent: 90 }
+                    },
+                    quotaBuckets: [
+                      { key: "long_context", label: "Long context", remainingPercent: 25 }
+                    ]
+                  }),
+                  json: async () => ({
+                    models: {
+                      "claude-haiku-4-5": { displayName: "Claude Haiku 4.5", remaining_percent: 90 }
+                    },
+                    quotaBuckets: [
+                      { key: "long_context", label: "Long context", remainingPercent: 25 }
+                    ]
+                  })
+                };
+              }
+              if (value.includes("/subscription_details")) {
+                return { ok: true, status: 200, text: async () => "{}", json: async () => ({}) };
+              }
+              return { ok: true, status: 200, text: async () => JSON.stringify([{ id: "org_test" }]), json: async () => ([{ id: "org_test" }]) };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn) {
+              timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $claude
+            (async function() {
+              for (let i = 0; i < 12 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              if (posted.length === 0) {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              const usage = posted[0] && posted[0].usage;
+              if (!usage || !usage.models || !Array.isArray(usage.quotaBuckets)) {
+                console.error(JSON.stringify(posted[0]));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("Claude collector did not post model/container usage payload:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun claudeCollectorMergesUsageApiBucketsWithVisibleSessionUsage() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected Claude runtime checks", node != null)
+
+        val claude = ProviderWebCollectorScripts.build(ProviderId.CLAUDE, mapOf("lastActiveOrg" to "197643947"), "")
+        val path = Files.createTempFile("ai-quota-claude-merged-usage-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            const orgUuid = "00000000-0000-4000-8000-000000000001";
+            const pageText = [
+              "Claude Pro",
+              "Claude: Session Reset",
+              "95% left",
+              "Claude session limit resets in 4h 10m",
+              "Claude: Weekly Reset",
+              "100% left",
+              "Claude weekly limit resets in 6d 5h"
+            ].join("\n");
+            global.window = global;
+            global.location = { pathname: "/new" };
+            global.document = {
+              title: "Claude",
+              documentElement: { innerText: pageText },
+              scripts: [],
+              querySelector: () => ({})
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.fetch = async function(url) {
+              const value = String(url);
+              if (value.includes("/api/organizations/197643947/usage")) {
+                return {
+                  ok: false,
+                  status: 400,
+                  text: async () => JSON.stringify({ error: { message: "numeric id is not accepted for usage" } }),
+                  json: async () => ({ error: { message: "numeric id is not accepted for usage" } })
+                };
+              }
+              if (value.includes("/api/organizations/" + orgUuid + "/usage")) {
+                return {
+                  ok: true,
+                  status: 200,
+                  text: async () => JSON.stringify({
+                    models: {
+                      "claude-haiku-4-5": { displayName: "Claude Haiku 4.5", remaining_percent: 90 }
+                    },
+                    quotaBuckets: [
+                      { key: "long_context", label: "Long context", remainingPercent: 25 }
+                    ]
+                  }),
+                  json: async () => ({
+                    models: {
+                      "claude-haiku-4-5": { displayName: "Claude Haiku 4.5", remaining_percent: 90 }
+                    },
+                    quotaBuckets: [
+                      { key: "long_context", label: "Long context", remainingPercent: 25 }
+                    ]
+                  })
+                };
+              }
+              if (value.includes("/subscription_details")) {
+                return { ok: true, status: 200, text: async () => "{}", json: async () => ({}) };
+              }
+              return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify([{ id: 197643947, uuid: orgUuid }]),
+                json: async () => ([{ id: 197643947, uuid: orgUuid }])
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn) {
+              timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $claude
+            (async function() {
+              for (let i = 0; i < 12 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              if (posted.length === 0) {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              const usage = posted[0] && posted[0].usage;
+              if (!usage || !usage.session || !usage.weekly || !usage.models || !Array.isArray(usage.quotaBuckets)) {
+                console.error(JSON.stringify(posted[0]));
+                process.exit(1);
+              }
+              if (usage.session.remaining_percent !== 95 || usage.weekly.remaining_percent !== 100) {
+                console.error(JSON.stringify(usage));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("Claude collector dropped usage API buckets after visible usage was found:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun claudeCollectorDoesNotBorrowWeeklyResetForIdleSession() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected Claude runtime checks", node != null)
+
+        val claude = ProviderWebCollectorScripts.build(ProviderId.CLAUDE, mapOf("lastActiveOrg" to "org_test"), "")
+        val path = Files.createTempFile("ai-quota-claude-idle-session-reset-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            const pageText = [
+              "Claude Pro",
+              "Claude: Session Reset",
+              "80% left",
+              "Claude: Weekly Reset",
+              "84% left",
+              "Claude weekly limit resets in 4d 12h"
+            ].join("\n");
+            global.window = global;
+            global.location = { pathname: "/new" };
+            global.document = {
+              title: "Claude",
+              documentElement: { innerText: pageText },
+              scripts: [],
+              querySelector: () => ({})
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.fetch = async function(url) {
+              if (String(url).includes("/api/organizations/") && String(url).includes("/usage")) {
+                return { ok: false, status: 404, text: async () => "{}", json: async () => ({}) };
+              }
+              if (String(url).includes("/subscription_details")) {
+                return { ok: true, status: 200, text: async () => JSON.stringify({ plan_name: "Claude Pro" }), json: async () => ({ plan_name: "Claude Pro" }) };
+              }
+              return { ok: true, status: 200, text: async () => JSON.stringify([{ id: "org_test", plan: "Claude Pro" }]), json: async () => ([{ id: "org_test", plan: "Claude Pro" }]) };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn) {
+              timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $claude
+            (async function() {
+              for (let i = 0; i < 12 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              if (posted.length === 0) {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              const usage = posted[0] && posted[0].usage;
+              if (!usage || !usage.session || !usage.weekly) {
+                console.error(JSON.stringify(posted[0]));
+                process.exit(1);
+              }
+              if (usage.session.remaining_percent !== 80 || Object.prototype.hasOwnProperty.call(usage.session, "resetText")) {
+                console.error(JSON.stringify(usage.session));
+                process.exit(1);
+              }
+              if (usage.weekly.remaining_percent !== 84 || usage.weekly.resetText !== "resets in 4d 12h") {
+                console.error(JSON.stringify(usage.weekly));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("Claude WebView state should not borrow weekly reset for idle session:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun claudeCollectorExtractsPlanFromVisibleWebPlanText() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected Claude runtime checks", node != null)
+
+        val claude = ProviderWebCollectorScripts.build(ProviderId.CLAUDE, mapOf("lastActiveOrg" to "org_test"), "")
+        val path = Files.createTempFile("ai-quota-claude-visible-plan-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            const pageText = [
+              "Claude Settings",
+              "Current plan",
+              "Max 5x",
+              "Claude: Session Reset",
+              "80% left",
+              "Claude session limit resets in 2h 10m"
+            ].join("\n");
+            global.window = global;
+            global.location = { pathname: "/settings/account" };
+            global.document = {
+              title: "Claude",
+              documentElement: { innerText: pageText },
+              scripts: [],
+              querySelector: () => ({})
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.fetch = async function(url) {
+              if (String(url).includes("/api/organizations/") && String(url).includes("/usage")) {
+                return { ok: false, status: 404, text: async () => "{}", json: async () => ({}) };
+              }
+              if (String(url).includes("/subscription_details")) {
+                return { ok: false, status: 404, text: async () => "{}", json: async () => ({}) };
+              }
+              return { ok: true, status: 200, text: async () => JSON.stringify([{ id: "org_test" }]), json: async () => ([{ id: "org_test" }]) };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn) {
+              timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $claude
+            (async function() {
+              for (let i = 0; i < 12 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              if (posted.length === 0) {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              if (posted[0].plan !== "Max 5x") {
+                console.error(JSON.stringify(posted[0]));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("Claude WebView plan text was not included in usage payload:\n$output", process.waitFor() == 0)
         } finally {
             Files.deleteIfExists(path)
         }
@@ -570,7 +1501,7 @@ class ProviderWebCollectorScriptsTest {
                     planName: "Copilot Pro",
                     resetDate: "2026-06-15",
                     usage: [
-                      { title: "Chat messages", usedPercent: 12 },
+                      { title: "Chat messages", usedPercent: 1 },
                       { title: "Code completion", remainingPercent: 100 }
                     ]
                   }
@@ -625,7 +1556,7 @@ class ProviderWebCollectorScriptsTest {
                 process.exit(1);
               }
               const quotas = payload.quotas || {};
-              if (!quotas.chat || !quotas.completions || quotas.chat.used_percent !== 12 || quotas.completions.used_percent !== 0) {
+              if (!quotas.chat || !quotas.completions || quotas.chat.used_percent !== 1 || quotas.completions.used_percent !== 0) {
                 console.error(JSON.stringify(payload));
                 process.exit(1);
               }
@@ -923,7 +1854,7 @@ class ProviderWebCollectorScriptsTest {
         assertTrue(gemini.contains("extractJsonCandidates"))
         assertTrue(gemini.contains("c.pageText"))
         assertTrue(gemini.contains("setTimeout(collectGeminiUsage, 5000)"))
-        assertTrue(gemini.contains("remainingValue <= 1 ? remainingValue : remainingValue / 100"))
+        assertTrue(gemini.contains("remainingFractionValue <= 1 ? remainingFractionValue : remainingFractionValue / 100"))
         assertFalse(gemini.contains("100 - remaining"))
         assertFalse(gemini.contains("Gemini Web Session"))
         assertFalse(gemini.contains("Quota is not exposed by the current Gemini web page."))
@@ -1067,6 +1998,124 @@ class ProviderWebCollectorScriptsTest {
     }
 
     @Test
+    fun codexCollectorDoesNotBlockUsageNavigationOnSubscriptionPlanFetch() {
+        val codex = ProviderWebCollectorScripts.build(ProviderId.CODEX, emptyMap(), "")
+        val probe = codex.substringAfter("async function probeCodexSession()")
+            .substringBefore("function looksLikeChatGptApp()")
+
+        assertTrue(probe.indexOf("result.usage = scanCodexPageState(result.accountId)") < probe.indexOf("fetchCodexSubscriptionPlan(result.accountId)"))
+        assertTrue(probe.contains("if (!result.plan)"))
+        assertTrue(codex.contains("\" subscription=\" + result.subscriptionStatus"))
+        assertTrue(codex.contains("\" plan=\" + !!result.plan"))
+    }
+
+    @Test
+    fun codexCollectorUsesAccountMetadataPlanWhenSubscriptionEndpointRejects() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected Codex runtime checks", node != null)
+
+        val codex = ProviderWebCollectorScripts.build(ProviderId.CODEX, emptyMap(), "")
+        val path = Files.createTempFile("ai-quota-codex-account-plan-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            const pageText = [
+              "Codex",
+              "Codex 5 hour usage limit",
+              "97% left",
+              "Resets in 1h 24m",
+              "Codex Weekly usage limit",
+              "70% left",
+              "Resets in 2d 21h"
+            ].join("\n");
+            global.window = global;
+            global.location = { pathname: "/codex/cloud/settings/analytics", href: "https://chatgpt.com/codex/cloud/settings/analytics#usage" };
+            global.document = {
+              title: "Codex",
+              documentElement: { innerText: pageText },
+              scripts: [],
+              querySelector: () => ({})
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.AbortController = class {
+              constructor() { this.signal = {}; }
+              abort() {}
+            };
+            global.fetch = async function(url) {
+              const value = String(url);
+              if (value.includes("/backend-api/subscriptions")) {
+                return {
+                  ok: false,
+                  status: 401,
+                  clone() { return { text: async () => JSON.stringify({ error: "unauthorized" }) }; },
+                  json: async () => ({ error: "unauthorized" })
+                };
+              }
+              if (value.includes("/backend-api/me")) {
+                return {
+                  ok: true,
+                  status: 200,
+                  clone() { return { text: async () => JSON.stringify({ account: { active_subscription: { plan: { id: "prolite" } } } }) }; },
+                  json: async () => ({ account: { active_subscription: { plan: { id: "prolite" } } } })
+                };
+              }
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => "{}" }; },
+                json: async () => ({})
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn, delay) {
+              if (delay <= 1000) timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $codex
+            (async function() {
+              for (let i = 0; i < 12 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              if (posted.length === 0) {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              if (posted[0].plan !== "Pro 5x") {
+                console.error(JSON.stringify(posted[0]));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("Codex account metadata plan was not used when subscriptions returned 401:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun codexCollectorReportsUnavailableBeforeAndroidTimeout() {
         val codex = ProviderWebCollectorScripts.build(ProviderId.CODEX, emptyMap(), "")
 
@@ -1157,7 +2206,15 @@ class ProviderWebCollectorScriptsTest {
               constructor() { this.signal = {}; }
               abort() {}
             };
-            global.fetch = async function() {
+            global.fetch = async function(url) {
+              if (String(url).includes("/backend-api/subscriptions")) {
+                return {
+                  ok: true,
+                  status: 200,
+                  clone() { return { text: async () => JSON.stringify({ data: [{ active_subscription: { plan: { id: "prolite", display_name: "ChatGPT Pro Lite" } } }] }) }; },
+                  json: async () => ({ data: [{ active_subscription: { plan: { id: "prolite", display_name: "ChatGPT Pro Lite" } } }] })
+                };
+              }
               return {
                 ok: true,
                 status: 200,
@@ -1198,6 +2255,10 @@ class ProviderWebCollectorScriptsTest {
               }
               if (limits.primary_window.remaining_percent !== 98 || limits.secondary_window.remaining_percent !== 45) {
                 console.error(JSON.stringify(limits));
+                process.exit(1);
+              }
+              if (posted[0].plan !== "Pro 5x") {
+                console.error(JSON.stringify(posted[0]));
                 process.exit(1);
               }
             })();
@@ -1485,6 +2546,116 @@ class ProviderWebCollectorScriptsTest {
     }
 
     @Test
+    fun codexCollectorDoesNotCopyWeeklyResetIntoIdleSessionWindow() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected Codex runtime checks", node != null)
+
+        val codex = ProviderWebCollectorScripts.build(ProviderId.CODEX, emptyMap(), "")
+        val path = Files.createTempFile("ai-quota-codex-idle-session-reset-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            const pageText = [
+              "Codex",
+              "Codex 5 hour usage limit",
+              "100% left",
+              "Codex Weekly usage limit",
+              "90% left",
+              "Resets in 6d 2h",
+              "GPT-5.3-Codex-Spark 5 hour usage limit",
+              "100% left",
+              "GPT-5.3-Codex-Spark Weekly usage limit",
+              "100% left",
+              "Resets in 6d 2h"
+            ].join("\n");
+            global.window = global;
+            global.location = { pathname: "/codex/cloud/settings/analytics" };
+            global.document = {
+              title: "Codex",
+              documentElement: { innerText: pageText },
+              scripts: [],
+              querySelector: () => ({})
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.AbortController = class {
+              constructor() { this.signal = {}; }
+              abort() {}
+            };
+            global.fetch = async function(url) {
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => "" }; },
+                json: async () => ({})
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn, delay) {
+              if (delay <= 1000) timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $codex
+            (async function() {
+              for (let i = 0; i < 12 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              if (posted.length === 0) {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              const limits = posted[0] && posted[0].usage && posted[0].usage.rate_limits;
+              if (!limits || !limits.primary_window || !limits.secondary_window || !limits.spark_primary_window || !limits.spark_secondary_window) {
+                console.error(JSON.stringify(posted[0]));
+                process.exit(1);
+              }
+              if (Object.prototype.hasOwnProperty.call(limits.primary_window, "reset_text")) {
+                console.error(JSON.stringify(limits.primary_window));
+                process.exit(1);
+              }
+              if (limits.secondary_window.reset_text !== "Resets in 6d 2h") {
+                console.error(JSON.stringify(limits.secondary_window));
+                process.exit(1);
+              }
+              if (Object.prototype.hasOwnProperty.call(limits.spark_primary_window, "reset_text")) {
+                console.error(JSON.stringify(limits.spark_primary_window));
+                process.exit(1);
+              }
+              if (limits.spark_secondary_window.reset_text !== "Resets in 6d 2h") {
+                console.error(JSON.stringify(limits.spark_secondary_window));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("Codex idle session window should not inherit weekly reset text:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun codexCollectorPrefersVisibleUsageLimitDomOverInternalUsedPercent() {
         val node = nodeCommandOrNull()
         assumeTrue("node is required for injected Codex runtime checks", node != null)
@@ -1634,6 +2805,117 @@ class ProviderWebCollectorScriptsTest {
             val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
             val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
             assertTrue("Codex visible usage-limit DOM did not override internal used_percent:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun codexCollectorNormalizesWeeklyTimeOnlyResetWhenWithinNextDay() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected Codex runtime checks", node != null)
+
+        val codex = ProviderWebCollectorScripts.build(ProviderId.CODEX, emptyMap(), "")
+        val path = Files.createTempFile("ai-quota-codex-weekly-time-only-reset-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            const kr = (...codes) => String.fromCharCode(...codes);
+            const hour = kr(0xC2DC, 0xAC04);
+            const weekly = kr(0xC8FC, 0xAC04);
+            const usage = kr(0xC0AC, 0xC6A9);
+            const limit = kr(0xD55C, 0xB3C4);
+            const remaining = kr(0xB0A8, 0xC74C);
+            const reset = kr(0xCD08, 0xAE30, 0xD654);
+            const pageText = [
+              "Codex",
+              "5" + hour + " " + usage + " " + limit,
+              "84% " + remaining,
+              "오후 2:52 " + reset,
+              weekly + " " + usage + " " + limit,
+              "39% " + remaining,
+              "오후 2:52 " + reset,
+              "GPT-5.3-Codex-Spark " + weekly + " " + usage + " " + limit,
+              "100% " + remaining,
+              "오후 2:52 " + reset,
+              "남은 크레딧",
+              "0"
+            ].join("\n");
+            global.window = global;
+            global.location = { pathname: "/codex/cloud/settings/analytics" };
+            global.document = {
+              title: "Codex",
+              documentElement: { innerText: pageText },
+              scripts: [],
+              querySelector: () => ({})
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.AbortController = class {
+              constructor() { this.signal = {}; }
+              abort() {}
+            };
+            global.fetch = async function() {
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => "" }; },
+                json: async () => ({})
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn, delay) {
+              if (delay <= 1000) timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            Date.now = function() { return new Date(2026, 5, 16, 10, 0, 0, 0).getTime(); };
+            $codex
+            (async function() {
+              for (let i = 0; i < 12 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              if (posted.length === 0) {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              const limits = posted[0] && posted[0].usage && posted[0].usage.rate_limits;
+              if (!limits || !limits.secondary_window || !limits.spark_secondary_window) {
+                console.error(JSON.stringify(posted[0]));
+                process.exit(1);
+              }
+              if (limits.secondary_window.reset_text !== "Resets in 4h 52m") {
+                console.error(JSON.stringify(limits.secondary_window));
+                process.exit(1);
+              }
+              if (limits.spark_secondary_window.reset_text !== "Resets in 4h 52m") {
+                console.error(JSON.stringify(limits.spark_secondary_window));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("Codex weekly time-only reset should be normalized:\n$output", process.waitFor() == 0)
         } finally {
             Files.deleteIfExists(path)
         }
@@ -1823,6 +3105,8 @@ class ProviderWebCollectorScriptsTest {
         val scripts = mapOf(
             "claude" to ProviderWebCollectorScripts.build(ProviderId.CLAUDE, mapOf("lastActiveOrg" to "org_123"), ""),
             "codex" to ProviderWebCollectorScripts.build(ProviderId.CODEX, emptyMap(), ""),
+            "glm" to ProviderWebCollectorScripts.build(ProviderId.GLM, emptyMap(), ""),
+            "opencode" to ProviderWebCollectorScripts.build(ProviderId.OPENCODE, emptyMap(), ""),
             "gemini" to ProviderWebCollectorScripts.build(
                 ProviderId.GEMINI,
                 emptyMap(),

@@ -41,6 +41,25 @@ class NotificationPermissionLaunchTest {
     }
 
     @Test
+    fun firstEntryLiveRefreshPromptRecommendsBatteryOptimizationExemption() {
+        val manifest = File("src/main/AndroidManifest.xml").readText()
+        val appShell = File("src/main/java/com/aiquota/mobile/ui/AIQuotaAppShell.kt").readText()
+        val english = File("src/main/res/values/strings.xml").readText()
+        val korean = File("src/main/res/values-ko/strings.xml").readText()
+
+        assertTrue(manifest.contains("android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"))
+        assertTrue(appShell.contains("PowerManager"))
+        assertTrue(appShell.contains("isIgnoringBatteryOptimizations"))
+        assertTrue(appShell.contains("Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"))
+        assertTrue(appShell.contains("Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS"))
+        assertTrue(appShell.contains("onOpenBatteryOptimizationSettings"))
+        assertTrue(appShell.contains("live_refresh_prompt_battery_title"))
+        assertTrue(appShell.contains("live_refresh_prompt_open_battery_settings"))
+        assertTrue(english.contains("Recommended for 1-minute live refresh"))
+        assertTrue(korean.contains("1분 주기 라이브 갱신 안정성을 위해 권장"))
+    }
+
+    @Test
     fun providerDetailDoesNotExposeScreenRefreshButton() {
         val providerDetail = File("src/main/java/com/aiquota/mobile/ui/provider/ProviderDetailScreen.kt").readText()
         val appShell = File("src/main/java/com/aiquota/mobile/ui/AIQuotaAppShell.kt").readText()

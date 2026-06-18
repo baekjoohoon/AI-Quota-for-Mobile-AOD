@@ -18,6 +18,10 @@ object ProviderLoginStrategy {
                 false
             ProviderId.CODEX ->
                 false
+            ProviderId.GLM ->
+                false
+            ProviderId.OPENCODE ->
+                false
             ProviderId.GEMINI ->
                 false
             ProviderId.COPILOT ->
@@ -92,6 +96,9 @@ object ProviderLoginStrategy {
             host.endsWith("githubassets.com") ||
             host.endsWith("auth.openai.com") ||
             host.endsWith("chatgpt.com") ||
+            host.endsWith("z.ai") ||
+            host.endsWith("api.z.ai") ||
+            host.endsWith("opencode.ai") ||
             host.endsWith("claude.ai") ||
             host.endsWith("antigravity.google") ||
             host.endsWith("cursor.com") ||

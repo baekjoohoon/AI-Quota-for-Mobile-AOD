@@ -223,6 +223,34 @@ class LocalUsageRepositoryTest {
     }
 
     @Test
+    fun geminiUsageWindowLinesAreKeptWhenNoModelSpecificReplacementExists() {
+        val snapshot = ProviderUsageSnapshot(
+            providerId = ProviderId.GEMINI,
+            connectionState = ProviderConnectionState.CONNECTED,
+            planLabel = "Gemini Pro",
+            lines = listOf(
+                ProviderUsageLine(
+                    key = "gemini:5_hour",
+                    label = "5-hour limit",
+                    remainingPercent = 1.0f
+                ),
+                ProviderUsageLine(
+                    key = "gemini:weekly",
+                    label = "Weekly limit",
+                    remainingPercent = 1.0f,
+                    resetText = "Resets in 5d 1h"
+                )
+            )
+        )
+
+        val recovered = normalizeGeminiLegacyUsageLabels(snapshot)
+
+        assertEquals(listOf("5-hour limit", "Weekly limit"), recovered.lines.map { it.label })
+        assertEquals(null, recovered.lines[0].resetText)
+        assertEquals("Resets in 5d 1h", recovered.lines[1].resetText)
+    }
+
+    @Test
     fun legacyAuthRequiredWithPreviousUsageReturnsToConnected() {
         val snapshot = ProviderUsageSnapshot(
             providerId = ProviderId.CURSOR,

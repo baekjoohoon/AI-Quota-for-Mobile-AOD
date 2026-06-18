@@ -7,6 +7,7 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -76,6 +77,7 @@ import com.aiquota.mobile.local.ThemePreferencesRepository
 import com.aiquota.mobile.notification.UsageLimitNotificationController
 import com.aiquota.mobile.providers.AntigravityLoopbackOAuthActivity
 import com.aiquota.mobile.providers.GeminiCliLoopbackOAuthActivity
+import com.aiquota.mobile.providers.GlmApiKeyActivity
 import com.aiquota.mobile.providers.ProviderConnectorRegistry
 import com.aiquota.mobile.providers.ProviderHostAllowlist
 import com.aiquota.mobile.providers.ProviderBackgroundRefreshStateRepository
@@ -147,6 +149,9 @@ fun AIQuotaAppShell(
     }
     var liveMonitoringEnabled by remember {
         mutableStateOf(foregroundRefreshController.liveMonitoringEnabled())
+    }
+    var batteryOptimizationExempt by remember {
+        mutableStateOf(isBatteryOptimizationExempt(appContext))
     }
     var liveRefreshStatusNowMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var showLiveRefreshPrompt by remember { mutableStateOf(false) }
@@ -220,6 +225,7 @@ fun AIQuotaAppShell(
         val loginStartUrl = connector.startUrl
 
         if (providerId != ProviderId.GEMINI &&
+            providerId != ProviderId.GLM &&
             loginStartUrl.isNotBlank() &&
             !ProviderHostAllowlist.isAllowed(providerId, loginStartUrl)
         ) {
@@ -244,6 +250,33 @@ fun AIQuotaAppShell(
             )
         )
         scheduleTransientStateExpiryRefresh()
+
+        if (providerId == ProviderId.GLM) {
+            val launchResult = runCatching {
+                val intent = GlmApiKeyActivity.createIntent(launchContext)
+                if (launchContext !is Activity) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                launchContext.startActivity(intent)
+            }
+
+            val nextSnapshot = launchResult.fold(
+                onSuccess = {
+                    null
+                },
+                onFailure = {
+                    ProviderUsageSnapshot(
+                        providerId = providerId,
+                        connectionState = ProviderConnectionState.ERROR,
+                        refreshState = ProviderRefreshState.IDLE,
+                        updatedAt = now,
+                        message = launchContext.getString(R.string.provider_login_open_failed_message)
+                    )
+                }
+            )
+            nextSnapshot?.let(::saveProviderSnapshot)
+            return
+        }
 
         if (providerId == ProviderId.GEMINI || providerId == ProviderId.ANTIGRAVITY) {
             val launchResult = runCatching {
@@ -338,6 +371,7 @@ fun AIQuotaAppShell(
         canPostNotifications = UsageLimitNotificationController.canPostNotifications(launchContext)
         notificationEnabled = UsageLimitNotificationController.isEnabled(appContext) && canPostNotifications
         liveMonitoringEnabled = foregroundRefreshController.liveMonitoringEnabled()
+        batteryOptimizationExempt = isBatteryOptimizationExempt(appContext)
         liveRefreshStatusNowMillis = System.currentTimeMillis()
     }
 
@@ -380,6 +414,35 @@ fun AIQuotaAppShell(
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         launchContext.startActivity(intent)
+    }
+
+    fun startActivityFromLaunchContext(intent: Intent) {
+        if (launchContext !is Activity) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        launchContext.startActivity(intent)
+    }
+
+    fun openBatteryOptimizationSettings() {
+        batteryOptimizationExempt = isBatteryOptimizationExempt(appContext)
+        val packageUri = Uri.parse("package:${appContext.packageName}")
+        val requestIntent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            .setData(packageUri)
+        val fallbackIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+        val preferredIntent = if (
+            !batteryOptimizationExempt &&
+            requestIntent.resolveActivity(appContext.packageManager) != null
+        ) {
+            requestIntent
+        } else {
+            fallbackIntent
+        }
+
+        runCatching {
+            startActivityFromLaunchContext(preferredIntent)
+        }.onFailure {
+            runCatching { startActivityFromLaunchContext(fallbackIntent) }
+        }
     }
 
     fun requestLiveMonitoringFromPrompt() {
@@ -492,6 +555,7 @@ fun AIQuotaAppShell(
                     refreshSnapshots()
                     canPostNotifications = UsageLimitNotificationController.canPostNotifications(launchContext)
                     liveMonitoringEnabled = foregroundRefreshController.liveMonitoringEnabled()
+                    batteryOptimizationExempt = isBatteryOptimizationExempt(appContext)
                     liveRefreshStatusNowMillis = System.currentTimeMillis()
                     if (
                         ForegroundRefreshPolicy.shouldRunForegroundLoop(
@@ -559,11 +623,12 @@ fun AIQuotaAppShell(
         }
     }
 
-    LaunchedEffect(snapshots, liveMonitoringEnabled, canPostNotifications, liveRefreshPromptDismissed) {
+    LaunchedEffect(snapshots, liveMonitoringEnabled, canPostNotifications, batteryOptimizationExempt, liveRefreshPromptDismissed) {
         val shouldShowPrompt = LiveRefreshPromptPolicy.shouldShowOnAppEntry(
             snapshots = snapshots,
             liveMonitoringEnabled = liveMonitoringEnabled,
-            canPostNotifications = canPostNotifications
+            canPostNotifications = canPostNotifications,
+            batteryOptimizationExempt = batteryOptimizationExempt
         )
         if (!shouldShowPrompt) {
             showLiveRefreshPrompt = false
@@ -634,8 +699,10 @@ fun AIQuotaAppShell(
                             notificationEnabled = liveMonitoringEnabled,
                             canPostNotifications = canPostNotifications,
                             liveRefreshState = liveRefreshState,
+                            batteryOptimizationExempt = batteryOptimizationExempt,
                             onNotificationEnabledChanged = ::setNotificationEnabled,
                             onOpenNotificationSettings = ::openNotificationSettings,
+                            onOpenBatteryOptimizationSettings = ::openBatteryOptimizationSettings,
                             providerOrder = providerOrder,
                             snapshots = snapshots,
                             onConnectProvider = ::connectProvider,
@@ -651,11 +718,14 @@ fun AIQuotaAppShell(
                     if (showLiveRefreshPrompt) {
                         LiveRefreshPermissionDialog(
                             canPostNotifications = canPostNotifications,
+                            liveMonitoringEnabled = liveMonitoringEnabled,
+                            batteryOptimizationExempt = batteryOptimizationExempt,
                             onEnable = ::requestLiveMonitoringFromPrompt,
                             onOpenSettings = {
                                 UsageLimitNotificationController.markNotificationPermissionRequested(appContext)
                                 openNotificationSettings()
                             },
+                            onOpenBatteryOptimizationSettings = ::openBatteryOptimizationSettings,
                             onDismiss = {
                                 showLiveRefreshPrompt = false
                                 liveRefreshPromptDismissed = true
@@ -766,12 +836,16 @@ private fun DashboardWidgetPickerDialog(
 @Composable
 private fun LiveRefreshPermissionDialog(
     canPostNotifications: Boolean,
+    liveMonitoringEnabled: Boolean,
+    batteryOptimizationExempt: Boolean,
     onEnable: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenBatteryOptimizationSettings: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val colors = AIQuotaTheme.colors
     val isMac = colors.theme == AppTheme.MACOS
+    val showLiveRefreshEnableButton = !liveMonitoringEnabled || !canPostNotifications
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -844,19 +918,21 @@ private fun LiveRefreshPermissionDialog(
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.textSecondary
                     )
-                    Button(
-                        onClick = onEnable,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = stringResource(
-                                if (canPostNotifications) {
-                                    R.string.live_refresh_prompt_enable
-                                } else {
-                                    R.string.live_refresh_prompt_allow_notifications
-                                }
+                    if (showLiveRefreshEnableButton) {
+                        Button(
+                            onClick = onEnable,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = stringResource(
+                                    if (canPostNotifications) {
+                                        R.string.live_refresh_prompt_enable
+                                    } else {
+                                        R.string.live_refresh_prompt_allow_notifications
+                                    }
+                                )
                             )
-                        )
+                        }
                     }
                     if (!canPostNotifications) {
                         OutlinedButton(
@@ -864,6 +940,30 @@ private fun LiveRefreshPermissionDialog(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(stringResource(R.string.live_refresh_prompt_open_settings))
+                        }
+                    }
+                    if (!batteryOptimizationExempt) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.live_refresh_prompt_battery_title),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = colors.textPrimary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = stringResource(R.string.live_refresh_prompt_battery_body),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = onOpenBatteryOptimizationSettings,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(stringResource(R.string.live_refresh_prompt_open_battery_settings))
                         }
                     }
                     OutlinedButton(
@@ -1066,7 +1166,7 @@ private fun ProviderNavigationChip(
                 text = providerNavigationLabel(providerId),
                 modifier = Modifier.fillMaxWidth(),
                 color = textColor,
-                style = MaterialTheme.typography.labelSmall,
+                style = compactProviderLineBreakStyle(providerId, MaterialTheme.typography.labelSmall),
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -1080,6 +1180,8 @@ private fun providerNavigationLabel(providerId: ProviderId): String {
     return when (providerId) {
         ProviderId.CLAUDE -> "Claude"
         ProviderId.CODEX -> "Codex"
+        ProviderId.GLM -> "GLM"
+        ProviderId.OPENCODE -> "OpenCode"
         ProviderId.GEMINI -> "Gemini"
         ProviderId.COPILOT -> "Copilot"
         ProviderId.ANTIGRAVITY -> "Anti\nGravity"
@@ -1092,6 +1194,14 @@ internal fun navigationProviderOrder(
     hiddenProviders: Set<ProviderId>
 ): List<ProviderId> {
     return ProviderPreferencesCodec.visibleProviders(providerOrder, hiddenProviders)
+}
+
+private fun isBatteryOptimizationExempt(context: Context): Boolean {
+    val appContext = context.applicationContext
+    return runCatching {
+        val powerManager = appContext.getSystemService(Context.POWER_SERVICE) as PowerManager
+        powerManager.isIgnoringBatteryOptimizations(appContext.packageName)
+    }.getOrDefault(false)
 }
 
 private const val CONNECTING_STATE_MAX_MILLIS = 3_000L

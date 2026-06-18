@@ -8,15 +8,27 @@ import androidx.activity.compose.setContent
 import com.aiquota.mobile.notification.UsageLimitNotificationController
 import com.aiquota.mobile.sync.ForegroundRefreshController
 import com.aiquota.mobile.ui.AIQuotaAppShell
+import com.aiquota.mobile.update.AppUpdateCoordinator
 
 @Suppress("DEPRECATION")
 class MainActivity : ComponentActivity() {
+    private lateinit var appUpdateCoordinator: AppUpdateCoordinator
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         FirebaseGatewayBootstrap.install()
+        appUpdateCoordinator = AppUpdateCoordinator(this)
         postCachedNotificationWhenAllowed()
         setContent {
             AIQuotaAppShell(context = this)
+        }
+        appUpdateCoordinator.checkForRequiredUpdate()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::appUpdateCoordinator.isInitialized) {
+            appUpdateCoordinator.resumeRequiredUpdateIfNeeded()
         }
     }
 

@@ -36,7 +36,7 @@ class ProviderBackgroundRefreshServicePolicyTest {
     }
 
     @Test
-    fun liveRefreshHealthWorkerNotifiesWhenHeartbeatIsStale() {
+    fun liveRefreshHealthWorkerRestartsAndNotifiesWhenHeartbeatIsStale() {
         val worker = File("src/main/java/com/aiquota/mobile/sync/ForegroundRefreshHealthWorker.kt").readText()
         val scheduler = File("src/main/java/com/aiquota/mobile/sync/ForegroundRefreshHealthScheduler.kt").readText()
         val controller = File("src/main/java/com/aiquota/mobile/sync/ForegroundRefreshController.kt").readText()
@@ -49,10 +49,13 @@ class ProviderBackgroundRefreshServicePolicyTest {
         assertTrue(worker.contains("class ForegroundRefreshHealthWorker"))
         assertTrue(worker.contains("ProviderBackgroundRefreshStateRepository"))
         assertTrue(worker.contains("isHeartbeatStale"))
+        assertTrue(worker.contains("ForegroundRefreshController(context).startPreciseRefresh()"))
         assertTrue(worker.contains("notifyLiveRefreshIssue"))
         assertTrue(worker.contains("cancelLiveRefreshIssue"))
         assertTrue(scheduler.contains("PeriodicWorkRequestBuilder<ForegroundRefreshHealthWorker>"))
         assertTrue(scheduler.contains("15L"))
+        assertTrue(scheduler.contains("ExistingPeriodicWorkPolicy.KEEP"))
+        assertTrue(scheduler.contains("ExistingWorkPolicy.KEEP"))
         assertTrue(controller.contains("ForegroundRefreshHealthScheduler.schedule"))
         assertTrue(controller.contains("ForegroundRefreshHealthScheduler.cancel"))
         assertTrue(notification.contains("LIVE_REFRESH_ISSUE_NOTIFICATION_ID = 1002"))
@@ -66,10 +69,41 @@ class ProviderBackgroundRefreshServicePolicyTest {
         val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
 
         assertTrue(service.contains("automaticRefresh = manualProviderId == null"))
-        assertTrue(service.contains("repository.failKeepingPrevious(job.providerId, outcome.failure.message)"))
+        assertTrue(service.contains("repository.failKeepingPrevious(effectiveJob.providerId, outcome.failure.message)"))
         assertFalse(service.contains("MAX_STALE_REFRESH_FAILURES"))
         assertFalse(service.contains("staleRefreshFailureCounts"))
         assertFalse(service.contains("Provider session expired after repeated automatic refresh failures."))
+    }
+
+    @Test
+    fun automaticAuthLikeRefreshFailuresKeepProviderRefreshable() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val authFailureHandler = service.substringAfter("private fun handleRefreshAuthFailure")
+            .substringBefore("private suspend fun collectNativeProviderUsage")
+        val automaticBranch = authFailureHandler.substringAfter("if (automaticRefresh)")
+            .substringBefore("if (ProviderRefreshSessionPolicy")
+        val payloadBranch = service.substringAfter("is ServiceRefreshOutcome.Payload ->")
+            .substringBefore("} else if (effectiveJob.providerId == ProviderId.GEMINI")
+        val failureBranch = service.substringAfter("is ServiceRefreshOutcome.Failure ->")
+            .substringBefore("if (ProviderHiddenWebViewRetentionPolicy")
+
+        assertTrue(authFailureHandler.contains("repository.failKeepingPrevious(providerId, message)"))
+        assertTrue(authFailureHandler.contains("return"))
+        assertFalse(automaticBranch.contains("ProviderSessionResetter(applicationContext).disconnect"))
+        assertFalse(automaticBranch.contains("repository.markSessionExpired"))
+        assertTrue(payloadBranch.contains("handleRefreshAuthFailure("))
+        assertTrue(failureBranch.contains("handleRefreshAuthFailure("))
+    }
+
+    @Test
+    fun explicitProviderRefreshUsesManualRefreshIntent() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val manualFactory = service.substringAfter("fun createRefreshIntent")
+            .substringBefore("fun createControlIntents")
+
+        assertTrue(manualFactory.contains(".setAction(ACTION_REFRESH)"))
+        assertTrue(manualFactory.contains("WidgetRefreshActions.EXTRA_PROVIDER_ID"))
+        assertTrue(manualFactory.contains("ProviderBackgroundRefreshService::class.java"))
     }
 
     @Test
@@ -102,6 +136,19 @@ class ProviderBackgroundRefreshServicePolicyTest {
         assertTrue(nativeRefresh.contains("withContext(Dispatchers.IO)"))
         assertTrue(nativeRefresh.contains("GeminiCliOAuthRepository(applicationContext).fetchUsagePayloadFromStoredCredential()"))
         assertTrue(nativeRefresh.contains("AntigravityOAuthRepository(applicationContext).fetchUsagePayloadFromStoredCredential()"))
+    }
+
+    @Test
+    fun automaticForegroundRefreshDelaysFirstCycleAfterServiceStart() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val startRefreshLoop = service.substringAfter("private fun startRefreshLoop()")
+            .substringBefore("private fun requestImmediateRefresh")
+        val manualRefresh = service.substringAfter("private fun requestImmediateRefresh")
+            .substringBefore("private fun stopRefreshLoop")
+
+        assertTrue(service.contains("INITIAL_AUTO_REFRESH_DELAY_MILLIS = 3_000L"))
+        assertTrue(startRefreshLoop.contains("scheduleNextTick(delayMillis = INITIAL_AUTO_REFRESH_DELAY_MILLIS)"))
+        assertTrue(manualRefresh.contains("scheduleNextTick(delayMillis = 0L)"))
     }
 
     @Test

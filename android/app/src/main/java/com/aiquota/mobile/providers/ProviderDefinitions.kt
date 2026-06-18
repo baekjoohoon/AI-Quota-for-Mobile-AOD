@@ -48,27 +48,70 @@ object ProviderDefinitionRegistry {
             collectionKind = ProviderCollectionKind.WEBVIEW_COLLECTOR,
             sessionProbeUrl = "https://claude.ai/"
         ),
+        codexDefinition(ProviderId.CODEX),
         ProviderDefinition(
-            providerId = ProviderId.CODEX,
-            loginStartUrl = "https://chatgpt.com/auth/login",
+            providerId = ProviderId.GLM,
+            loginStartUrl = "aiquota://provider/glm-api-key",
             allowedHosts = setOf(
-                "chatgpt.com",
-                "chat.openai.com",
-                "auth.openai.com",
+                "z.ai",
+                "www.z.ai",
+                "chat.z.ai",
+                "api.z.ai",
                 "accounts.google.com",
+                "myaccount.google.com",
+                "google.com",
+                "www.google.com",
+                "oauth2.googleapis.com",
                 "accounts.youtube.com",
                 "play.google.com",
-                "appleid.apple.com",
-                "challenges.cloudflare.com"
+                "challenges.cloudflare.com",
+                "www.recaptcha.net",
+                "recaptcha.net",
+                "ssl.gstatic.com",
+                "www.gstatic.com"
             ),
             collectorAllowedHosts = setOf(
-                "chatgpt.com",
-                "chat.openai.com"
+                "z.ai",
+                "www.z.ai",
+                "chat.z.ai",
+                "api.z.ai"
             ),
-            preferredUsageEndpoint = "https://chatgpt.com/",
+            preferredUsageEndpoint = GlmProviderUrls.API_QUOTA_URL,
+            authStoreKind = ProviderAuthStoreKind.NATIVE_TOKEN,
+            collectionKind = ProviderCollectionKind.NATIVE_API,
+            sessionProbeUrl = GlmProviderUrls.WEB_OAUTH_URL
+        ),
+        ProviderDefinition(
+            providerId = ProviderId.OPENCODE,
+            loginStartUrl = "https://opencode.ai/auth",
+            allowedHosts = setOf(
+                "opencode.ai",
+                "www.opencode.ai",
+                "accounts.google.com",
+                "myaccount.google.com",
+                "google.com",
+                "www.google.com",
+                "oauth2.googleapis.com",
+                "accounts.youtube.com",
+                "play.google.com",
+                "github.com",
+                "github.githubassets.com",
+                "githubassets.com",
+                "githubusercontent.com",
+                "challenges.cloudflare.com",
+                "www.recaptcha.net",
+                "recaptcha.net",
+                "ssl.gstatic.com",
+                "www.gstatic.com"
+            ),
+            collectorAllowedHosts = setOf(
+                "opencode.ai",
+                "www.opencode.ai"
+            ),
+            preferredUsageEndpoint = "https://opencode.ai/auth",
             authStoreKind = ProviderAuthStoreKind.WEBVIEW_PROFILE,
             collectionKind = ProviderCollectionKind.WEBVIEW_COLLECTOR,
-            sessionProbeUrl = "https://chatgpt.com/api/auth/session"
+            sessionProbeUrl = "https://opencode.ai/auth"
         ),
         ProviderDefinition(
             providerId = ProviderId.GEMINI,
@@ -200,13 +243,23 @@ object ProviderDefinitionRegistry {
     fun isLoginNavigationAllowed(providerId: ProviderId, url: String): Boolean {
         val host = hostOf(url) ?: return false
         val definition = definitionFor(providerId)
+        if (providerId == ProviderId.OPENCODE && isOpenCodeDocsUrl(url)) return false
         if ("accounts.google.com" in definition.loginAllowedHosts && isGoogleAccountHost(host)) return true
         return isHostAllowed(host, definition.loginAllowedHosts)
     }
 
     fun isCollectorNavigationAllowed(providerId: ProviderId, url: String): Boolean {
         val host = hostOf(url) ?: return false
+        if (providerId == ProviderId.OPENCODE && isOpenCodeDocsUrl(url)) return false
         return isHostAllowed(host, definitionFor(providerId).collectorAllowedHosts)
+    }
+
+    private fun isOpenCodeDocsUrl(url: String): Boolean {
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase(Locale.US)
+        val path = uri.path.orEmpty().lowercase(Locale.US)
+        return (host == "opencode.ai" || host == "www.opencode.ai") &&
+            (path.startsWith("/docs") || path.startsWith("/brand"))
     }
 
     private fun isGoogleAccountHost(host: String): Boolean {
@@ -217,6 +270,31 @@ object ProviderDefinitionRegistry {
         return allowedHosts.any { allowed ->
             host == allowed || host.endsWith(".$allowed")
         }
+    }
+
+    private fun codexDefinition(providerId: ProviderId): ProviderDefinition {
+        return ProviderDefinition(
+            providerId = providerId,
+            loginStartUrl = "https://chatgpt.com/auth/login",
+            allowedHosts = setOf(
+                "chatgpt.com",
+                "chat.openai.com",
+                "auth.openai.com",
+                "accounts.google.com",
+                "accounts.youtube.com",
+                "play.google.com",
+                "appleid.apple.com",
+                "challenges.cloudflare.com"
+            ),
+            collectorAllowedHosts = setOf(
+                "chatgpt.com",
+                "chat.openai.com"
+            ),
+            preferredUsageEndpoint = "https://chatgpt.com/",
+            authStoreKind = ProviderAuthStoreKind.WEBVIEW_PROFILE,
+            collectionKind = ProviderCollectionKind.WEBVIEW_COLLECTOR,
+            sessionProbeUrl = "https://chatgpt.com/api/auth/session"
+        )
     }
 
     private fun hostOf(url: String): String? {

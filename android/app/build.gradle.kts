@@ -41,6 +41,42 @@ val hasLocalDebugKeystore = listOf(
     debugKeyAlias,
     debugKeyPassword
 ).all { it != null } && rootProject.file(debugStoreFilePath!!).exists()
+val expectedFirebaseProjectNumber = "550123003638"
+val expectedFirebaseProjectId = "com-aiquota-mobile"
+val expectedFirebaseAppId = "1:550123003638:android:b77771790177d817eb56d7"
+val placeholderFirebaseValues = listOf(
+    "123456789012",
+    "0000000000000000000000"
+)
+
+val verifyReleaseFirebaseResources = tasks.register("verifyReleaseFirebaseResources") {
+    val googleServicesFile = project.file("google-services.json")
+
+    inputs.file(googleServicesFile)
+
+    doLast {
+        require(googleServicesFile.isFile) {
+            "Missing android/app/google-services.json; release builds must include the real Firebase app config."
+        }
+
+        val googleServices = googleServicesFile.readText()
+        require(expectedFirebaseProjectNumber in googleServices) {
+            "google-services.json does not target Firebase project number $expectedFirebaseProjectNumber."
+        }
+        require(expectedFirebaseProjectId in googleServices) {
+            "google-services.json does not target Firebase project id $expectedFirebaseProjectId."
+        }
+        require(expectedFirebaseAppId in googleServices) {
+            "google-services.json does not target Firebase app id $expectedFirebaseAppId."
+        }
+        require(Regex("\"current_key\"\\s*:\\s*\"AIza[0-9A-Za-z_-]+\"").containsMatchIn(googleServices)) {
+            "google-services.json does not contain a Firebase API key."
+        }
+        require(placeholderFirebaseValues.none { it in googleServices }) {
+            "google-services.json contains placeholder Firebase values."
+        }
+    }
+}
 
 android {
     namespace = "com.aiquota.mobile"
@@ -50,8 +86,8 @@ android {
         applicationId = "com.aiquota.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
-        versionName = "1.0.0"
+        versionCode = 21
+        versionName = "1.0.2"
         buildConfigField("String", "GOOGLE_ANDROID_OAUTH_CLIENT_ID", "\"$googleAndroidOAuthClientId\"")
         buildConfigField("String", "GOOGLE_ANDROID_OAUTH_REDIRECT_SCHEME", "\"$googleAndroidOAuthRedirectScheme\"")
         buildConfigField("String", "GEMINI_CLI_OAUTH_CLIENT_ID", "\"$geminiCliOAuthClientId\"")
@@ -88,6 +124,9 @@ android {
             if (hasReleaseKeystore) {
                 signingConfig = signingConfigs.getByName("release")
             }
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
             isMinifyEnabled = true
             isShrinkResources = false
             proguardFiles(
@@ -112,6 +151,14 @@ android {
     }
 }
 
+tasks.matching { task -> task.name == "processReleaseGoogleServices" }.configureEach {
+    dependsOn(verifyReleaseFirebaseResources)
+}
+
+tasks.matching { task -> task.name in setOf("bundleRelease", "assembleRelease") }.configureEach {
+    dependsOn(verifyReleaseFirebaseResources)
+}
+
 dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.core:core-ktx:1.15.0")
@@ -122,6 +169,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
     implementation("androidx.glance:glance-appwidget:1.1.1")
     implementation("com.google.android.gms:play-services-auth:21.3.0")
+    implementation("com.google.android.play:app-update-ktx:2.1.0")
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-functions")

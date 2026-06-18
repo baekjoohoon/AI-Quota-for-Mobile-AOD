@@ -12,13 +12,14 @@ import org.junit.Test
 
 class ProviderRefreshPlanTest {
     @Test
-    fun providerRefreshTimeoutsKeepFastDefaultAndGiveGoogleNativeProvidersMoreTime() {
-        assertEquals(10_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.CODEX))
+    fun providerRefreshTimeoutsKeepFastDefaultAndGiveSlowCollectorsMoreTime() {
+        assertEquals(60_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.CODEX))
         assertEquals(10_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.CLAUDE))
         assertEquals(75_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.GEMINI))
         assertEquals(10_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.COPILOT))
         assertEquals(75_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.ANTIGRAVITY))
         assertEquals(10_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.CURSOR))
+        assertEquals(10_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.OPENCODE))
     }
 
     @Test
@@ -26,6 +27,7 @@ class ProviderRefreshPlanTest {
         val jobs = listOf(
             ProviderId.CLAUDE,
             ProviderId.CODEX,
+            ProviderId.OPENCODE,
             ProviderId.GEMINI,
             ProviderId.COPILOT,
             ProviderId.ANTIGRAVITY,
@@ -38,6 +40,7 @@ class ProviderRefreshPlanTest {
         assertFalse(jobs.any { it.startUrl.contains("/auth/login") || it.startUrl.contains("/login") })
         assertEquals("https://claude.ai/", jobs.first { it.providerId == ProviderId.CLAUDE }.startUrl)
         assertEquals("https://chatgpt.com/", jobs.first { it.providerId == ProviderId.CODEX }.startUrl)
+        assertEquals("https://opencode.ai/auth", jobs.first { it.providerId == ProviderId.OPENCODE }.startUrl)
         assertEquals("", jobs.first { it.providerId == ProviderId.GEMINI }.startUrl)
         assertEquals("https://github.com/settings/copilot/features", jobs.first { it.providerId == ProviderId.COPILOT }.startUrl)
         assertEquals("", jobs.first { it.providerId == ProviderId.ANTIGRAVITY }.startUrl)
@@ -59,6 +62,8 @@ class ProviderRefreshPlanTest {
         val retainedProviders = listOf(
             ProviderId.CLAUDE,
             ProviderId.CODEX,
+            ProviderId.GLM,
+            ProviderId.OPENCODE,
             ProviderId.GEMINI,
             ProviderId.COPILOT,
             ProviderId.CURSOR

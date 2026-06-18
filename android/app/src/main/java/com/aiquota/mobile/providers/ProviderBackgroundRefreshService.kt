@@ -133,7 +133,7 @@ class ProviderBackgroundRefreshService : Service() {
             running = true
         }
         if (!tickScheduled && !refreshInProgress) {
-            scheduleNextTick(delayMillis = 0L)
+            scheduleNextTick(delayMillis = INITIAL_AUTO_REFRESH_DELAY_MILLIS)
         }
     }
 
@@ -264,15 +264,16 @@ class ProviderBackgroundRefreshService : Service() {
     }
 
     private suspend fun refreshProvider(job: ProviderRefreshJob, automaticRefresh: Boolean) {
-        val startingSnapshot = repository.readSnapshots().firstOrNull { it.providerId == job.providerId }
-        repository.markCollecting(job.providerId)
+        val effectiveJob = resolveRuntimeRefreshJob(job)
+        val startingSnapshot = repository.readSnapshots().firstOrNull { it.providerId == effectiveJob.providerId }
+        repository.markCollecting(effectiveJob.providerId)
         UsageSurfaceRefresher.refresh(applicationContext, repository)
-        val outcome = when (job.mode) {
-            ProviderRefreshMode.NATIVE_API -> collectNativeProviderUsage(job)
-            ProviderRefreshMode.HIDDEN_WEB_COLLECTOR -> collectWebProviderUsage(job)
+        val outcome = when (effectiveJob.mode) {
+            ProviderRefreshMode.NATIVE_API -> collectNativeProviderUsage(effectiveJob)
+            ProviderRefreshMode.HIDDEN_WEB_COLLECTOR -> collectWebProviderUsage(effectiveJob)
         }
-        if (repository.readSnapshots().none { it.providerId == job.providerId }) {
-            destroyProviderWebView(job.providerId)
+        if (repository.readSnapshots().none { it.providerId == effectiveJob.providerId }) {
+            destroyProviderWebView(effectiveJob.providerId)
             return
         }
         when (outcome) {
@@ -281,7 +282,7 @@ class ProviderBackgroundRefreshService : Service() {
             }
             is ServiceRefreshOutcome.Payload -> {
                 val snapshot = ProviderUsageNormalizer.normalize(
-                    job.providerId,
+                    effectiveJob.providerId,
                     outcome.rawPayload,
                     ProviderPayloadSource.STRUCTURED_SCRIPT
                 )
@@ -289,42 +290,36 @@ class ProviderBackgroundRefreshService : Service() {
                     repository.saveSnapshot(snapshot)
                 } else if (
                     ProviderRefreshFailureClassifier.requiresInteractiveAuth(
-                        job.providerId,
+                        effectiveJob.providerId,
                         ProviderRefreshFailureKind.NO_TRUSTED_PAYLOAD
                     )
                 ) {
-                    if (ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(job.providerId)) {
-                        ProviderSessionResetter(applicationContext).disconnect(job.providerId)
-                    }
-                    destroyProviderWebView(job.providerId)
-                    repository.markSessionExpired(
-                        job.providerId,
-                        getString(R.string.provider_status_auth_required)
+                    handleRefreshAuthFailure(
+                        providerId = effectiveJob.providerId,
+                        message = getString(R.string.provider_status_auth_required),
+                        automaticRefresh = automaticRefresh
                     )
-                } else if (job.providerId == ProviderId.GEMINI || job.providerId == ProviderId.ANTIGRAVITY) {
-                    repository.markGoogleUsagePending(job.providerId, GoogleUsagePendingRetryPolicy.PENDING_MESSAGE)
+                } else if (effectiveJob.providerId == ProviderId.GEMINI || effectiveJob.providerId == ProviderId.ANTIGRAVITY) {
+                    repository.markGoogleUsagePending(effectiveJob.providerId, GoogleUsagePendingRetryPolicy.PENDING_MESSAGE)
                 } else {
-                    repository.failKeepingPrevious(job.providerId, "Background collector ran. No trusted usage payload found.")
+                    repository.failKeepingPrevious(effectiveJob.providerId, "Background collector ran. No trusted usage payload found.")
                 }
             }
             is ServiceRefreshOutcome.Failure -> {
                 refreshStateRepository.recordFailure(outcome.failure.kind.name)
-                if (ProviderRefreshFailureClassifier.requiresInteractiveAuth(job.providerId, outcome.failure.kind)) {
-                    if (ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(job.providerId)) {
-                        ProviderSessionResetter(applicationContext).disconnect(job.providerId)
-                    }
-                    destroyProviderWebView(job.providerId)
-                    repository.markSessionExpired(
-                        job.providerId,
-                        outcome.failure.message
+                if (ProviderRefreshFailureClassifier.requiresInteractiveAuth(effectiveJob.providerId, outcome.failure.kind)) {
+                    handleRefreshAuthFailure(
+                        providerId = effectiveJob.providerId,
+                        message = outcome.failure.message,
+                        automaticRefresh = automaticRefresh
                     )
-                } else if (job.providerId == ProviderId.GEMINI || job.providerId == ProviderId.ANTIGRAVITY) {
-                    repository.markGoogleUsagePending(job.providerId, outcome.failure.message)
+                } else if (effectiveJob.providerId == ProviderId.GEMINI || effectiveJob.providerId == ProviderId.ANTIGRAVITY) {
+                    repository.markGoogleUsagePending(effectiveJob.providerId, outcome.failure.message)
                 } else {
-                    repository.failKeepingPrevious(job.providerId, outcome.failure.message)
+                    repository.failKeepingPrevious(effectiveJob.providerId, outcome.failure.message)
                 }
                 if (ProviderHiddenWebViewRetentionPolicy.shouldRecreateAfterFailure(outcome.failure.kind)) {
-                    destroyProviderWebView(job.providerId)
+                    destroyProviderWebView(effectiveJob.providerId)
                 }
             }
             is ServiceRefreshOutcome.Cancelled -> {
@@ -334,7 +329,56 @@ class ProviderBackgroundRefreshService : Service() {
         UsageSurfaceRefresher.refresh(applicationContext, repository)
     }
 
+    private fun resolveRuntimeRefreshJob(job: ProviderRefreshJob): ProviderRefreshJob {
+        if (job.providerId != ProviderId.GLM) return job
+        if (GlmUsageRepository(applicationContext).connectionMode() != GlmConnectionMode.WEB_OAUTH) return job
+        return job.copy(
+            mode = ProviderRefreshMode.HIDDEN_WEB_COLLECTOR,
+            startUrl = GlmProviderUrls.WEB_OAUTH_URL
+        )
+    }
+
+    private fun handleRefreshAuthFailure(
+        providerId: ProviderId,
+        message: String,
+        automaticRefresh: Boolean
+    ) {
+        destroyProviderWebView(providerId)
+        if (automaticRefresh) {
+            repository.failKeepingPrevious(providerId, message)
+            return
+        }
+        if (ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(providerId)) {
+            ProviderSessionResetter(applicationContext).disconnect(providerId)
+        }
+        repository.markSessionExpired(providerId, message)
+    }
+
     private suspend fun collectNativeProviderUsage(job: ProviderRefreshJob): ServiceRefreshOutcome {
+        if (job.providerId == ProviderId.GLM) {
+            val result = withContext(Dispatchers.IO) {
+                GlmUsageRepository(applicationContext).fetchUsagePayloadFromStoredCredential()
+            }
+            val snapshot = result.payload?.let {
+                ProviderUsageNormalizer.normalize(
+                    job.providerId,
+                    it,
+                    ProviderPayloadSource.PROVIDER_API
+                )
+            }
+            return when {
+                snapshot != null -> ServiceRefreshOutcome.Snapshot(snapshot)
+                result.requiresAuth -> ServiceRefreshOutcome.Failure(
+                    ProviderRefreshFailure.interactiveAuthRequired("GLM API key is invalid or expired.")
+                )
+                else -> ServiceRefreshOutcome.Failure(
+                    ProviderRefreshFailure(
+                        ProviderRefreshFailureKind.NO_TRUSTED_PAYLOAD,
+                        "GLM usage payload was not available: ${result.diagnostic}"
+                    )
+                )
+            }
+        }
         if (job.providerId == ProviderId.GEMINI || job.providerId == ProviderId.ANTIGRAVITY) {
             val payload = withContext(Dispatchers.IO) {
                 if (job.providerId == ProviderId.GEMINI) {
@@ -710,12 +754,32 @@ class ProviderBackgroundRefreshService : Service() {
         const val ACTION_REFRESH = "com.aiquota.mobile.action.REFRESH"
         const val ACTION_PROVIDER_SESSION_RESET = "com.aiquota.mobile.action.PROVIDER_SESSION_RESET"
         const val EXTRA_PROVIDER_ID = "provider_id"
+        fun createRefreshIntent(
+            context: Context,
+            providerId: ProviderId?,
+            appWidgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID
+        ): Intent {
+            return Intent(context, ProviderBackgroundRefreshService::class.java)
+                .setAction(ACTION_REFRESH)
+                .putExtra(WidgetRefreshActions.EXTRA_APP_WIDGET_ID, appWidgetId)
+                .apply {
+                    providerId?.let { putExtra(WidgetRefreshActions.EXTRA_PROVIDER_ID, it.storageId) }
+                }
+        }
+
+        fun createControlIntents(context: Context, action: String): List<Intent> {
+            val defaultIntent = Intent(context, ProviderBackgroundRefreshService::class.java)
+                .setAction(action)
+            return listOf(defaultIntent)
+        }
+
         fun createSessionResetIntent(context: Context, providerId: ProviderId): Intent {
             return Intent(ACTION_PROVIDER_SESSION_RESET)
                 .setPackage(context.packageName)
                 .putExtra(EXTRA_PROVIDER_ID, providerId.storageId)
         }
         private const val BRIDGE_NAME = "AIQuotaCollectorBridge"
+        private const val INITIAL_AUTO_REFRESH_DELAY_MILLIS = 3_000L
         private const val LOGIN_PAGE_REACHED_MESSAGE = "Background refresh reached a provider login page."
         private const val TAG = "AIQuotaBgRefreshService"
         private const val PAGE_CAPTURE_SCRIPT =

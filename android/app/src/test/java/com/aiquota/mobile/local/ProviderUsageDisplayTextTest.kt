@@ -34,13 +34,44 @@ class ProviderUsageDisplayTextTest {
     }
 
     @Test
+    fun koreanOpenCodeLabelsUseLimitNames() {
+        val locale = Locale.KOREAN
+
+        assertEquals("5시간 한도", displayUsageLabel("opencode", "Go 5-Hour Limit", 0, locale))
+        assertEquals("주간 한도", displayUsageLabel("opencode", "Go Weekly Limit", 1, locale))
+        assertEquals("월간 한도", displayUsageLabel("opencode", "Go Monthly Limit", 2, locale))
+    }
+
+    @Test
     fun koreanCodexSparkLabelsUseDisplayOnlyShortNames() {
         val locale = Locale.KOREAN
 
-        assertEquals("GPT-5.3-Spark 5시간", displayUsageLabel("codex", "GPT-5.3-Codex-Spark 5h", 2, locale))
+        assertEquals("GPT-5.3-Spark 5H", displayUsageLabel("codex", "GPT-5.3-Codex-Spark 5h", 2, locale))
         assertEquals("GPT-5.3-Spark 주간", displayUsageLabel("codex", "GPT-5.3-Codex-Spark Weekly", 3, locale))
-        assertEquals("GPT-5.3-Spark 5시간", displayUsageLabel("codex", "ChatGPT-5.3-Codex-Spark 5h", 2, locale))
+        assertEquals("GPT-5.3-Spark 5H", displayUsageLabel("codex", "ChatGPT-5.3-Codex-Spark 5h", 2, locale))
         assertEquals("GPT-5.3-Spark 주간", displayUsageLabel("codex", "ChatGPT-5.3-Codex-Spark Weekly", 3, locale))
+        assertEquals(
+            "GPT-5.3-Spark 5H",
+            displayUsageLabel("codex", "GPT-5.3-Codex-Spark 5 hour usage limit", 2, locale)
+        )
+        assertEquals(
+            "GPT-5.3-Spark 주간",
+            displayUsageLabel("codex", "GPT-5.3-Codex-Spark Weekly usage limit", 3, locale)
+        )
+    }
+
+    @Test
+    fun englishCodexSparkLabelsUseWidgetFriendlyShortNames() {
+        val locale = Locale.US
+
+        assertEquals(
+            "GPT-5.3-Spark 5H",
+            displayUsageLabel("codex", "GPT-5.3-Codex-Spark 5 hour usage limit", 2, locale)
+        )
+        assertEquals(
+            "GPT-5.3-Spark Week",
+            displayUsageLabel("codex", "GPT-5.3-Codex-Spark Weekly usage limit", 3, locale)
+        )
     }
 
     @Test

@@ -24,6 +24,8 @@ fun displayUsageLabel(
         .trim()
         .lowercase(Locale.US)
 
+    codexSparkDisplayLabel(providerId, normalized, locale)?.let { return it }
+
     if (!locale.isKoreanLanguage()) {
         return englishUsageLabel(providerId, label, normalized, lineIndex)
     }
@@ -32,14 +34,20 @@ fun displayUsageLabel(
         return if (lineIndex == 0) "5시간 세션" else "주간 세션"
     }
 
+    if (providerId.equals(ProviderId.OPENCODE.storageId, ignoreCase = true)) {
+        when (normalized) {
+            "go 5 hour limit", "go 5h limit", "go rolling usage" -> return "5시간 한도"
+            "go weekly limit", "go weekly usage" -> return "주간 한도"
+            "go monthly limit", "go monthly usage" -> return "월간 한도"
+        }
+    }
+
     if (providerId.equals(ProviderId.GEMINI.storageId, ignoreCase = true)) {
         when (normalized) {
             "gemini pro", "5 hour limit", "five hour limit" -> return "5시간 한도"
             "gemini weekly", "weekly limit", "seven day limit" -> return "주간 한도"
         }
     }
-
-    codexSparkDisplayLabel(providerId, normalized)?.let { return it }
 
     return when (normalized) {
         "claude session",
@@ -143,13 +151,13 @@ private fun englishUsageLabel(
     }
 }
 
-private fun codexSparkDisplayLabel(providerId: String, normalized: String): String? {
+private fun codexSparkDisplayLabel(providerId: String, normalized: String, locale: Locale): String? {
     if (!providerId.equals(ProviderId.CODEX.storageId, ignoreCase = true)) return null
     val compact = normalized.replace(" ", "")
     if (!compact.contains("spark")) return null
     val window = when {
-        compact.contains("5h") || compact.contains("5hour") || compact.contains("5시간") -> "5시간"
-        compact.contains("weekly") || compact.contains("주간") -> "주간"
+        compact.contains("5h") || compact.contains("5hour") || compact.contains("5시간") -> "5H"
+        compact.contains("weekly") || compact.contains("주간") -> if (locale.isKoreanLanguage()) "주간" else "Week"
         else -> return null
     }
     val version = Regex("""\b(?:chat\s*)?gpt\s+([0-9]+(?:\.[0-9]+)*)\b""")

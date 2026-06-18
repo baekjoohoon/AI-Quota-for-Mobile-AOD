@@ -23,12 +23,15 @@ object ProviderRefreshPlan {
     const val AUTO_REFRESH_INTERVAL_MILLIS = 60_000L
     const val MIN_AUTO_REFRESH_DELAY_MILLIS = 5_000L
     const val PROVIDER_REFRESH_TIMEOUT_MILLIS = 10_000L
+    const val CODEX_REFRESH_TIMEOUT_MILLIS = 60_000L
     const val GOOGLE_REFRESH_TIMEOUT_MILLIS = 75_000L
     const val RESET_REFRESH_QOS = 1
     const val NORMAL_REFRESH_QOS = 5
 
     fun timeoutMillisFor(providerId: ProviderId): Long {
         return when (providerId) {
+            ProviderId.CODEX -> CODEX_REFRESH_TIMEOUT_MILLIS
+            ProviderId.GLM -> PROVIDER_REFRESH_TIMEOUT_MILLIS
             ProviderId.GEMINI,
             ProviderId.ANTIGRAVITY -> GOOGLE_REFRESH_TIMEOUT_MILLIS
             else -> PROVIDER_REFRESH_TIMEOUT_MILLIS
@@ -92,6 +95,8 @@ object ProviderRefreshPlan {
         return when (providerId) {
             ProviderId.CLAUDE -> "https://claude.ai/"
             ProviderId.CODEX -> "https://chatgpt.com/"
+            ProviderId.GLM -> GlmProviderUrls.WEB_OAUTH_URL
+            ProviderId.OPENCODE -> "https://opencode.ai/auth"
             ProviderId.COPILOT -> "https://github.com/settings/copilot/features"
             ProviderId.ANTIGRAVITY -> "https://antigravity.google/"
             ProviderId.CURSOR -> "https://cursor.com/dashboard"

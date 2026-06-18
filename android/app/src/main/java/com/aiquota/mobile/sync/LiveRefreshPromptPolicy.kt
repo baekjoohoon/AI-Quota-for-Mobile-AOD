@@ -6,9 +6,10 @@ object LiveRefreshPromptPolicy {
     fun shouldShowOnAppEntry(
         snapshots: List<ProviderUsageSnapshot>,
         liveMonitoringEnabled: Boolean,
-        canPostNotifications: Boolean
+        canPostNotifications: Boolean,
+        batteryOptimizationExempt: Boolean
     ): Boolean {
         if (ForegroundRefreshPolicy.connectedProviders(snapshots).isEmpty()) return false
-        return !liveMonitoringEnabled || !canPostNotifications
+        return !liveMonitoringEnabled || !canPostNotifications || !batteryOptimizationExempt
     }
 }

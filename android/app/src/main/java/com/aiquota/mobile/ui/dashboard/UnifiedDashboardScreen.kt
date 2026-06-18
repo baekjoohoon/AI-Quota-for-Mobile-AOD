@@ -76,10 +76,12 @@ import com.aiquota.mobile.local.shouldShowDashboardConnectAction
 import com.aiquota.mobile.ui.AIQuotaColors
 import com.aiquota.mobile.ui.AIQuotaTheme
 import com.aiquota.mobile.ui.AppLayoutMetrics
+import com.aiquota.mobile.ui.compactProviderLineBreakStyle
 import com.aiquota.mobile.ui.dashboardProviderCardHeightDp
 import com.aiquota.mobile.ui.rememberAppLayoutMetrics
 import com.aiquota.mobile.ui.provider.ProviderIconImage
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private val ExplorerAccentColor = AIQuotaColors.SurfaceRaised
@@ -638,6 +640,7 @@ private fun ProviderUsageCard(
                 if (effectiveDragging) colors.primary else colors.border
             )
         ) {
+            val windowTitle = snapshot.displayName.ifBlank { dashboardProviderWindowTitle(providerId) }
             Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier
@@ -656,7 +659,7 @@ private fun ProviderUsageCard(
                     Spacer(modifier = Modifier.width(10.dp))
                 }
                 Text(
-                    text = snapshot.displayName.ifBlank { providerId.displayName },
+                    text = windowTitle,
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.labelMedium,
                     color = colors.titleText,
@@ -699,9 +702,9 @@ private fun ProviderUsageCard(
                 ) {
                     Text(
                         text = if (colors.theme == com.aiquota.mobile.local.AppTheme.MACOS) {
-                            "~/AI Quota/${providerId.displayName}"
+                            "~/AI Quota/$windowTitle"
                         } else {
-                            "C:\\AI Quota\\${providerId.displayName}"
+                            "C:\\AI Quota\\$windowTitle"
                         },
                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                         style = MaterialTheme.typography.labelSmall,
@@ -741,7 +744,7 @@ private fun ProviderUsageCard(
                             )
                             Text(
                                 text = dashboardProviderIdentityLabel(providerId),
-                                style = MaterialTheme.typography.labelMedium,
+                                style = compactProviderLineBreakStyle(providerId, MaterialTheme.typography.labelMedium),
                                 color = if (colors.theme == com.aiquota.mobile.local.AppTheme.MACOS) colors.titleText else colors.textPrimary,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
@@ -760,7 +763,9 @@ private fun ProviderUsageCard(
                             )
                             if (snapshot.lines.isEmpty()) {
                                 Text(
-                                    text = snapshot.message ?: stringResource(R.string.dashboard_no_lines),
+                                    text = dashboardEmptyMessageResource(snapshot)?.let { stringResource(it) }
+                                        ?: snapshot.message
+                                        ?: stringResource(R.string.dashboard_no_lines),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = if (colors.theme == com.aiquota.mobile.local.AppTheme.MACOS) colors.textMuted else colors.textSecondary
                                 )
@@ -806,14 +811,27 @@ internal fun dashboardProviderIdentityLabel(providerId: ProviderId): String {
     }
 }
 
+internal fun dashboardProviderWindowTitle(providerId: ProviderId): String {
+    return providerId.displayName
+}
+
+internal fun dashboardEmptyMessageResource(snapshot: ProviderUsageSnapshot): Int? {
+    return null
+}
+
 internal fun dashboardUsagePreviewLines(snapshot: ProviderUsageSnapshot): List<ProviderUsageLine> {
-    if (snapshot.providerId != ProviderId.ANTIGRAVITY) return snapshot.lines.take(2)
-    val byKey = snapshot.lines.associateBy { dashboardAntigravityLineKey(it.label) }
-    val preferred = listOfNotNull(
-        byKey["gemini35flashhigh"],
-        byKey["gemini35flashmedium"]
-    )
-    return preferred.takeIf { it.isNotEmpty() } ?: snapshot.lines.take(2)
+    return when (snapshot.providerId) {
+        ProviderId.CLAUDE -> snapshot.lines.take(3)
+        ProviderId.ANTIGRAVITY -> {
+            val byKey = snapshot.lines.associateBy { dashboardAntigravityLineKey(it.label) }
+            val preferred = listOfNotNull(
+                byKey["gemini35flashhigh"],
+                byKey["gemini35flashmedium"]
+            )
+            preferred.takeIf { it.isNotEmpty() } ?: snapshot.lines.take(2)
+        }
+        else -> snapshot.lines.take(2)
+    }
 }
 
 private fun dashboardAntigravityLineKey(label: String): String {
@@ -922,15 +940,27 @@ internal fun dragInsertionSlotFromCenter(
         return currentVisibleIndex
     }
 
-    return (0..cardCenters.size)
-        .map { slot -> slot to insertionSlotCenter(cardCenters, slot) }
-        .minByOrNull { (_, slotCenter) ->
-            val dx = slotCenter.x - draggedCenter.x
-            val dy = slotCenter.y - draggedCenter.y
-            dx * dx + dy * dy
-        }
-        ?.first
-        ?: currentVisibleIndex
+    val nearestCardIndex = cardCenters.indices.minByOrNull { index ->
+        val center = cardCenters[index]
+        val dx = center.x - draggedCenter.x
+        val dy = center.y - draggedCenter.y
+        dx * dx + dy * dy
+    } ?: return currentVisibleIndex
+    if (nearestCardIndex == currentVisibleIndex) return currentVisibleIndex
+
+    val currentCenter = cardCenters[currentVisibleIndex]
+    val nearestCenter = cardCenters[nearestCardIndex]
+    val isHorizontalMove = abs(nearestCenter.x - currentCenter.x) > abs(nearestCenter.y - currentCenter.y)
+    val draggedProjection = if (isHorizontalMove) draggedCenter.x else draggedCenter.y
+    val nearestProjection = if (isHorizontalMove) nearestCenter.x else nearestCenter.y
+
+    val slotIndex = if (nearestCardIndex > currentVisibleIndex) {
+        if (draggedProjection >= nearestProjection) nearestCardIndex + 1 else nearestCardIndex
+    } else {
+        if (draggedProjection <= nearestProjection) nearestCardIndex else nearestCardIndex + 1
+    }
+
+    return slotIndex.coerceIn(0, cardCenters.size)
 }
 
 internal fun dashboardAutoScrollDelta(

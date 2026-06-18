@@ -29,6 +29,18 @@ class GoogleProviderLoginRoutingTest {
     }
 
     @Test
+    fun glmApiKeyLoginBypassesWebHostAllowlist() {
+        val source = File("src/main/java/com/aiquota/mobile/ui/AIQuotaAppShell.kt").readText()
+        val connectProvider = source
+            .substringAfter("fun connectProvider(providerId: ProviderId)")
+            .substringBefore("fun finishProviderRefreshSurfaces()")
+
+        assertTrue(connectProvider.contains("providerId != ProviderId.GLM"))
+        assertTrue(connectProvider.contains("GlmApiKeyActivity.createIntent(launchContext)"))
+        assertTrue(connectProvider.indexOf("providerId != ProviderId.GLM") < connectProvider.indexOf("ProviderHostAllowlist.isAllowed"))
+    }
+
+    @Test
     fun codexLoginAndCollectionDoNotUseOauthRepositoryOrCapturedBearerToken() {
         val appShell = File("src/main/java/com/aiquota/mobile/ui/AIQuotaAppShell.kt").readText()
         val login = File("src/main/java/com/aiquota/mobile/providers/WebLoginActivity.kt").readText()
@@ -65,6 +77,19 @@ class GoogleProviderLoginRoutingTest {
         assertTrue(keepOpen.contains("ProviderId.GEMINI"))
         assertTrue(keepOpen.contains("gemini_no_trusted_payload"))
         assertTrue(keepOpen.contains("gemini_collector_error"))
+    }
+
+    @Test
+    fun opencodeLoginRedirectsWorkspaceShellToGoUsagePage() {
+        val login = File("src/main/java/com/aiquota/mobile/providers/WebLoginActivity.kt").readText()
+        val pageStarted = login.substringAfter("override fun onPageStarted")
+            .substringBefore("override fun shouldOverrideUrlLoading")
+        val redirect = login.substringAfter("private fun maybeRedirectOpenCodeToGo")
+            .substringBefore("private fun maybeRedirectCopilotToSettings")
+
+        assertTrue(pageStarted.contains("maybeRedirectOpenCodeToGo(view, url)"))
+        assertTrue(redirect.contains("OpenCodeUsagePageRoutes.goUsageUrlFrom(url)"))
+        assertTrue(redirect.contains("view.loadUrl(goUsageUrl)"))
     }
 
     @Test

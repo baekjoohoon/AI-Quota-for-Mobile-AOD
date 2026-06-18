@@ -8,13 +8,7 @@ import org.junit.Test
 
 class ProviderWebSessionClearPolicyTest {
     @Test
-    fun codexAndCursorClearWebSessionBeforeInteractiveReauth() {
-        assertTrue(
-            ProviderWebSessionClearPolicy.shouldClearBeforeLogin(
-                ProviderId.CODEX,
-                ProviderConnectionState.INTERACTIVE_AUTH_REQUIRED
-            )
-        )
+    fun cursorClearsWebSessionBeforeInteractiveReauth() {
         assertTrue(
             ProviderWebSessionClearPolicy.shouldClearBeforeLogin(
                 ProviderId.CURSOR,
@@ -24,31 +18,21 @@ class ProviderWebSessionClearPolicyTest {
     }
 
     @Test
-    fun codexClearsWebSessionBeforeFreshLoginAttempts() {
-        assertTrue(
-            ProviderWebSessionClearPolicy.shouldClearBeforeLogin(
-                ProviderId.CODEX,
-                null
+    fun codexPreservesWebSessionBeforeLoginAttempts() {
+        listOf(
+            null,
+            ProviderConnectionState.DISCONNECTED,
+            ProviderConnectionState.NOT_CONNECTED,
+            ProviderConnectionState.ERROR,
+            ProviderConnectionState.INTERACTIVE_AUTH_REQUIRED
+        ).forEach { state ->
+            assertFalse(
+                ProviderWebSessionClearPolicy.shouldClearBeforeLogin(
+                    ProviderId.CODEX,
+                    state
+                )
             )
-        )
-        assertTrue(
-            ProviderWebSessionClearPolicy.shouldClearBeforeLogin(
-                ProviderId.CODEX,
-                ProviderConnectionState.DISCONNECTED
-            )
-        )
-        assertTrue(
-            ProviderWebSessionClearPolicy.shouldClearBeforeLogin(
-                ProviderId.CODEX,
-                ProviderConnectionState.NOT_CONNECTED
-            )
-        )
-        assertTrue(
-            ProviderWebSessionClearPolicy.shouldClearBeforeLogin(
-                ProviderId.CODEX,
-                ProviderConnectionState.ERROR
-            )
-        )
+        }
     }
 
     @Test
@@ -98,6 +82,13 @@ class ProviderWebSessionClearPolicyTest {
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CURSOR).contains("https://cursor.com"))
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CURSOR).contains("https://auth.workos.com"))
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CURSOR).contains("https://github.com"))
+        assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.GLM).contains("https://z.ai"))
+        assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.GLM).contains("https://chat.z.ai"))
+        assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.GLM).contains("https://api.z.ai"))
+        assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.OPENCODE).contains("https://opencode.ai"))
+        assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.OPENCODE).contains("https://opencode.ai/auth"))
+        assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.OPENCODE).contains("https://accounts.google.com"))
+        assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.OPENCODE).contains("https://github.com"))
 
         assertFalse(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CODEX).contains("https://github.com"))
     }
@@ -111,7 +102,10 @@ class ProviderWebSessionClearPolicyTest {
             )
         }
         assertTrue(ProviderWebSessionClearPolicy.storageOrigins(ProviderId.CODEX).contains("https://chatgpt.com"))
+        assertTrue(ProviderWebSessionClearPolicy.storageOrigins(ProviderId.GLM).contains("https://z.ai"))
+        assertTrue(ProviderWebSessionClearPolicy.storageOrigins(ProviderId.GLM).contains("https://chat.z.ai"))
         assertTrue(ProviderWebSessionClearPolicy.storageOrigins(ProviderId.CURSOR).contains("https://cursor.com"))
+        assertTrue(ProviderWebSessionClearPolicy.storageOrigins(ProviderId.OPENCODE).contains("https://opencode.ai"))
     }
 
     @Test

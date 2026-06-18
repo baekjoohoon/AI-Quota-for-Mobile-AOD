@@ -6,13 +6,15 @@ import kotlin.math.roundToInt
 enum class ProviderId(val storageId: String, val displayName: String) {
     CLAUDE("claude", "Claude"),
     CODEX("codex", "Codex"),
+    GLM("glm", "GLM"),
+    OPENCODE("opencode", "OpenCode"),
     GEMINI("gemini", "Gemini"),
     COPILOT("copilot", "Copilot"),
     ANTIGRAVITY("antigravity", "Antigravity"),
     CURSOR("cursor", "Cursor");
 
     companion object {
-        fun defaultOrder(): List<ProviderId> = listOf(CLAUDE, CODEX, GEMINI, COPILOT, ANTIGRAVITY, CURSOR)
+        fun defaultOrder(): List<ProviderId> = listOf(CLAUDE, CODEX, GLM, OPENCODE, GEMINI, COPILOT, ANTIGRAVITY, CURSOR)
 
         fun fromStorageId(value: String?): ProviderId? {
             val normalized = value?.trim().orEmpty()

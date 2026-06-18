@@ -36,6 +36,8 @@ class SettingsConnectionManagementTest {
                 ProviderId.ANTIGRAVITY,
                 ProviderId.CLAUDE,
                 ProviderId.CODEX,
+                ProviderId.GLM,
+                ProviderId.OPENCODE,
                 ProviderId.GEMINI,
                 ProviderId.COPILOT
             ),
@@ -69,6 +71,10 @@ class SettingsConnectionManagementTest {
             settingsConnectionAction(ProviderUsageSnapshot.disconnected(ProviderId.GEMINI))
         )
         assertEquals(
+            SettingsConnectionAction.CONNECT,
+            settingsConnectionAction(ProviderId.CODEX, null)
+        )
+        assertEquals(
             SettingsConnectionAction.DISCONNECT,
             settingsConnectionAction(
                 ProviderUsageSnapshot.connectedWithoutUsage(ProviderId.CODEX, "Usage pending")
@@ -98,6 +104,15 @@ class SettingsConnectionManagementTest {
                 disconnectColor = Color.Red
             )
         )
+        assertEquals(
+            Color.Gray,
+            settingsConnectionActionTextColor(
+                action = SettingsConnectionAction.NONE,
+                connectColor = Color.Blue,
+                disconnectColor = Color.Red,
+                disabledColor = Color.Gray
+            )
+        )
     }
 
     @Test
@@ -122,6 +137,34 @@ class SettingsConnectionManagementTest {
         assertTrue(settingsCall.contains("onConnectProvider = ::connectProvider"))
         assertTrue(settingsCall.contains("onDisconnectProvider = ::disconnectProvider"))
         assertTrue(settingsCall.contains("onDisconnectAllProviders = ::disconnectAllProviders"))
+    }
+
+    @Test
+    fun settingsShowsBatteryOptimizationRecommendationForLiveRefresh() {
+        val source = File("src/main/java/com/aiquota/mobile/ui/settings/SettingsPanel.kt").readText()
+        val appShell = File("src/main/java/com/aiquota/mobile/ui/AIQuotaAppShell.kt").readText()
+        val settingsCall = appShell.substringAfter("AppRoute.Settings -> SettingsPanel(")
+            .substringBefore("modifier = Modifier.fillMaxSize()")
+        val notificationSection = source.substringAfter("private fun NotificationSettingsSection")
+            .substringBefore("@Composable\nprivate fun ConnectionManagementSection")
+        val english = File("src/main/res/values/strings.xml").readText()
+        val korean = File("src/main/res/values-ko/strings.xml").readText()
+
+        assertTrue(source.contains("batteryOptimizationExempt: Boolean"))
+        assertTrue(source.contains("onOpenBatteryOptimizationSettings: () -> Unit"))
+        assertTrue(settingsCall.contains("batteryOptimizationExempt = batteryOptimizationExempt"))
+        assertTrue(settingsCall.contains("onOpenBatteryOptimizationSettings = ::openBatteryOptimizationSettings"))
+        assertTrue(notificationSection.contains("settings_battery_optimization_title"))
+        assertTrue(notificationSection.contains("settings_open_battery_optimization_settings"))
+        assertTrue(notificationSection.contains("if (!batteryOptimizationExempt)"))
+        assertTrue(
+            notificationSection.indexOf("settings_open_battery_optimization_settings") <
+                notificationSection.indexOf("settings_battery_optimization_recommended")
+        )
+        assertTrue(english.contains("Battery optimization"))
+        assertTrue(korean.contains("배터리 최적화"))
+        assertTrue(korean.contains("라이브 갱신 안정성을 위해 배터리 최적화 옵션을 제외로 설정해주세요."))
+        assertFalse(korean.contains("Android가 백그라운드 라이브 모니터링을 중단할 가능성을 줄이려면"))
     }
 
     @Test

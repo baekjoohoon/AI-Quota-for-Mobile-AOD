@@ -35,6 +35,9 @@ class ForegroundRefreshHealthWorker(
         }
 
         if (ProviderBackgroundRefreshStateRepository(context).isHeartbeatStale()) {
+            runCatching {
+                ForegroundRefreshController(context).startPreciseRefresh()
+            }
             UsageLimitNotificationController.notifyLiveRefreshIssue(context)
         } else {
             UsageLimitNotificationController.cancelLiveRefreshIssue(context)

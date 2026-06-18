@@ -25,12 +25,12 @@ object ForegroundRefreshHealthScheduler {
 
         workManager.enqueueUniquePeriodicWork(
             WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
+            ExistingPeriodicWorkPolicy.KEEP,
             periodicWork
         )
         workManager.enqueueUniqueWork(
             ONE_TIME_WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             oneTimeWork
         )
     }

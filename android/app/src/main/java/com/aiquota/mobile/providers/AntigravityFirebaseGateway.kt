@@ -1,6 +1,7 @@
 package com.aiquota.mobile.providers
 
 import android.content.Context
+import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.functions.FirebaseFunctions
@@ -10,6 +11,7 @@ import org.json.JSONObject
 class AntigravityFirebaseGateway(
     context: Context,
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
+    private val appCheck: FirebaseAppCheck = FirebaseAppCheck.getInstance(),
     private val functions: FirebaseFunctions = FirebaseFunctions.getInstance()
 ) {
     private val appContext: Context = context.applicationContext
@@ -17,9 +19,7 @@ class AntigravityFirebaseGateway(
     suspend fun startOAuth(): String {
         ensureSignedIn()
         val result = functions
-            .getHttpsCallable("startAntigravityOAuth")
-            .call(mapOf("returnToApp" to true))
-            .await()
+            .callWithAppCheckRetry(appCheck, "startAntigravityOAuth", mapOf("returnToApp" to true))
         val data = result.getData() as? Map<*, *> ?: error("antigravity_oauth_response_invalid")
         return data["authorizationUrl"]?.toString()?.takeIf { it.isNotBlank() }
             ?: error("antigravity_oauth_url_missing")
@@ -28,18 +28,18 @@ class AntigravityFirebaseGateway(
     suspend fun completeOAuth(callbackUrl: String): AntigravityTokenExchangeResult {
         ensureSignedIn()
         val result = functions
-            .getHttpsCallable("completeAntigravityOAuth")
-            .call(mapOf("callbackUrl" to callbackUrl))
-            .await()
+            .callWithAppCheckRetry(appCheck, "completeAntigravityOAuth", mapOf("callbackUrl" to callbackUrl))
         return AntigravityTokenExchangeResult.from(result.getData())
     }
 
     suspend fun refreshAccessToken(refreshToken: String): AntigravityTokenExchangeResult {
         ensureSignedIn()
         val result = functions
-            .getHttpsCallable("refreshAntigravityAccessToken")
-            .call(mapOf("refreshToken" to refreshToken))
-            .await()
+            .callWithAppCheckRetry(
+                appCheck,
+                "refreshAntigravityAccessToken",
+                mapOf("refreshToken" to refreshToken)
+            )
         return AntigravityTokenExchangeResult.from(result.getData())
     }
 
@@ -47,9 +47,7 @@ class AntigravityFirebaseGateway(
         return runCatching {
             ensureSignedIn()
             val result = functions
-                .getHttpsCallable("collectAntigravityUsage")
-                .call(mapOf("force" to force))
-                .await()
+                .callWithAppCheckRetry(appCheck, "collectAntigravityUsage", mapOf("force" to force))
             GatewayResult.from(result.getData())
         }.getOrElse(GatewayResult::fromThrowable)
     }
@@ -57,9 +55,7 @@ class AntigravityFirebaseGateway(
     suspend fun disconnect() {
         ensureSignedIn()
         functions
-            .getHttpsCallable("disconnectAntigravity")
-            .call(emptyMap<String, Any>())
-            .await()
+            .callWithAppCheckRetry(appCheck, "disconnectAntigravity", emptyMap<String, Any>())
     }
 
     fun applicationContext(): Context = appContext

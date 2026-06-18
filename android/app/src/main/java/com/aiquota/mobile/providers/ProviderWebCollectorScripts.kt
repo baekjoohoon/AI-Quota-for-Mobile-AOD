@@ -18,6 +18,16 @@ object ProviderWebCollectorScripts {
                 host == "auth.openai.com" ||
                     host == "accounts.google.com" ||
                     ((host == "chatgpt.com" || host.endsWith(".chatgpt.com")) && path == "/auth/login")
+            ProviderId.GLM ->
+                host == "accounts.google.com" ||
+                    ((host == "z.ai" || host == "www.z.ai" || host == "chat.z.ai") &&
+                        (path.contains("login") || path.contains("signin") || path.contains("auth")))
+            ProviderId.OPENCODE ->
+                host == "accounts.google.com" ||
+                    host == "github.com" &&
+                    (path.startsWith("/login") || path.startsWith("/sessions") || path.startsWith("/session")) ||
+                    ((host == "opencode.ai" || host == "www.opencode.ai") &&
+                        (path.contains("login") || path.contains("signin")))
             ProviderId.GEMINI ->
                 host == "accounts.google.com"
             ProviderId.COPILOT ->
@@ -47,13 +57,29 @@ object ProviderWebCollectorScripts {
 
     fun isRefreshLoginPage(providerId: ProviderId, url: String, pageText: String): Boolean {
         if (isRefreshLoginPage(providerId, url)) return true
-        if (providerId != ProviderId.CODEX) return false
         val uri = runCatching { URI(url) }.getOrNull() ?: return false
         val host = uri.host.orEmpty().lowercase(Locale.US)
         val path = uri.path.orEmpty().lowercase(Locale.US)
-        if (host != "chatgpt.com" && !host.endsWith(".chatgpt.com")) return false
-        if (path != "/" && path.isNotBlank()) return false
-        return looksLikeChatGptLoginText(pageText)
+        if (providerId == ProviderId.CODEX) {
+            if (host != "chatgpt.com" && !host.endsWith(".chatgpt.com")) return false
+            if (path != "/" && path.isNotBlank()) return false
+            return looksLikeChatGptLoginText(pageText)
+        }
+        if (providerId == ProviderId.GLM) {
+            if (host != "z.ai" && host != "www.z.ai" && host != "chat.z.ai") return false
+            val text = pageText.lowercase(Locale.US)
+            return text.contains("login") &&
+                !text.contains("coding plan") &&
+                !text.contains("quota") &&
+                !text.contains("usage")
+        }
+        if (providerId == ProviderId.OPENCODE) {
+            if (host != "opencode.ai" && host != "www.opencode.ai") return false
+            val text = pageText.lowercase(Locale.US)
+            return (path == "/auth" || path.contains("login") || path.contains("signin")) &&
+                looksLikeOpenCodeLoginText(text)
+        }
+        return false
     }
 
     fun shouldRunCollector(providerId: ProviderId, url: String, cookies: Map<String, String>, pageText: String): Boolean {
@@ -78,6 +104,40 @@ object ProviderWebCollectorScripts {
                 (host == "chatgpt.com" || host.endsWith(".chatgpt.com") || host == "chat.openai.com") &&
                     path != "/auth/login" &&
                     !looksLikeChatGptLoginText(pageText)
+            ProviderId.GLM ->
+                (host == "z.ai" || host == "www.z.ai" || host == "chat.z.ai") &&
+                    !path.contains("login") &&
+                    !path.contains("signin") &&
+                    !path.contains("auth") &&
+                    (
+                        path.startsWith("/manage-apikey/coding-plan") ||
+                            path.startsWith("/manage-apikey/subscription") ||
+                            path.startsWith("/manage-apikey") ||
+                            (host == "chat.z.ai" && path == "/") ||
+                            text.contains("coding plan") ||
+                            text.contains("quota") ||
+                            text.contains("usage")
+                        )
+            ProviderId.OPENCODE ->
+                (host == "opencode.ai" || host == "www.opencode.ai") &&
+                    !path.startsWith("/docs") &&
+                    !path.startsWith("/brand") &&
+                    !path.contains("login") &&
+                    !path.contains("signin") &&
+                    !looksLikeOpenCodeLoginText(text) &&
+                    (
+                        path.contains("console") ||
+                            path.contains("usage") ||
+                            path.contains("billing") ||
+                            path.contains("credit") ||
+                            path.contains("balance") ||
+                            path.contains("zen") ||
+                            path.contains("go") ||
+                            text.contains("usage") ||
+                            text.contains("limit") ||
+                            text.contains("balance") ||
+                            text.contains("credit")
+                        )
             ProviderId.GEMINI ->
                 host == "gemini.google.com" &&
                     (path == "/" || path.startsWith("/app") || path.startsWith("/usage"))
@@ -111,6 +171,21 @@ object ProviderWebCollectorScripts {
             text.contains("continue with google")
     }
 
+    private fun looksLikeOpenCodeLoginText(pageText: String): Boolean {
+        val text = pageText.lowercase(Locale.US)
+        if (text.isBlank()) return false
+        val hasUsage = text.contains("usage") ||
+            text.contains("limit") ||
+            text.contains("balance") ||
+            text.contains("credit")
+        return !hasUsage &&
+            (text.contains("sign in") ||
+                text.contains("login") ||
+                text.contains("log in") ||
+                text.contains("continue with google") ||
+                text.contains("continue with github"))
+    }
+
     fun shouldRunCollectorOnResource(providerId: ProviderId, url: String): Boolean {
         val uri = runCatching { URI(url) }.getOrNull() ?: return false
         val host = uri.host.orEmpty().lowercase(Locale.US)
@@ -129,6 +204,31 @@ object ProviderWebCollectorScripts {
                         path == "/backend-api/subscriptions" ||
                         path == "/backend-api/me" ||
                         path.startsWith("/backend-api/accounts/check"))
+            ProviderId.GLM ->
+                (host == "api.z.ai" &&
+                    (path == "/api/monitor/usage/quota/limit" ||
+                        path == "/api/biz/subscription/list" ||
+                        path.contains("/api/monitor/usage"))) ||
+                    (host == "chat.z.ai" &&
+                        (path.contains("usage") ||
+                            path.contains("quota") ||
+                            path.contains("plan") ||
+                            path.contains("subscription"))) ||
+                    ((host == "z.ai" || host == "www.z.ai" || host == "chat.z.ai") &&
+                        path.startsWith("/manage-apikey"))
+            ProviderId.OPENCODE ->
+                (host == "opencode.ai" || host == "www.opencode.ai") &&
+                    !path.startsWith("/docs") &&
+                    !path.startsWith("/brand") &&
+                    (path == "/auth" ||
+                        path.contains("usage") ||
+                        path.contains("billing") ||
+                        path.contains("credit") ||
+                        path.contains("balance") ||
+                        path.contains("subscription") ||
+                        path.contains("console") ||
+                        path.contains("zen") ||
+                        path.contains("go"))
             ProviderId.CURSOR ->
                 (host == "cursor.com" || host == "www.cursor.com") &&
                     (path == "/api/auth/stripe" ||
@@ -359,8 +459,18 @@ object ProviderWebCollectorScripts {
               var c = window.__AIQuotaCollector;
               if (!c) return;
               function orgFromText(text) {
+                var apiMatch = /\/api\/organizations\/([A-Za-z0-9_-]{8,}(?:-[A-Za-z0-9_-]+)*)/.exec(text || "");
+                if (apiMatch && apiMatch[1] !== "discoverable") return apiMatch[1];
                 var match = /org[_-][A-Za-z0-9_-]+/.exec(text || "");
                 return match ? match[0] : null;
+              }
+              function isNumericClaudeOrgId(value) {
+                return /^\d+$/.test(String(value || ""));
+              }
+              function preferClaudeUsageOrgId(current, candidate) {
+                if (!candidate) return current || null;
+                if (!current || (isNumericClaudeOrgId(current) && !isNumericClaudeOrgId(candidate))) return candidate;
+                return current;
               }
               function pickOrg(value) {
                 if (!value) return null;
@@ -372,7 +482,7 @@ object ProviderWebCollectorScripts {
                   }
                 }
                 if (typeof value === "object") {
-                  return value.id || value.uuid || value.organization_id || value.organizationId || orgFromText(JSON.stringify(value));
+                  return value.uuid || value.organization_uuid || value.organizationUuid || value.id || value.organization_id || value.organizationId || orgFromText(JSON.stringify(value));
                 }
                 return null;
               }
@@ -499,8 +609,14 @@ object ProviderWebCollectorScripts {
                 return candidates;
               }
               function pickClaudePlanFromText(text) {
-                var match = /\bClaude\s+(Free|Pro|Max|Team|Enterprise)(?:\s+\d+x)?\b/i.exec(String(text || ""));
-                return match ? match[0] : null;
+                var value = String(text || "");
+                var match = /\bClaude\s+(Free|Pro|Max|Team|Enterprise)(?:\s+\d+x)?\b/i.exec(value);
+                if (match) return match[0].replace(/^Claude\s+/i, "");
+                var planAfterLabel = /(?:current\s+plan|plan|subscription|membership|요금제|플랜)[\s:：\-]*[\r\n ]{0,20}(?:Claude\s+)?(Free|Pro|Max|Team|Enterprise)(?:\s+(\d+x))?/i.exec(value);
+                if (planAfterLabel) return planAfterLabel[1] + (planAfterLabel[2] ? " " + planAfterLabel[2] : "");
+                var planBeforeLabel = /(?:Claude\s+)?(Free|Pro|Max|Team|Enterprise)(?:\s+(\d+x))?\s+(?:plan|subscription|membership|요금제|플랜)\b/i.exec(value);
+                if (planBeforeLabel) return planBeforeLabel[1] + (planBeforeLabel[2] ? " " + planBeforeLabel[2] : "");
+                return null;
               }
               function claudeRemainingPercentFromText(text) {
                 var match = /(\d{1,3}(?:\.\d+)?)\s*%\s*(?:left|remaining)/i.exec(text);
@@ -512,16 +628,46 @@ object ProviderWebCollectorScripts {
                 return Math.max(0, Math.min(100, parsed));
               }
               function claudeResetTextFromWindow(text) {
-                var match = /(resets?[^.\n]{0,120}|reset[^.\n]{0,120})/i.exec(text);
-                return match ? match[1].replace(/\s+/g, " ").trim() : null;
+                var lines = String(text || "").split(/\r?\n/);
+                for (var i = 0; i < lines.length; i += 1) {
+                  var value = String(lines[i] || "").replace(/\s+/g, " ").trim();
+                  if (!value || claudeUsageBoundaryLine(value)) continue;
+                  var match = /\bresets?\b[^.\n]{0,120}/i.exec(value) ||
+                    /\breset\b\s+(?:in|at|on|after|by)[^.\n]{0,120}/i.exec(value);
+                  if (match) return match[0].replace(/\s+/g, " ").trim();
+                }
+                return null;
+              }
+              function claudeUsageBoundaryLine(line) {
+                var value = String(line || "").replace(/\s+/g, " ").trim();
+                if (!value) return false;
+                if (/\blimit\s+resets?\b/i.test(value) || /\bresets?\s+in\b/i.test(value)) return false;
+                return /^Claude:\s*(Session|Weekly|Sonnet|Opus|Cowork|Design)\s+Reset$/i.test(value) ||
+                  /^Claude\s+(Session|Weekly|Sonnet|Opus|Cowork|Design)\b/i.test(value) ||
+                  /^(Session|Weekly|Sonnet|Opus|Cowork|Design)\s+Reset$/i.test(value);
+              }
+              function claudeWindowText(text, label) {
+                var lines = String(text || "").split(/\r?\n/);
+                var lowerLabel = label.toLowerCase();
+                for (var lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+                  if (String(lines[lineIndex] || "").toLowerCase().indexOf(lowerLabel) < 0) continue;
+                  var windowLines = [];
+                  for (var windowIndex = lineIndex; windowIndex < lines.length; windowIndex += 1) {
+                    if (windowIndex > lineIndex && claudeUsageBoundaryLine(lines[windowIndex])) break;
+                    windowLines.push(lines[windowIndex]);
+                    if (windowLines.join("\n").length >= 700) break;
+                  }
+                  return windowLines.join("\n");
+                }
+                var lower = String(text || "").toLowerCase();
+                var index = lower.indexOf(lowerLabel);
+                return index >= 0 ? text.slice(index, index + 700) : null;
               }
               function claudeTextLine(text, labels) {
-                var lower = text.toLowerCase();
                 for (var i = 0; i < labels.length; i += 1) {
                   var label = labels[i];
-                  var index = lower.indexOf(label.toLowerCase());
-                  if (index < 0) continue;
-                  var windowText = text.slice(index, index + 700);
+                  var windowText = claudeWindowText(text, label);
+                  if (!windowText) continue;
                   var remaining = claudeRemainingPercentFromText(windowText);
                   if (remaining === null) continue;
                   var line = { remaining_percent: remaining };
@@ -598,6 +744,34 @@ object ProviderWebCollectorScripts {
                 }
                 return extractClaudeUsageFromRows();
               }
+              function claudeUsagePayloadRoot(value) {
+                if (value && typeof value === "object" && value.usage && typeof value.usage === "object") return value.usage;
+                return value;
+              }
+              function mergeClaudeObjectKeepingExisting(base, extra) {
+                var merged = {};
+                var baseKeys = Object.keys(base || {});
+                for (var i = 0; i < baseKeys.length; i += 1) merged[baseKeys[i]] = base[baseKeys[i]];
+                var extraKeys = Object.keys(extra || {});
+                for (var j = 0; j < extraKeys.length; j += 1) {
+                  var key = extraKeys[j];
+                  var left = merged[key];
+                  var right = extra[key];
+                  if (!Object.prototype.hasOwnProperty.call(merged, key)) {
+                    merged[key] = right;
+                  } else if (left && right && typeof left === "object" && typeof right === "object" && !Array.isArray(left) && !Array.isArray(right)) {
+                    merged[key] = mergeClaudeObjectKeepingExisting(left, right);
+                  }
+                }
+                return merged;
+              }
+              function mergeClaudeUsagePayload(base, extra) {
+                var left = claudeUsagePayloadRoot(base);
+                var right = claudeUsagePayloadRoot(extra);
+                if (!left || typeof left !== "object") return right || null;
+                if (!right || typeof right !== "object") return left;
+                return mergeClaudeObjectKeepingExisting(left, right);
+              }
               async function probeClaudeSession() {
                 installClaudeNetworkHook();
                 var result = {
@@ -625,7 +799,7 @@ object ProviderWebCollectorScripts {
                     result.loggedIn = true;
                     result.accountOk = true;
                     meta = organizations.json || {};
-                    orgId = orgId || pickOrg(meta);
+                    orgId = preferClaudeUsageOrgId(orgId, pickOrg(meta));
                   }
                 } catch (error) {}
                 if (!orgId) {
@@ -635,7 +809,7 @@ object ProviderWebCollectorScripts {
                       result.loggedIn = true;
                       result.accountOk = true;
                       meta = organization.json || meta;
-                      orgId = pickOrg(organization.json) || orgId;
+                      orgId = preferClaudeUsageOrgId(orgId, pickOrg(organization.json));
                     }
                   } catch (error) {}
                 }
@@ -656,10 +830,13 @@ object ProviderWebCollectorScripts {
                 if (orgId) {
                   try {
                     var usage = await c.fetchJson("https://claude.ai/api/organizations/" + encodeURIComponent(orgId) + "/usage");
-                    if (!result.usageOk && usage.ok && usage.json) {
+                    if (usage.ok && usage.json) {
+                      var mergedUsage = mergeClaudeUsagePayload(result.usage, usage.json);
+                      if (hasClaudeUsagePayload(mergedUsage)) {
+                        result.usage = mergedUsage;
+                        result.usageOk = true;
+                      }
                       result.loggedIn = true;
-                      result.usageOk = true;
-                      result.usage = usage.json;
                     }
                   } catch (error) {}
                 }
@@ -675,7 +852,20 @@ object ProviderWebCollectorScripts {
               }
               function hasClaudeUsagePayload(value) {
                 if (!value || typeof value !== "object") return false;
-                return !!(value.usage || value.five_hour || value.seven_day || value.seven_day_omelette || value.session || value.weekly || value.opus || value.sonnet || value.cowork || value.design);
+                if (value.usage ||
+                  value.five_hour || value.fiveHour ||
+                  value.seven_day || value.sevenDay ||
+                  value.seven_day_omelette || value.sevenDayOmelette ||
+                  value.session || value.weekly ||
+                  value.weekly_opus || value.weeklyOpus || value.opus_weekly || value.opusWeekly || value.opus ||
+                  value.weekly_sonnet || value.weeklySonnet || value.sonnet_weekly || value.sonnetWeekly || value.sonnet ||
+                  value.weekly_cowork || value.weeklyCowork || value.cowork_weekly || value.coworkWeekly || value.cowork ||
+                  value.weekly_design || value.weeklyDesign || value.design_weekly || value.designWeekly || value.design ||
+                  value.models || value.model_usage || value.modelUsage || value.model_limits || value.modelLimits ||
+                  value.limits || value.quotas || value.quotaBuckets || value.quota_buckets || value.buckets || value.windows) {
+                  return true;
+                }
+                return false;
               }
               function runProbe() {
                 probeClaudeSession().then(function(result) {
@@ -767,6 +957,121 @@ object ProviderWebCollectorScripts {
                 }
                 return null;
               }
+              function normalizeCodexPlanValue(value) {
+                var normalized = String(value || "").replace(/\s+/g, " ").trim();
+                if (!normalized || normalized.length >= 80 || normalized === "null") return null;
+                var compact = normalized.toLowerCase().replace(/[^a-z0-9]+/g, "");
+                if (compact === "prolite" || compact === "chatgptprolite" || compact === "pro5x" || compact === "chatgptpro5x") return "Pro 5x";
+                if (compact === "pro" || compact === "chatgptpro20x" || compact === "pro20x") return "Pro 20x";
+                if (compact === "chatgptpro") return "Pro";
+                if (compact === "plus" || compact === "chatgptplus") return "Plus";
+                if (compact === "free" || compact === "chatgptfree") return "Free";
+                if (compact === "team" || compact === "chatgptteam") return "Team";
+                if (compact === "business" || compact === "chatgptbusiness") return "Business";
+                if (compact === "enterprise" || compact === "chatgptenterprise") return "Enterprise";
+                if (compact === "unknown" || compact === "none" || compact === "null") return null;
+                if (
+                  compact.indexOf("chatgpt") >= 0 ||
+                  compact.indexOf("codex") >= 0 ||
+                  compact.indexOf("pro") >= 0 ||
+                  compact.indexOf("plus") >= 0 ||
+                  compact.indexOf("team") >= 0 ||
+                  compact.indexOf("business") >= 0 ||
+                  compact.indexOf("enterprise") >= 0
+                ) {
+                  return normalized.replace(/^ChatGPT\s+/i, "");
+                }
+                return null;
+              }
+              function pickCodexPlan(value, depth) {
+                if (!value || depth > 6) return null;
+                if (typeof value === "string") {
+                  return normalizeCodexPlanValue(value);
+                }
+                if (Array.isArray(value)) {
+                  for (var a = 0; a < value.length && a < 40; a += 1) {
+                    var fromArray = pickCodexPlan(value[a], depth + 1);
+                    if (fromArray) return fromArray;
+                  }
+                  return null;
+                }
+                if (typeof value !== "object") return null;
+                var directKeys = [
+                  "plan_type",
+                  "planType",
+                  "subscription_type",
+                  "subscriptionType",
+                  "subscription_name",
+                  "subscriptionName",
+                  "chatgpt_plan_type",
+                  "chatgptPlanType",
+                  "chatgpt_subscription_plan",
+                  "chatgptSubscriptionPlan",
+                  "plan",
+                  "plan_name",
+                  "planName",
+                  "plan_slug",
+                  "planSlug",
+                  "subscription_plan",
+                  "subscriptionPlan",
+                  "account_plan",
+                  "accountPlan",
+                  "billing_plan",
+                  "billingPlan",
+                  "tier",
+                  "sku",
+                  "product_name",
+                  "productName",
+                  "id",
+                  "slug",
+                  "name",
+                  "title",
+                  "display_name",
+                  "displayName",
+                  "label"
+                ];
+                for (var d = 0; d < directKeys.length; d += 1) {
+                  var direct = value[directKeys[d]];
+                  var fromDirect = pickCodexPlan(direct, depth + 1);
+                  if (fromDirect) return fromDirect;
+                }
+                var containers = [
+                  "data",
+                  "items",
+                  "result",
+                  "value",
+                  "subscription",
+                  "subscriptions",
+                  "chatgpt_subscription",
+                  "chatgptSubscription",
+                  "active_subscription",
+                  "activeSubscription",
+                  "current_subscription",
+                  "currentSubscription",
+                  "current_plan",
+                  "currentPlan",
+                  "plan",
+                  "plan_info",
+                  "planInfo",
+                  "billing",
+                  "entitlement",
+                  "entitlements",
+                  "account",
+                  "accounts",
+                  "user",
+                  "users",
+                  "workspace",
+                  "organization",
+                  "product",
+                  "products"
+                ];
+                for (var cIndex = 0; cIndex < containers.length; cIndex += 1) {
+                  var nested = value[containers[cIndex]];
+                  var fromNested = pickCodexPlan(nested, depth + 1);
+                  if (fromNested) return fromNested;
+                }
+                return null;
+              }
               async function fetchCodexJson(url, timeoutMs) {
                 var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
                 var timer = null;
@@ -795,6 +1100,29 @@ object ProviderWebCollectorScripts {
                 } finally {
                   if (timer) clearTimeout(timer);
                 }
+              }
+              async function fetchCodexSubscriptionPlan(accountId) {
+                var urls = [];
+                if (accountId) {
+                  urls.push("https://chatgpt.com/backend-api/subscriptions?account_id=" + encodeURIComponent(accountId));
+                }
+                urls.push("https://chatgpt.com/backend-api/subscriptions");
+                var lastStatus = null;
+                for (var i = 0; i < urls.length; i += 1) {
+                  var response = await fetchCodexJson(urls[i], 3000).catch(function(error) {
+                    return { ok: false, status: error && error.name === "AbortError" ? "timeout" : "error", json: null };
+                  });
+                  lastStatus = response.status;
+                  if (response.ok) {
+                    return {
+                      ok: true,
+                      status: response.status,
+                      json: response.json,
+                      plan: pickCodexPlan(response.json, 0)
+                    };
+                  }
+                }
+                return { ok: false, status: lastStatus, json: null, plan: null };
               }
               function safeCodexAuthHints(value) {
                 var hints = {
@@ -1165,6 +1493,20 @@ object ProviderWebCollectorScripts {
                 if (type === "spark_secondary") return isSpark && codexLineHasWeekly(line);
                 return false;
               }
+              function codexVisibleWindowText(lines, startIndex) {
+                var end = Math.min(lines.length, startIndex + 8);
+                var types = ["primary", "secondary", "spark_primary", "spark_secondary"];
+                for (var i = startIndex + 1; i < end; i += 1) {
+                  for (var j = 0; j < types.length; j += 1) {
+                    if (codexVisibleTitleMatches(lines[i], types[j])) {
+                      end = i;
+                      break;
+                    }
+                  }
+                  if (end === i) break;
+                }
+                return lines.slice(startIndex, end).join("\n");
+              }
               function codexVisibleSparkLabel(line, fallbackLabel) {
                 var label = String(line || "").replace(/\s+/g, " ").trim();
                 label = label.replace(new RegExp("\\s*" + codexEscapeRegex(KO_CODEX_USAGE) + "\\s*" + codexEscapeRegex(KO_CODEX_LIMIT), "g"), "");
@@ -1176,7 +1518,7 @@ object ProviderWebCollectorScripts {
               function codexVisibleUsageLine(lines, type, fallbackLabel) {
                 for (var i = 0; i < lines.length; i += 1) {
                   if (!codexVisibleTitleMatches(lines[i], type)) continue;
-                  var windowText = lines.slice(i, Math.min(lines.length, i + 8)).join("\n");
+                  var windowText = codexVisibleWindowText(lines, i);
                   var remainingPercent = remainingPercentFromText(windowText);
                   if (remainingPercent === null) continue;
                   var usedPercent = Math.max(0, Math.min(100, Number((100 - remainingPercent).toFixed(3))));
@@ -1186,7 +1528,11 @@ object ProviderWebCollectorScripts {
                     remaining_percent: remainingPercent,
                     used_percent: usedPercent
                   };
-                  var resetText = resetTextFromCodexWindow(windowText, type === "primary" || type === "spark_primary");
+                  var allowTimeOnlyReset = type === "primary" || type === "spark_primary";
+                  var resetText = resetTextFromCodexWindow(windowText, allowTimeOnlyReset);
+                  if (!resetText && (type === "secondary" || type === "spark_secondary")) {
+                    resetText = resetTextFromCodexWindow(windowText, true);
+                  }
                   if (resetText) line.reset_text = resetText;
                   return line;
                 }
@@ -1398,6 +1744,8 @@ object ProviderWebCollectorScripts {
                   account: null,
                   accountCheck: null,
                   accountId: null,
+                  plan: null,
+                  subscriptionStatus: null,
                   codexUsageStatus: null,
                   codexUsageStatuses: []
                 };
@@ -1419,6 +1767,7 @@ object ProviderWebCollectorScripts {
                 if (sessionRes.ok) {
                   result.loggedIn = true;
                   result.sessionOk = true;
+                  result.plan = result.plan || pickCodexPlan(sessionRes.json, 0);
                 }
                 var meRes = probeResults[1];
                 result.meStatus = meRes.status;
@@ -1428,6 +1777,7 @@ object ProviderWebCollectorScripts {
                   result.sessionOk = true;
                   result.accountOk = true;
                   result.account = meRes.json;
+                  result.plan = result.plan || pickCodexPlan(meRes.json, 0);
                 }
                 var checkRes = probeResults[2];
                 result.accountCheckStatus = checkRes.status;
@@ -1437,6 +1787,7 @@ object ProviderWebCollectorScripts {
                   result.sessionOk = true;
                   result.accountOk = true;
                   result.accountCheck = checkRes.json;
+                  result.plan = result.plan || pickCodexPlan(checkRes.json, 0);
                 }
                 result.accountId =
                   c.observedAccountId ||
@@ -1446,6 +1797,17 @@ object ProviderWebCollectorScripts {
                 result.usage = scanCodexPageState(result.accountId);
                 result.rowsUsagePresent = !!result.usage;
                 if (result.usage) {
+                  result.plan = result.plan || result.usage.plan || result.usage.plan_type || null;
+                  if (!result.plan) {
+                    var subscriptionRes = await fetchCodexSubscriptionPlan(result.accountId);
+                    result.subscriptionStatus = subscriptionRes.status;
+                    if (subscriptionRes.ok) {
+                      result.loggedIn = true;
+                      result.sessionOk = true;
+                      result.plan = subscriptionRes.plan || null;
+                    }
+                  }
+                  if (result.plan && !result.usage.plan && !result.usage.plan_type) result.usage.plan = result.plan;
                   result.loggedIn = true;
                   result.sessionOk = true;
                   result.usageOk = true;
@@ -1503,6 +1865,8 @@ object ProviderWebCollectorScripts {
                     " session=" + result.sessionStatus +
                     " me=" + result.meStatus +
                     " account=" + result.accountCheckStatus +
+                    " subscription=" + result.subscriptionStatus +
+                    " plan=" + !!result.plan +
                     " usage=" + result.usageOk +
                     " rows=" + ((window.__AIQuotaCodexNetworkRows || []).length));
                   if (result.loggedIn && result.usageOk && result.usage && typeof result.usage === "object") {
@@ -1563,20 +1927,28 @@ object ProviderWebCollectorScripts {
                 }
                 if (typeof value !== "object") return;
                 var label = value.l || value.label || value.name || value.title || value.modelId || value.model_id || value.model || value.feature;
-                var usedValue = parseNumber(value.u !== undefined ? value.u : (value.usedPercent !== undefined ? value.usedPercent : (value.used_percent !== undefined ? value.used_percent : (value.usageRate !== undefined ? value.usageRate : (value.usedRate !== undefined ? value.usedRate : value.utilization)))));
-                var remainingValue = parseNumber(value.remainingFraction !== undefined ? value.remainingFraction : (value.remaining_fraction !== undefined ? value.remaining_fraction : (value.remainingPercent !== undefined ? value.remainingPercent : value.remaining_percent)));
-                if (label && (usedValue !== null || remainingValue !== null)) {
-                  var usedRate = usedValue !== null
-                    ? (usedValue <= 1 ? usedValue : usedValue / 100)
-                    : 1 - (remainingValue <= 1 ? remainingValue : remainingValue / 100);
-                  limits.push({
+                var usedRateValue = parseNumber(value.u !== undefined ? value.u : (value.usageRate !== undefined ? value.usageRate : (value.usedRate !== undefined ? value.usedRate : value.utilization)));
+                    var usedPercentValue = parseNumber(value.usedPercent !== undefined ? value.usedPercent : (value.used_percent !== undefined ? value.used_percent : (value.usedPercentage !== undefined ? value.usedPercentage : (value.used_percentage !== undefined ? value.used_percentage : (value.percentUsed !== undefined ? value.percentUsed : (value.percent_used !== undefined ? value.percent_used : (value.totalPercentUsed !== undefined ? value.totalPercentUsed : value.total_percent_used)))))));
+                var remainingFractionValue = parseNumber(value.remainingFraction !== undefined ? value.remainingFraction : value.remaining_fraction);
+                var remainingPercentValue = parseNumber(value.remainingPercent !== undefined ? value.remainingPercent : (value.remaining_percent !== undefined ? value.remaining_percent : (value.remainingPercentage !== undefined ? value.remainingPercentage : value.remaining_percentage)));
+                if (label && (usedRateValue !== null || usedPercentValue !== null || remainingFractionValue !== null || remainingPercentValue !== null)) {
+                  var line = {
                     l: label,
-                    u: Math.max(0, Math.min(1, usedRate)),
                     r: value.r || value.resetAt || value.resets_at,
                     t: value.t || value.resetText || value.reset_text,
                     source: source,
                     confidence: value.confidence
-                  });
+                  };
+                  if (usedPercentValue !== null) {
+                    line.used_percent = Math.max(0, Math.min(100, usedPercentValue));
+                  } else if (usedRateValue !== null) {
+                    line.u = Math.max(0, Math.min(1, usedRateValue <= 1 ? usedRateValue : usedRateValue / 100));
+                  } else if (remainingPercentValue !== null) {
+                    line.remaining_percent = Math.max(0, Math.min(100, remainingPercentValue));
+                  } else {
+                    line.remaining_fraction = Math.max(0, Math.min(1, remainingFractionValue <= 1 ? remainingFractionValue : remainingFractionValue / 100));
+                  }
+                  limits.push(line);
                 }
                 Object.keys(value).forEach(function(key) {
                   scanGeminiQuotaResponse(value[key], path.concat(key), source, limits);
@@ -1707,6 +2079,562 @@ object ProviderWebCollectorScripts {
                 finishGeminiNoObservedPayload();
               }
               setTimeout(collectGeminiUsage, 1800);
+            })();
+        """.trimIndent()
+    }
+
+    internal fun glm(): String {
+        return """
+            (function(){
+              if (!window.__AIQuotaStartProviderCollector || !window.__AIQuotaStartProviderCollector("glm")) return;
+              var c = window.__AIQuotaCollector;
+              if (!c) return;
+              function number(value) {
+                if (value === null || value === undefined || value === "") return null;
+                var parsed = Number(value);
+                return Number.isFinite(parsed) ? parsed : null;
+              }
+              function first(object, keys) {
+                if (!object || typeof object !== "object") return null;
+                for (var i = 0; i < keys.length; i += 1) {
+                  var value = object[keys[i]];
+                  if (value !== null && value !== undefined && value !== "") return value;
+                }
+                return null;
+              }
+              function percentFromObject(object) {
+                var direct = number(first(object, ["percentage", "usedPercent", "used_percent", "percentUsed", "percent_used"]));
+                if (direct !== null) return direct;
+                var utilization = number(first(object, ["utilization", "u"]));
+                if (utilization !== null) return utilization >= 0 && utilization <= 1 ? utilization * 100 : utilization;
+                var remainingPercent = number(first(object, ["remainingPercent", "remaining_percent", "percentRemaining", "percent_remaining"]));
+                if (remainingPercent !== null) return 100 - remainingPercent;
+                var remainingFraction = number(first(object, ["remainingFraction", "remaining_fraction"]));
+                if (remainingFraction !== null) return 100 - (remainingFraction * 100);
+                return null;
+              }
+              function inferLimitType(object, fallbackLabel) {
+                var raw = String(first(object, ["type", "limitType", "quotaType", "key", "name", "label", "title"]) || fallbackLabel || "");
+                var normalized = raw.toLowerCase();
+                if (normalized.indexOf("token") >= 0 ||
+                    normalized.indexOf("5-hour") >= 0 ||
+                    normalized.indexOf("5 hour") >= 0 ||
+                    normalized.indexOf("5h") >= 0 ||
+                    normalized.indexOf("weekly") >= 0 ||
+                    normalized.indexOf("7-day") >= 0 ||
+                    normalized.indexOf("7 day") >= 0) {
+                  return "TOKENS_LIMIT";
+                }
+                if (normalized.indexOf("time_limit") >= 0 ||
+                    normalized.indexOf("mcp") >= 0 ||
+                    normalized.indexOf("search") >= 0 ||
+                    normalized.indexOf("reader") >= 0 ||
+                    normalized.indexOf("zread") >= 0 ||
+                    normalized.indexOf("tool") >= 0) {
+                  return "TIME_LIMIT";
+                }
+                return null;
+              }
+              function isWeeklyLimit(object, fallbackLabel) {
+                var raw = String(first(object, ["type", "limitType", "quotaType", "key", "name", "label", "title"]) || fallbackLabel || "").toLowerCase();
+                var unit = number(first(object, ["unit"]));
+                var period = number(first(object, ["number", "period", "window"]));
+                return raw.indexOf("weekly") >= 0 ||
+                  raw.indexOf("7-day") >= 0 ||
+                  raw.indexOf("7 day") >= 0 ||
+                  unit === 6 ||
+                  period === 7;
+              }
+              function appendLimit(payload, object, fallbackLabel) {
+                if (!object || typeof object !== "object") return;
+                var type = inferLimitType(object, fallbackLabel);
+                if (!type) return;
+                var percentage = percentFromObject(object);
+                var usage = number(first(object, ["usage", "limit", "total", "totalValue", "max", "quota"]));
+                var currentValue = number(first(object, ["currentValue", "current_value", "used", "usedValue", "consumed", "value"]));
+                var remaining = number(first(object, ["remaining", "left", "remainingValue"]));
+                if (usage === null && currentValue !== null && remaining !== null) usage = currentValue + remaining;
+                if (currentValue === null && usage !== null && remaining !== null) currentValue = usage - remaining;
+                if (percentage !== null && usage === null) usage = 100;
+                if (percentage !== null && currentValue === null) currentValue = percentage;
+                if (usage === null || currentValue === null || usage <= 0) return;
+                payload.data = payload.data || {};
+                payload.data.limits = payload.data.limits || [];
+                var output = {
+                  type: type,
+                  usage: usage,
+                  currentValue: currentValue,
+                  percentage: percentage !== null ? percentage : (currentValue / usage) * 100
+                };
+                if (remaining !== null) output.remaining = remaining;
+                var reset = first(object, ["nextResetTime", "next_reset_time", "resetTime", "resetAt", "reset_at", "resetsAt", "resets_at"]);
+                if (reset !== null && reset !== undefined && reset !== "") output.nextResetTime = reset;
+                if (type === "TOKENS_LIMIT") {
+                  if (isWeeklyLimit(object, fallbackLabel)) {
+                    output.unit = 6;
+                    output.number = 7;
+                  } else {
+                    output.unit = 3;
+                    output.number = 5;
+                  }
+                } else {
+                  output.unit = number(first(object, ["unit"])) || 5;
+                  output.number = number(first(object, ["number"])) || 1;
+                  var details = object.usageDetails || object.usage_details || object.details;
+                  if (Array.isArray(details)) output.usageDetails = details;
+                }
+                payload.data.limits.push(output);
+              }
+              function rememberPlan(object, payload) {
+                payload.plan = payload.plan ||
+                  first(object, ["productName", "product_name", "planName", "plan_name", "plan", "packageName", "package_name", "tier"]);
+                payload.account = payload.account || first(object, ["email", "account", "userEmail"]);
+              }
+              function scan(object, payload, depth) {
+                if (!object || typeof object !== "object" || depth > 6) return;
+                rememberPlan(object, payload);
+                if (Array.isArray(object)) {
+                  object.forEach(function(item) { scan(item, payload, depth + 1); });
+                  return;
+                }
+                if (Array.isArray(object.limits)) {
+                  object.limits.forEach(function(item) { appendLimit(payload, item); });
+                }
+                appendLimit(payload, object);
+                Object.keys(object).forEach(function(key) {
+                  var value = object[key];
+                  if (value && typeof value === "object") scan(value, payload, depth + 1);
+                });
+              }
+              function scanJsonText(text, payload) {
+                var raw = String(text || "");
+                var parsed = null;
+                try { parsed = JSON.parse(raw); } catch (error) {}
+                if (!parsed) {
+                  var start = raw.indexOf("{");
+                  var end = raw.lastIndexOf("}");
+                  if (start >= 0 && end > start) {
+                    try { parsed = JSON.parse(raw.slice(start, end + 1)); } catch (error) {}
+                  }
+                }
+                if (parsed) scan(parsed, payload, 0);
+              }
+              function pushGlmNetworkRow(url, text) {
+                var value = String(url || "") + "\n" + String(text || "");
+                var lower = value.toLowerCase();
+                if (lower.indexOf("tokens_limit") < 0 &&
+                    lower.indexOf("time_limit") < 0 &&
+                    lower.indexOf("/api/monitor/usage") < 0 &&
+                    lower.indexOf("/api/biz/subscription") < 0) {
+                  return;
+                }
+                window.__AIQuotaGlmNetworkRows = window.__AIQuotaGlmNetworkRows || [];
+                window.__AIQuotaGlmNetworkRows.push(value.slice(0, 200000));
+                if (window.__AIQuotaGlmNetworkRows.length > 50) window.__AIQuotaGlmNetworkRows.shift();
+              }
+              function installNetworkHook() {
+                if (window.__AIQuotaGlmNetworkHookInstalled) return;
+                window.__AIQuotaGlmNetworkHookInstalled = true;
+                window.__AIQuotaGlmNetworkRows = window.__AIQuotaGlmNetworkRows || [];
+                try {
+                  var originalFetch = window.fetch;
+                  if (originalFetch) {
+                    window.fetch = function(input, init) {
+                      var url = typeof input === "string" ? input : (input && input.url) || "";
+                      return originalFetch.apply(this, arguments).then(function(response) {
+                        try {
+                          response.clone().text().then(function(text) {
+                            pushGlmNetworkRow(url, text);
+                          }).catch(function(){});
+                        } catch (error) {}
+                        return response;
+                      });
+                    };
+                  }
+                } catch (error) {}
+                try {
+                  var originalOpen = XMLHttpRequest.prototype.open;
+                  var originalSend = XMLHttpRequest.prototype.send;
+                  XMLHttpRequest.prototype.open = function(method, url) {
+                    this.__aiQuotaGlmUrl = url;
+                    return originalOpen.apply(this, arguments);
+                  };
+                  XMLHttpRequest.prototype.send = function() {
+                    this.addEventListener("load", function() {
+                      try { pushGlmNetworkRow(this.__aiQuotaGlmUrl || "", this.responseText || ""); } catch (error) {}
+                    });
+                    return originalSend.apply(this, arguments);
+                  };
+                } catch (error) {}
+              }
+              function scanRows(payload) {
+                var rows = (window.__AIQuotaGlmNetworkRows || []).concat(c.rows ? c.rows() : []);
+                rows.forEach(function(row) { scanJsonText(row, payload); });
+              }
+              function scanPageState(payload) {
+                var candidates = [];
+                try { candidates.push(window.__NEXT_DATA__); } catch (error) {}
+                try { candidates.push(window.__INITIAL_STATE__); } catch (error) {}
+                try { candidates.push(window.__APP_DATA__); } catch (error) {}
+                try { candidates.push(window.__remixContext); } catch (error) {}
+                try {
+                  Object.keys(window).slice(0, 1000).forEach(function(key) {
+                    var lower = String(key || "").toLowerCase();
+                    if (lower.indexOf("glm") >= 0 ||
+                        lower.indexOf("zai") >= 0 ||
+                        lower.indexOf("usage") >= 0 ||
+                        lower.indexOf("quota") >= 0 ||
+                        lower.indexOf("plan") >= 0 ||
+                        lower.indexOf("subscription") >= 0) {
+                      try { candidates.push(window[key]); } catch (error) {}
+                    }
+                  });
+                } catch (error) {}
+                candidates.forEach(function(candidate) { scan(candidate, payload, 0); });
+              }
+              function appendVisibleTextLimit(payload, label, usedPercent, isWeekly, isTool) {
+                appendLimit(payload, {
+                  type: isTool ? "TIME_LIMIT" : "TOKENS_LIMIT",
+                  label: label,
+                  usage: 100,
+                  currentValue: usedPercent,
+                  percentage: usedPercent,
+                  unit: isTool ? 5 : (isWeekly ? 6 : 3),
+                  number: isTool ? 1 : (isWeekly ? 7 : 5)
+                }, label);
+              }
+              function scanVisibleText(payload) {
+                var text = c.text ? c.text() : "";
+                var lower = text.toLowerCase();
+                if (lower.indexOf("coding plan") >= 0 && !payload.plan) payload.plan = "GLM Coding Plan";
+                var percentRe = /(\d{1,3}(?:\.\d+)?)\s*%/g;
+                var match;
+                while ((match = percentRe.exec(text)) !== null) {
+                  var percent = Number(match[1]);
+                  if (!Number.isFinite(percent) || percent < 0 || percent > 100) continue;
+                  var start = Math.max(0, match.index - 180);
+                  var end = Math.min(text.length, match.index + 180);
+                  var context = text.slice(start, end).toLowerCase();
+                  var isRemaining = context.indexOf("remaining") >= 0 || context.indexOf("left") >= 0 || context.indexOf("남음") >= 0;
+                  var usedPercent = isRemaining ? 100 - percent : percent;
+                  if (context.indexOf("weekly") >= 0 || context.indexOf("7-day") >= 0 || context.indexOf("7 day") >= 0) {
+                    appendVisibleTextLimit(payload, "Weekly Token Limit", usedPercent, true, false);
+                  } else if (context.indexOf("5-hour") >= 0 || context.indexOf("5 hour") >= 0 || context.indexOf("5h") >= 0 || context.indexOf("token") >= 0) {
+                    appendVisibleTextLimit(payload, "5-Hour Token Limit", usedPercent, false, false);
+                  } else if (context.indexOf("mcp") >= 0 || context.indexOf("search") >= 0 || context.indexOf("reader") >= 0 || context.indexOf("zread") >= 0) {
+                    appendVisibleTextLimit(payload, "MCP Monthly Quota", usedPercent, false, true);
+                  }
+                }
+              }
+              function dedupeLimits(payload) {
+                var limits = payload && payload.data && payload.data.limits;
+                if (!Array.isArray(limits)) return;
+                var seen = {};
+                payload.data.limits = limits.filter(function(item) {
+                  var type = String(item.type || "");
+                  var key = type + ":" + String(item.unit || "") + ":" + String(item.number || "");
+                  if (seen[key]) return false;
+                  seen[key] = true;
+                  return true;
+                });
+              }
+              function hasTrustedPayload(payload) {
+                var limits = payload && payload.data && payload.data.limits;
+                return Array.isArray(limits) && limits.length > 0;
+              }
+              function collect(attempt) {
+                var payload = { provider: "glm", source: "visible-dom", plan: "GLM Coding Plan" };
+                scanPageState(payload);
+                scanRows(payload);
+                scanVisibleText(payload);
+                dedupeLimits(payload);
+                if (hasTrustedPayload(payload)) {
+                  c.post(payload);
+                  return;
+                }
+                if (attempt < 8) {
+                  setTimeout(function(){ collect(attempt + 1); }, 1500);
+                } else {
+                  c.fail("glm_no_trusted_payload", "GLM Web OAuth usage payload was not available.");
+                }
+              }
+              installNetworkHook();
+              setTimeout(function(){ collect(0); }, 800);
+            })();
+        """.trimIndent()
+    }
+
+    internal fun opencode(): String {
+        return """
+            (function(){
+              if (!window.__AIQuotaStartProviderCollector || !window.__AIQuotaStartProviderCollector("opencode")) return;
+              var c = window.__AIQuotaCollector;
+              if (!c) return;
+              window.__AIQuotaOpenCodeRows = window.__AIQuotaOpenCodeRows || [];
+              function lower(value) {
+                return String(value || "").toLowerCase();
+              }
+              function isRelevantUrl(url) {
+                var value = lower(url);
+                if (value.indexOf("opencode.ai") < 0) return false;
+                if (value.indexOf("/docs") >= 0 || value.indexOf("/brand") >= 0) return false;
+                return value.indexOf("/auth") >= 0 ||
+                  value.indexOf("usage") >= 0 ||
+                  value.indexOf("billing") >= 0 ||
+                  value.indexOf("credit") >= 0 ||
+                  value.indexOf("balance") >= 0 ||
+                  value.indexOf("subscription") >= 0 ||
+                  value.indexOf("console") >= 0 ||
+                  value.indexOf("/zen") >= 0 ||
+                  value.indexOf("/go") >= 0;
+              }
+              function pushNetworkRow(url, text) {
+                if (!isRelevantUrl(url) || !text) return;
+                window.__AIQuotaOpenCodeRows.push(String(text).slice(0, 250000));
+                if (window.__AIQuotaOpenCodeRows.length > 30) window.__AIQuotaOpenCodeRows.shift();
+              }
+              function installNetworkHook() {
+                try {
+                  var originalFetch = window.fetch;
+                  if (originalFetch) {
+                    window.fetch = function(input, init) {
+                      var url = typeof input === "string" ? input : (input && input.url) || "";
+                      return originalFetch.apply(this, arguments).then(function(response) {
+                        try {
+                          response.clone().text().then(function(text) {
+                            pushNetworkRow(url, text);
+                          }).catch(function(){});
+                        } catch (error) {}
+                        return response;
+                      });
+                    };
+                  }
+                } catch (error) {}
+                try {
+                  var originalOpen = XMLHttpRequest.prototype.open;
+                  var originalSend = XMLHttpRequest.prototype.send;
+                  XMLHttpRequest.prototype.open = function(method, url) {
+                    this.__aiQuotaOpenCodeUrl = url;
+                    return originalOpen.apply(this, arguments);
+                  };
+                  XMLHttpRequest.prototype.send = function() {
+                    this.addEventListener("load", function() {
+                      try { pushNetworkRow(this.__aiQuotaOpenCodeUrl || "", this.responseText || ""); } catch (error) {}
+                    });
+                    return originalSend.apply(this, arguments);
+                  };
+                } catch (error) {}
+              }
+              function number(value) {
+                if (value === null || value === undefined || value === "") return null;
+                if (typeof value === "number" && Number.isFinite(value)) return value;
+                var cleaned = String(value).replace(/,/g, "").trim();
+                var match = /-?\d+(?:\.\d+)?/.exec(cleaned);
+                if (!match) return null;
+                var parsed = Number(match[0]);
+                return Number.isFinite(parsed) ? parsed : null;
+              }
+              function displayLimitLabel(value) {
+                var raw = String(value || "").trim();
+                var text = lower(raw);
+                if (((text.indexOf("5 hour") >= 0 || text.indexOf("5-hour") >= 0 || text.indexOf("5h") >= 0) && text.indexOf("limit") >= 0) ||
+                    (text.indexOf("rolling") >= 0 && text.indexOf("usage") >= 0) ||
+                    (raw.indexOf("롤링") >= 0 && raw.indexOf("사용량") >= 0)) {
+                  return "Go 5 hour limit";
+                }
+                if ((text.indexOf("weekly") >= 0 && (text.indexOf("limit") >= 0 || text.indexOf("usage") >= 0)) ||
+                    (raw.indexOf("주간") >= 0 && raw.indexOf("사용량") >= 0)) return "Go weekly limit";
+                if ((text.indexOf("monthly") >= 0 && (text.indexOf("limit") >= 0 || text.indexOf("usage") >= 0)) ||
+                    (raw.indexOf("월간") >= 0 && raw.indexOf("사용량") >= 0)) return "Go monthly limit";
+                if (text.indexOf("balance") >= 0 || text.indexOf("credit") >= 0) return "Zen Credits";
+                return raw || null;
+              }
+              function lineKey(label) {
+                return lower(label).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+              }
+              function appendLimit(payload, item, fallbackLabel) {
+                if (!item) return;
+                var rawLabel = item.label || item.name || item.title || fallbackLabel;
+                var label = displayLimitLabel(rawLabel);
+                if (!label) return;
+                var line = c.line ? c.line(item, label) : null;
+                if (!line) {
+                  var used = number(item.used || item.usage || item.currentValue || item.current_value);
+                  var remaining = number(item.remaining || item.remainingAmount || item.remaining_amount);
+                  var limit = number(item.limit || item.total || item.limitAmount || item.limit_amount);
+                  if (limit !== null && limit > 0 && (used !== null || remaining !== null)) {
+                    line = { label: label };
+                    if (remaining !== null) line.remaining_percent = (remaining / limit) * 100;
+                    else line.used_percent = (used / limit) * 100;
+                  }
+                }
+                if (!line) return;
+                line.label = label;
+                line.key = line.key || "opencode:" + lineKey(label);
+                var usedAmount = number(item.used || item.usage || item.currentValue || item.current_value);
+                var remainingAmount = number(item.remaining || item.remainingAmount || item.remaining_amount);
+                var limitAmount = number(item.limit || item.total || item.limitAmount || item.limit_amount);
+                if (usedAmount !== null) line.used = usedAmount;
+                if (remainingAmount !== null) line.remaining = remainingAmount;
+                if (limitAmount !== null) line.limit = limitAmount;
+                line.unit = item.unit || item.currency || "usd";
+                payload.data.limits.push(line);
+              }
+              function appendCredits(payload, balance) {
+                var amount = number(balance);
+                if (amount === null) return;
+                if (!payload.data.credits || amount > number(payload.data.credits.balance)) {
+                  payload.data.credits = { balance: amount };
+                }
+              }
+              function extractDomLine(label, chunk) {
+                var text = chunk.join(" ");
+                var remainingMatch = /(\d{1,3}(?:\.\d+)?)\s*%\s*(?:remaining|left|available|남음)/i.exec(text);
+                var usedMatch = /(\d{1,3}(?:\.\d+)?)\s*%\s*(?:used|사용)/i.exec(text);
+                var goUsageMatch = /(\d{1,3}(?:\.\d+)?)\s*%/.exec(text);
+                var amountMatch = /(?:USD\s*)?\$?\s*(\d+(?:\.\d+)?)\s*(?:\/|of)\s*(?:USD\s*)?\$?\s*(\d+(?:\.\d+)?)/i.exec(text);
+                var line = { label: label, unit: "usd" };
+                if (remainingMatch) {
+                  line.remaining_percent = number(remainingMatch[1]);
+                } else if (usedMatch) {
+                  line.used_percent = number(usedMatch[1]);
+                } else if (goUsageMatch && lower(label).indexOf("go ") >= 0) {
+                  line.used_percent = number(goUsageMatch[1]);
+                } else if (amountMatch) {
+                  var first = number(amountMatch[1]);
+                  var limit = number(amountMatch[2]);
+                  if (first !== null && limit !== null && limit > 0) {
+                    line.limit = limit;
+                    if (lower(text).indexOf("remaining") >= 0 || lower(text).indexOf("left") >= 0) {
+                      line.remaining = first;
+                      line.remaining_percent = (first / limit) * 100;
+                    } else {
+                      line.used = first;
+                      line.used_percent = (first / limit) * 100;
+                    }
+                  }
+                }
+                var resetMatch = /(resets?\s+in\s+[0-9a-zA-Z\s]+|reset[s]?\s+[a-zA-Z0-9:\s]+)/i.exec(text);
+                if (resetMatch) line.reset_text = resetMatch[1].trim();
+                var koreanResetMatch = /초기화까지\s*남은\s*시간\s*:?\s*((?:\d+\s*(?:일|시간|분)\s*)+)/.exec(text);
+                if (!line.reset_text && koreanResetMatch) line.reset_text = koreanResetText(koreanResetMatch[1]);
+                if (line.remaining_percent === undefined && line.used_percent === undefined) return null;
+                return line;
+              }
+              function koreanResetText(value) {
+                var parts = [];
+                var match;
+                var regex = /(\d+)\s*(일|시간|분)/g;
+                while ((match = regex.exec(String(value || ""))) !== null) {
+                  var amount = number(match[1]);
+                  if (amount === null) continue;
+                  if (match[2] === "일") parts.push(amount + "d");
+                  if (match[2] === "시간") parts.push(amount + "h");
+                  if (match[2] === "분") parts.push(amount + "m");
+                }
+                return parts.length > 0 ? "Resets in " + parts.join(" ") : null;
+              }
+              function scanVisibleText(payload) {
+                var text = c.text ? c.text() : "";
+                if (!text) return;
+                if (!payload.data.plan && lower(text).indexOf("opencode go") >= 0) payload.data.plan = "OpenCode Go";
+                var lines = text.split(/\n+/).map(function(line) {
+                  return String(line || "").trim();
+                }).filter(Boolean);
+                for (var i = 0; i < lines.length; i += 1) {
+                  var current = lines[i];
+                  var label = displayLimitLabel(current);
+                  var labelText = lower(label || "");
+                  if (label && labelText.indexOf("go ") >= 0 && labelText.indexOf("limit") >= 0) {
+                    var limitLine = extractDomLine(label, lines.slice(i, Math.min(lines.length, i + 6)));
+                    appendLimit(payload, limitLine, label);
+                  }
+                  var currentText = lower(current);
+                  if (currentText.indexOf("balance") >= 0 || currentText.indexOf("credit") >= 0) {
+                    var chunk = lines.slice(i, Math.min(lines.length, i + 4)).join(" ");
+                    var money = /(?:USD\s*)?\$\s*(\d+(?:\.\d+)?)/i.exec(chunk);
+                    var credit = /(\d+(?:\.\d+)?)\s*(?:credits?|balance)/i.exec(chunk);
+                    appendCredits(payload, money ? money[1] : (credit ? credit[1] : null));
+                  }
+                }
+              }
+              function scanObject(value, payload, hint, depth) {
+                if (!value || depth > 7) return;
+                if (Array.isArray(value)) {
+                  value.forEach(function(item) { scanObject(item, payload, hint, depth + 1); });
+                  return;
+                }
+                if (typeof value !== "object") return;
+                var label = value.label || value.name || value.title || value.displayName || value.display_name || hint;
+                var hintText = lower(String(hint || "") + " " + String(label || ""));
+                if (hintText.indexOf("limit") >= 0 || hintText.indexOf("usage") >= 0 || hintText.indexOf("quota") >= 0 || hintText.indexOf("go") >= 0) {
+                  appendLimit(payload, value, label);
+                }
+                if (hintText.indexOf("credit") >= 0 || hintText.indexOf("balance") >= 0 || hintText.indexOf("zen") >= 0) {
+                  var balance = value.balance || value.creditBalance || value.credit_balance || value.remainingCredits || value.remaining_credits || value.credits;
+                  appendCredits(payload, balance);
+                }
+                Object.keys(value).forEach(function(key) {
+                  var child = value[key];
+                  if (key === "access_token" || key === "id_token" || key === "refresh_token" || key === "cookie") return;
+                  scanObject(child, payload, key, depth + 1);
+                });
+              }
+              function scanRows(payload) {
+                var rows = (window.__AIQuotaOpenCodeRows || []).concat(c.rows ? c.rows() : []);
+                rows.forEach(function(row) {
+                  if (!row) return;
+                  var text = String(row);
+                  if (lower(text).indexOf("opencode") < 0 &&
+                      lower(text).indexOf("usage") < 0 &&
+                      lower(text).indexOf("limit") < 0 &&
+                      lower(text).indexOf("credit") < 0 &&
+                      lower(text).indexOf("balance") < 0) return;
+                  try { scanObject(JSON.parse(text), payload, "", 0); } catch (error) {}
+                });
+              }
+              function scanPageState(payload) {
+                var candidates = [];
+                try { candidates.push(window.__NEXT_DATA__); } catch (error) {}
+                try { candidates.push(window.__INITIAL_STATE__); } catch (error) {}
+                try { candidates.push(window.__APP_DATA__); } catch (error) {}
+                try { candidates.push(window.__remixContext); } catch (error) {}
+                candidates.forEach(function(candidate) { scanObject(candidate, payload, "", 0); });
+              }
+              function dedupe(payload) {
+                var seen = {};
+                payload.data.limits = payload.data.limits.filter(function(item) {
+                  var key = item.key || item.label;
+                  if (!key || seen[key]) return false;
+                  seen[key] = true;
+                  return true;
+                });
+              }
+              function buildPayload() {
+                var payload = { provider: "opencode", source: "visible-dom", data: { limits: [] } };
+                scanPageState(payload);
+                scanRows(payload);
+                scanVisibleText(payload);
+                dedupe(payload);
+                if (payload.data.plan) payload.plan = payload.data.plan;
+                if (payload.data.account) payload.account = payload.data.account;
+                if (payload.data.limits.length === 0 && !payload.data.credits) return null;
+                return payload;
+              }
+              function collect(attempt) {
+                var payload = buildPayload();
+                if (payload) {
+                  c.post(payload);
+                  return;
+                }
+                if (attempt < 8) {
+                  setTimeout(function(){ collect(attempt + 1); }, 1500);
+                } else {
+                  c.fail("opencode_no_trusted_payload", "OpenCode usage payload was not available.");
+                }
+              }
+              installNetworkHook();
+              setTimeout(function(){ collect(0); }, 800);
             })();
         """.trimIndent()
     }
@@ -1977,6 +2905,10 @@ object ProviderWebCollectorScripts {
               }
               function clampPercent(value) {
                 var parsed = Number(value);
+                return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : null;
+              }
+              function clampFractionPercent(value) {
+                var parsed = Number(value);
                 return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed <= 1 ? parsed * 100 : parsed)) : null;
               }
               function numberFrom(value, keys) {
@@ -2050,7 +2982,7 @@ object ProviderWebCollectorScripts {
                 );
               }
               function copilotUsedPercentFromObject(value) {
-                var used = numberFrom(value, [
+                var usedPercent = numberFrom(value, [
                   "used_percent",
                   "usedPercent",
                   "usedPercentage",
@@ -2058,16 +2990,17 @@ object ProviderWebCollectorScripts {
                   "percent_used",
                   "percentUsed",
                   "usagePercent",
-                  "usage_percentage",
+                  "usage_percentage"
+                ]);
+                if (usedPercent !== null) return clampPercent(usedPercent);
+                var usedFraction = numberFrom(value, [
                   "utilization",
                   "u"
                 ]);
-                if (used !== null) return clampPercent(used);
+                if (usedFraction !== null) return clampFractionPercent(usedFraction);
                 var remainingPercent = numberFrom(value, [
                   "remaining_percent",
                   "remainingPercent",
-                  "remaining_fraction",
-                  "remainingFraction",
                   "percent_remaining",
                   "percentRemaining",
                   "remainingPercentage",
@@ -2075,6 +3008,14 @@ object ProviderWebCollectorScripts {
                 ]);
                 if (remainingPercent !== null) {
                   var remaining = clampPercent(remainingPercent);
+                  return remaining !== null ? Math.max(0, Math.min(100, 100 - remaining)) : null;
+                }
+                var remainingFraction = numberFrom(value, [
+                  "remaining_fraction",
+                  "remainingFraction"
+                ]);
+                if (remainingFraction !== null) {
+                  var remaining = clampFractionPercent(remainingFraction);
                   return remaining !== null ? Math.max(0, Math.min(100, 100 - remaining)) : null;
                 }
                 var remaining = numberFrom(value, ["remaining", "remainingAmount", "remaining_amount", "balance"]);

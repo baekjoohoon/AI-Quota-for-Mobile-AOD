@@ -52,6 +52,7 @@ import com.aiquota.mobile.local.ProviderUsageSnapshot
 import com.aiquota.mobile.support.BugReportCategory
 import com.aiquota.mobile.support.BugReportRequest
 import com.aiquota.mobile.ui.AIQuotaTheme
+import com.aiquota.mobile.ui.compactProviderLineBreakStyle
 import com.aiquota.mobile.ui.provider.ProviderIconImage
 import com.aiquota.mobile.ui.rememberAppLayoutMetrics
 
@@ -60,8 +61,10 @@ fun SettingsPanel(
     notificationEnabled: Boolean,
     canPostNotifications: Boolean,
     liveRefreshState: SettingsLiveRefreshState = SettingsLiveRefreshState.STOPPED,
+    batteryOptimizationExempt: Boolean = true,
     onNotificationEnabledChanged: (Boolean) -> Unit,
     onOpenNotificationSettings: () -> Unit,
+    onOpenBatteryOptimizationSettings: () -> Unit = {},
     providerOrder: List<ProviderId> = ProviderId.defaultOrder(),
     snapshots: List<ProviderUsageSnapshot> = emptyList(),
     onConnectProvider: (ProviderId) -> Unit = {},
@@ -88,8 +91,10 @@ fun SettingsPanel(
             notificationEnabled = notificationEnabled,
             canPostNotifications = canPostNotifications,
             liveRefreshState = liveRefreshState,
+            batteryOptimizationExempt = batteryOptimizationExempt,
             onNotificationEnabledChanged = onNotificationEnabledChanged,
-            onOpenNotificationSettings = onOpenNotificationSettings
+            onOpenNotificationSettings = onOpenNotificationSettings,
+            onOpenBatteryOptimizationSettings = onOpenBatteryOptimizationSettings
         )
         ThemeSettingsSection(
             currentTheme = currentTheme,
@@ -113,8 +118,10 @@ private fun NotificationSettingsSection(
     notificationEnabled: Boolean,
     canPostNotifications: Boolean,
     liveRefreshState: SettingsLiveRefreshState,
+    batteryOptimizationExempt: Boolean,
     onNotificationEnabledChanged: (Boolean) -> Unit,
-    onOpenNotificationSettings: () -> Unit
+    onOpenNotificationSettings: () -> Unit,
+    onOpenBatteryOptimizationSettings: () -> Unit
 ) {
     val layoutMetrics = rememberAppLayoutMetrics()
     val colors = AIQuotaTheme.colors
@@ -182,6 +189,34 @@ private fun NotificationSettingsSection(
                     Text(stringResource(R.string.settings_open_notification_settings))
                 }
             }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_battery_optimization_title),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textMuted,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (!batteryOptimizationExempt) {
+                    OutlinedButton(onClick = onOpenBatteryOptimizationSettings) {
+                        Text(stringResource(R.string.settings_open_battery_optimization_settings))
+                    }
+                }
+            }
+            Text(
+                text = stringResource(
+                    if (batteryOptimizationExempt) {
+                        R.string.settings_battery_optimization_exempt
+                    } else {
+                        R.string.settings_battery_optimization_recommended
+                    }
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (batteryOptimizationExempt) colors.textMuted else MaterialTheme.colorScheme.error
+            )
         }
     }
 }
@@ -231,11 +266,12 @@ private fun ConnectionManagementSection(
             }
             orderedProviders.forEach { providerId ->
                 val snapshot = snapshotsByProvider[providerId]
-                val action = settingsConnectionAction(snapshot)
+                val action = settingsConnectionAction(providerId, snapshot)
                 val actionTextColor = settingsConnectionActionTextColor(
                     action = action,
                     connectColor = colors.primary,
-                    disconnectColor = colors.textMuted
+                    disconnectColor = colors.textMuted,
+                    disabledColor = colors.textMuted
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -249,16 +285,17 @@ private fun ConnectionManagementSection(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = providerId.displayName,
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = compactProviderLineBreakStyle(providerId, MaterialTheme.typography.bodyLarge),
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            text = stringResource(settingsConnectionStatusLabel(snapshot)),
+                            text = stringResource(settingsConnectionStatusLabel(providerId, snapshot)),
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textMuted
                         )
                     }
                     OutlinedButton(
+                        enabled = action != SettingsConnectionAction.NONE,
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = actionTextColor
                         ),
@@ -266,6 +303,7 @@ private fun ConnectionManagementSection(
                             when (action) {
                                 SettingsConnectionAction.CONNECT -> onConnectProvider(providerId)
                                 SettingsConnectionAction.DISCONNECT -> onDisconnectProvider(providerId)
+                                SettingsConnectionAction.NONE -> Unit
                             }
                         }
                     ) {
@@ -274,6 +312,7 @@ private fun ConnectionManagementSection(
                                 when (action) {
                                     SettingsConnectionAction.CONNECT -> R.string.provider_connect
                                     SettingsConnectionAction.DISCONNECT -> R.string.provider_disconnect
+                                    SettingsConnectionAction.NONE -> R.string.provider_action_coming_soon
                                 }
                             )
                         )
@@ -700,6 +739,10 @@ internal fun settingsConnectionDisconnectable(snapshot: ProviderUsageSnapshot?):
     return settingsConnectionAction(snapshot) == SettingsConnectionAction.DISCONNECT
 }
 
+internal fun settingsConnectionAction(providerId: ProviderId, snapshot: ProviderUsageSnapshot?): SettingsConnectionAction {
+    return settingsConnectionAction(snapshot)
+}
+
 internal fun settingsConnectionAction(snapshot: ProviderUsageSnapshot?): SettingsConnectionAction {
     if (snapshot == null) return SettingsConnectionAction.CONNECT
     return if (snapshot.connectionState in setOf(
@@ -715,17 +758,25 @@ internal fun settingsConnectionAction(snapshot: ProviderUsageSnapshot?): Setting
 internal fun settingsConnectionActionTextColor(
     action: SettingsConnectionAction,
     connectColor: Color,
-    disconnectColor: Color
+    disconnectColor: Color,
+    disabledColor: Color = disconnectColor
 ): Color {
     return when (action) {
         SettingsConnectionAction.CONNECT -> connectColor
         SettingsConnectionAction.DISCONNECT -> disconnectColor
+        SettingsConnectionAction.NONE -> disabledColor
     }
 }
 
 internal enum class SettingsConnectionAction {
     CONNECT,
-    DISCONNECT
+    DISCONNECT,
+    NONE
+}
+
+@StringRes
+private fun settingsConnectionStatusLabel(providerId: ProviderId, snapshot: ProviderUsageSnapshot?): Int {
+    return settingsConnectionStatusLabel(snapshot)
 }
 
 @StringRes

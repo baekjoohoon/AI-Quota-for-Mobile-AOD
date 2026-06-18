@@ -106,6 +106,12 @@ object BugReportEmailComposer {
     private fun sanitizeDiagnosticText(value: String): String {
         return value
             .replace(EMAIL_REGEX, "[redacted-email]")
+            .replace(AUTHORIZATION_HEADER_REGEX) { match ->
+                "${match.groupValues[1]}=[redacted]"
+            }
+            .replace(BEARER_TOKEN_REGEX) { match ->
+                "${match.groupValues[1]}=[redacted]"
+            }
             .replace(SECRET_HINT_REGEX) { match ->
                 "${match.groupValues[1]}=[redacted]"
             }
@@ -116,7 +122,13 @@ object BugReportEmailComposer {
         setOf(RegexOption.IGNORE_CASE)
     )
     private val SECRET_HINT_REGEX = Regex(
-        "(?i)\\b(token|cookie|authorization|bearer|refresh_token|access_token|id_token|sid)\\b\\s*[:=]?\\s*[^\\s,;]+"
+        "(?i)\\b(token|cookie|authorization|bearer|refresh_token|access_token|id_token|sid|code)\\b\\s*[:=]?\\s*[^\\s,;]+"
+    )
+    private val AUTHORIZATION_HEADER_REGEX = Regex(
+        "(?i)\\b(authorization)\\b\\s*[:=]?\\s*(?:Bearer|GitHub-Bearer|token)?\\s*[^\\s,;]+"
+    )
+    private val BEARER_TOKEN_REGEX = Regex(
+        "(?i)\\b(bearer)\\b\\s+[^\\s,;]+"
     )
 
     private fun String.urlEncode(): String {

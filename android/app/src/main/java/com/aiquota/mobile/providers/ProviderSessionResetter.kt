@@ -36,8 +36,12 @@ class ProviderSessionResetter(context: Context) {
                 GoogleIdentityCredentialStore(appContext).clear(providerId)
                 AntigravityOAuthRepository(appContext).disconnect()
             }
+            ProviderId.GLM -> {
+                GlmUsageRepository(appContext).clear()
+            }
             ProviderId.CODEX,
             ProviderId.CLAUDE,
+            ProviderId.OPENCODE,
             ProviderId.COPILOT,
             ProviderId.CURSOR -> Unit
         }

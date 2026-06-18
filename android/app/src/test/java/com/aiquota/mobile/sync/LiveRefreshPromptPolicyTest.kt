@@ -15,7 +15,8 @@ class LiveRefreshPromptPolicyTest {
             LiveRefreshPromptPolicy.shouldShowOnAppEntry(
                 snapshots = listOf(snapshot(ProviderId.CLAUDE, ProviderConnectionState.CONNECTED)),
                 liveMonitoringEnabled = false,
-                canPostNotifications = true
+                canPostNotifications = true,
+                batteryOptimizationExempt = true
             )
         )
     }
@@ -26,7 +27,20 @@ class LiveRefreshPromptPolicyTest {
             LiveRefreshPromptPolicy.shouldShowOnAppEntry(
                 snapshots = listOf(snapshot(ProviderId.CODEX, ProviderConnectionState.CONNECTED)),
                 liveMonitoringEnabled = true,
-                canPostNotifications = false
+                canPostNotifications = false,
+                batteryOptimizationExempt = true
+            )
+        )
+    }
+
+    @Test
+    fun appEntryPromptShowsWhenBatteryOptimizationIsStillEnabled() {
+        assertTrue(
+            LiveRefreshPromptPolicy.shouldShowOnAppEntry(
+                snapshots = listOf(snapshot(ProviderId.GEMINI, ProviderConnectionState.CONNECTED)),
+                liveMonitoringEnabled = true,
+                canPostNotifications = true,
+                batteryOptimizationExempt = false
             )
         )
     }
@@ -37,18 +51,20 @@ class LiveRefreshPromptPolicyTest {
             LiveRefreshPromptPolicy.shouldShowOnAppEntry(
                 snapshots = listOf(snapshot(ProviderId.CURSOR, ProviderConnectionState.DISCONNECTED)),
                 liveMonitoringEnabled = false,
-                canPostNotifications = false
+                canPostNotifications = false,
+                batteryOptimizationExempt = false
             )
         )
     }
 
     @Test
-    fun appEntryPromptIsSkippedWhenLiveRefreshCanRun() {
+    fun appEntryPromptIsSkippedWhenLiveRefreshCanRunAndBatteryOptimizationIsExempt() {
         assertFalse(
             LiveRefreshPromptPolicy.shouldShowOnAppEntry(
                 snapshots = listOf(snapshot(ProviderId.COPILOT, ProviderConnectionState.STALE)),
                 liveMonitoringEnabled = true,
-                canPostNotifications = true
+                canPostNotifications = true,
+                batteryOptimizationExempt = true
             )
         )
     }

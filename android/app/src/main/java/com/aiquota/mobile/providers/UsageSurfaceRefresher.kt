@@ -21,10 +21,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 object UsageSurfaceRefresher {
-    private const val WIDGET_SURFACE_UPDATE_DEBOUNCE_MS = 500L
+    private const val NOTIFICATION_UPDATE_DEBOUNCE_MS = 2_000L
+    private const val WIDGET_SURFACE_UPDATE_DEBOUNCE_MS = 2_000L
 
     private val surfaceUpdateScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val notificationUpdateLock = Any()
     private val surfaceUpdateLock = Any()
+    private var scheduledNotificationUpdate: Job? = null
+    private var pendingNotificationUpdate: PendingNotificationUpdate? = null
     private var scheduledWidgetUpdate: Job? = null
     private var pendingWidgetUpdateContext: Context? = null
 
@@ -51,7 +55,7 @@ object UsageSurfaceRefresher {
         cache.write(repository.exportDisplayJson(), updatedAt = updatedAt)
         cache.writeLocalDisplaySnapshot(widgetDisplayJson, updatedAt)
         if (ForegroundRefreshController(appContext).liveMonitoringEnabled()) {
-            UsageLimitNotificationController.update(appContext, displayJson)
+            schedulePinnedNotificationUpdate(appContext, displayJson)
         }
         scheduleWidgetSurfaceUpdate(appContext)
     }
@@ -89,6 +93,38 @@ object UsageSurfaceRefresher {
         }
     }
 
+    private fun schedulePinnedNotificationUpdate(appContext: Context, snapshotJson: String) {
+        synchronized(notificationUpdateLock) {
+            pendingNotificationUpdate = PendingNotificationUpdate(
+                context = appContext.applicationContext,
+                snapshotJson = snapshotJson
+            )
+            if (scheduledNotificationUpdate?.isActive == true) return
+            scheduledNotificationUpdate = surfaceUpdateScope.launch {
+                while (true) {
+                    delay(NOTIFICATION_UPDATE_DEBOUNCE_MS)
+                    val update = synchronized(notificationUpdateLock) {
+                        pendingNotificationUpdate.also {
+                            pendingNotificationUpdate = null
+                        }
+                    } ?: continue
+
+                    UsageLimitNotificationController.update(update.context, update.snapshotJson)
+
+                    val isDrained = synchronized(notificationUpdateLock) {
+                        if (pendingNotificationUpdate == null) {
+                            scheduledNotificationUpdate = null
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    if (isDrained) return@launch
+                }
+            }
+        }
+    }
+
     private suspend fun updateWidgetSurfaces(appContext: Context) {
         runCatching { AIQuotaCircularWidgetProvider.updateAll(appContext) }
             .onFailure { error ->
@@ -99,4 +135,9 @@ object UsageSurfaceRefresher {
     }
 
     private const val TAG = "AIQuotaSurfaceRefresh"
+
+    private data class PendingNotificationUpdate(
+        val context: Context,
+        val snapshotJson: String
+    )
 }

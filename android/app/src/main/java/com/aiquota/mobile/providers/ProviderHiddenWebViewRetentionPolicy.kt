@@ -8,6 +8,8 @@ object ProviderHiddenWebViewRetentionPolicy {
             ProviderId.CLAUDE,
             ProviderId.CODEX,
             ProviderId.COPILOT,
+            ProviderId.GLM,
+            ProviderId.OPENCODE,
             ProviderId.GEMINI,
             ProviderId.CURSOR -> true
             ProviderId.ANTIGRAVITY -> false

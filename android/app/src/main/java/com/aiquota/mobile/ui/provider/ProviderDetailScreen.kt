@@ -48,6 +48,7 @@ import com.aiquota.mobile.local.primaryConnectionAction
 import com.aiquota.mobile.ui.AIQuotaColors
 import com.aiquota.mobile.ui.AIQuotaTheme
 import com.aiquota.mobile.ui.AppLayoutMetrics
+import com.aiquota.mobile.ui.compactProviderLineBreakStyle
 import com.aiquota.mobile.ui.rememberAppLayoutMetrics
 import kotlin.math.roundToInt
 
@@ -105,6 +106,7 @@ private fun ClassicProviderWindow(
     onAddWidget: () -> Unit
 ) {
     val colors = AIQuotaTheme.colors
+    val windowTitle = providerDetailWindowTitle(snapshot)
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(if (colors.theme == AppTheme.MACOS) 12.dp else 2.dp),
@@ -130,7 +132,7 @@ private fun ClassicProviderWindow(
                     Spacer(modifier = Modifier.width(10.dp))
                 }
                 Text(
-                    text = snapshot.displayName,
+                    text = windowTitle,
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.labelMedium,
                     color = colors.titleText,
@@ -167,9 +169,9 @@ private fun ClassicProviderWindow(
                 ) {
                     Text(
                         text = if (colors.theme == AppTheme.MACOS) {
-                            "~/AI Quota/${snapshot.providerId.displayName}"
+                            "~/AI Quota/$windowTitle"
                         } else {
-                            "C:\\AI Quota\\${snapshot.providerId.displayName}"
+                            "C:\\AI Quota\\$windowTitle"
                         },
                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                         style = MaterialTheme.typography.labelSmall,
@@ -250,7 +252,7 @@ private fun ProviderSummaryBlock(
             )
             Text(
                 text = snapshot.providerId.displayName,
-                style = MaterialTheme.typography.labelMedium,
+                style = compactProviderLineBreakStyle(snapshot.providerId, MaterialTheme.typography.labelMedium),
                 color = if (colors.theme == AppTheme.MACOS) colors.titleText else colors.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -478,6 +480,10 @@ private fun ClassicWindowButton(index: Int) {
         color = if (colors.theme == AppTheme.MACOS) macColor else colors.cardChrome,
         border = BorderStroke(1.dp, if (colors.theme == AppTheme.MACOS) macColor else colors.borderSoft)
     ) {}
+}
+
+private fun providerDetailWindowTitle(snapshot: ProviderUsageSnapshot): String {
+    return snapshot.displayName.ifBlank { snapshot.providerId.displayName }
 }
 
 @Composable

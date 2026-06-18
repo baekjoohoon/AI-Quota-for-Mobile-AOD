@@ -2,6 +2,7 @@ package com.aiquota.mobile.widget
 
 import com.aiquota.mobile.local.ProviderId
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.util.Locale
 
@@ -44,6 +45,47 @@ class WidgetGaugeParserTest {
                 listOf("5시간 세션", "주간 세션"),
                 payload.lines.map { it.label }
             )
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @Test
+    fun codexProviderWidgetDoesNotBorrowWeeklyResetForIdleSessionGauge() {
+        val previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.KOREAN)
+        try {
+            val snapshotJson = """
+                {
+                  "providers": [
+                    {
+                      "providerId": "codex",
+                      "displayName": "Codex",
+                      "connectionState": "CONNECTED",
+                      "lines": [
+                        {
+                          "label": "Codex Session",
+                          "remainingPercent": 1.0,
+                          "remainingText": "100% left"
+                        },
+                        {
+                          "label": "Codex Weekly",
+                          "remainingPercent": 0.9,
+                          "remainingText": "90% left",
+                          "resetText": "Resets in 6d 2h"
+                        }
+                      ]
+                    }
+                  ]
+                }
+            """.trimIndent()
+
+            val providerPayload = providerWidgetPayload(snapshotJson, providerId = "codex")
+            val gauge = parseWidgetProviderGauges(snapshotJson).single()
+
+            assertNull(providerPayload.lines[0].resetText)
+            assertEquals("6일 2시간 후 초기화", providerPayload.lines[1].resetText)
+            assertNull(gauge.resetText)
         } finally {
             Locale.setDefault(previousLocale)
         }

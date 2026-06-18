@@ -54,12 +54,12 @@ class GeminiCliFirebaseGatewayTest {
         assertFalse(antigravityActivity.contains("ServerSocket"))
         assertFalse(antigravityActivity.contains("Intent.ACTION_VIEW"))
         assertFalse(antigravityActivity.contains("fetchUsagePayloadFromLoopbackCallback"))
-        assertTrue(geminiGateway.contains("getHttpsCallable(\"startGeminiCliOAuth\")"))
-        assertTrue(geminiGateway.contains("getHttpsCallable(\"completeGeminiCliOAuth\")"))
-        assertTrue(geminiGateway.contains("getHttpsCallable(\"refreshGeminiCliAccessToken\")"))
-        assertTrue(antigravityGateway.contains("getHttpsCallable(\"startAntigravityOAuth\")"))
-        assertTrue(antigravityGateway.contains("getHttpsCallable(\"completeAntigravityOAuth\")"))
-        assertTrue(antigravityGateway.contains("getHttpsCallable(\"refreshAntigravityAccessToken\")"))
+        assertTrue(geminiGateway.contains("callWithAppCheckRetry(appCheck, \"startGeminiCliOAuth\""))
+        assertTrue(geminiGateway.contains("callWithAppCheckRetry(appCheck, \"completeGeminiCliOAuth\""))
+        assertTrue(geminiGateway.contains("\"refreshGeminiCliAccessToken\""))
+        assertTrue(antigravityGateway.contains("callWithAppCheckRetry(appCheck, \"startAntigravityOAuth\""))
+        assertTrue(antigravityGateway.contains("callWithAppCheckRetry(appCheck, \"completeAntigravityOAuth\""))
+        assertTrue(antigravityGateway.contains("\"refreshAntigravityAccessToken\""))
     }
 
     @Test

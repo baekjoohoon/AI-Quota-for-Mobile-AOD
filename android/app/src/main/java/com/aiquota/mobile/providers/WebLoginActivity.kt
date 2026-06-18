@@ -41,6 +41,7 @@ class WebLoginActivity : Activity() {
     private var firstPageLogged = false
     private var observedCodexAccountId: String? = null
     private var copilotPostLoginRedirected = false
+    private var openCodePostLoginRedirected = false
     @Volatile
     private var oauthCallbackHandled = false
     private val popupViews = mutableSetOf<WebView>()
@@ -199,6 +200,7 @@ class WebLoginActivity : Activity() {
     private inner class LoginWebViewClient : WebViewClient() {
         override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
             if (handleLoginCompleteNavigation(view, url)) return
+            if (maybeRedirectOpenCodeToGo(view, url)) return
             injectCollectorIfReady(view, url, "")
         }
 
@@ -263,8 +265,12 @@ class WebLoginActivity : Activity() {
         override fun onPageFinished(view: WebView, url: String) {
             logFirstPageFinished(url)
             if (handleLoginCompleteNavigation(view, url)) return
+            if (maybeRedirectOpenCodeToGo(view, url)) return
             view.evaluateJavascript(PAGE_CAPTURE_SCRIPT) { encoded ->
                 val pageText = decodeJsString(encoded)
+                if (maybeRedirectOpenCodeToGo(view, url)) {
+                    return@evaluateJavascript
+                }
                 if (maybeRedirectCopilotToSettings(view, url, pageText)) {
                     return@evaluateJavascript
                 }
@@ -393,12 +399,22 @@ class WebLoginActivity : Activity() {
             return result
         }
 
-        private fun isNativeFetchBridgePageAllowed(expectedProviderId: ProviderId): Boolean {
+    private fun isNativeFetchBridgePageAllowed(expectedProviderId: ProviderId): Boolean {
             val pageUrl = webView.url.orEmpty()
             return providerId == expectedProviderId &&
                 ProviderWebCollectorScripts.shouldAcceptCollectorPayload(expectedProviderId, pageUrl)
         }
 
+    }
+
+    private fun maybeRedirectOpenCodeToGo(view: WebView, url: String): Boolean {
+        if (providerId != ProviderId.OPENCODE || openCodePostLoginRedirected) return false
+        val goUsageUrl = OpenCodeUsagePageRoutes.goUsageUrlFrom(url) ?: return false
+        openCodePostLoginRedirected = true
+        collectorInjectionKeys.clear()
+        Log.i("AIQuotaLogin", "provider=opencode postLoginRedirect=workspace/go from=${hostOf(url)}${pathOf(url)}")
+        view.loadUrl(goUsageUrl)
+        return true
     }
 
     private fun maybeRedirectCopilotToSettings(view: WebView, url: String, pageText: String): Boolean {
@@ -514,6 +530,8 @@ class WebLoginActivity : Activity() {
                 errorKind == "codex_usage_unavailable" || errorKind == "codex_auth_required"
             ProviderId.GEMINI ->
                 errorKind == "gemini_no_trusted_payload" || errorKind == "gemini_collector_error"
+            ProviderId.GLM ->
+                errorKind == "glm_no_trusted_payload"
             else -> false
         }
     }
@@ -735,6 +753,6 @@ class WebLoginActivity : Activity() {
             return Intent(context, WebLoginActivity::class.java)
                 .putExtra(EXTRA_PROVIDER_ID, providerId.storageId)
                 .putExtra(EXTRA_START_URL, startUrl)
-            }
         }
     }
+}

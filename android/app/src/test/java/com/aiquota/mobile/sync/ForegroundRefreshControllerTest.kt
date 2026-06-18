@@ -44,6 +44,27 @@ class ForegroundRefreshControllerTest {
     }
 
     @Test
+    fun controllerDoesNotRescheduleHealthWorkWhenAlreadyRunning() {
+        val starter = RecordingStarter()
+        val healthScheduler = RecordingHealthScheduler()
+        val controller = ForegroundRefreshController(
+            serviceStarter = starter,
+            preferences = RecordingPreferences(),
+            healthScheduler = healthScheduler
+        )
+
+        controller.startPreciseRefresh()
+        controller.startPreciseRefresh()
+        controller.startPreciseRefresh()
+
+        assertEquals(1, healthScheduler.scheduleCalls)
+        assertEquals(
+            listOf(ProviderBackgroundRefreshService.ACTION_START),
+            starter.actions
+        )
+    }
+
+    @Test
     fun controllerPersistsLiveMonitoringApprovalSeparatelyFromRuntimeStartState() {
         val source = java.io.File("src/main/java/com/aiquota/mobile/sync/ForegroundRefreshController.kt").readText()
 
@@ -58,5 +79,25 @@ class ForegroundRefreshControllerTest {
         override fun start(action: String) {
             actions += action
         }
+    }
+
+    private class RecordingPreferences : ForegroundRefreshController.ForegroundRefreshPreferences {
+        private var enabled = false
+
+        override fun liveMonitoringEnabled(): Boolean = enabled
+
+        override fun setLiveMonitoringEnabled(enabled: Boolean) {
+            this.enabled = enabled
+        }
+    }
+
+    private class RecordingHealthScheduler : ForegroundRefreshController.HealthScheduler {
+        var scheduleCalls = 0
+
+        override fun schedule() {
+            scheduleCalls += 1
+        }
+
+        override fun cancel() = Unit
     }
 }

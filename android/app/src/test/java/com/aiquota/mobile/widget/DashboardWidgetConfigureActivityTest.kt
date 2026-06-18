@@ -366,7 +366,7 @@ class DashboardWidgetConfigureActivityTest {
 
     @Test
     fun providerOrderConfigurationCentersContentVerticallyWhenViewportHasExtraSpace() {
-        val activitySource = File("src/main/java/com/aiquota/mobile/widget/DashboardWidgetConfigureActivity.kt").readText()
+        val activitySource = File("src/main/java/com/aiquota/mobile/widget/DashboardWidgetConfigureActivity.kt").readNormalizedText()
         val rootBlock = activitySource.substringAfter("val root = LinearLayout(this).apply").substringBefore("root.addView(")
         val scrollBlock = activitySource.substringAfter("ScrollView(this).apply").substringAfter("addView(")
 
@@ -406,3 +406,5 @@ class DashboardWidgetConfigureActivityTest {
         return document.documentElement.getAttribute("android:widgetFeatures")
     }
 }
+
+private fun File.readNormalizedText(): String = readText().replace("\r\n", "\n")

@@ -303,6 +303,7 @@ internal fun recoverStoppedBackgroundRefreshWithPreviousUsage(snapshot: Provider
 internal fun normalizeGeminiLegacyUsageLabels(snapshot: ProviderUsageSnapshot): ProviderUsageSnapshot {
     if (snapshot.providerId != ProviderId.GEMINI) return snapshot
     val lines = snapshot.lines.filterNot { it.isLegacyGeminiCollapsedLine() }
+    if (lines.isEmpty()) return snapshot
     if (lines == snapshot.lines) return snapshot
     return snapshot.copy(lines = lines)
 }
