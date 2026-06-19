@@ -42,6 +42,7 @@ class ProviderUsageSnapshotTest {
         val previous = ProviderUsageSnapshot(
             providerId = ProviderId.CODEX,
             connectionState = ProviderConnectionState.CONNECTED,
+            updatedAt = "2026-06-18T04:00:00Z",
             lines = listOf(ProviderUsageLine(label = "Codex Session", remainingPercent = 0.8f))
         )
         val cursorPrevious = ProviderUsageSnapshot(
@@ -63,8 +64,10 @@ class ProviderUsageSnapshotTest {
 
         assertEquals(ProviderConnectionState.CONNECTED, failed.connectionState)
         assertEquals(previous.lines, failed.lines)
+        assertEquals(previous.updatedAt, failed.updatedAt)
         assertEquals(ProviderConnectionState.CONNECTED, unavailable.connectionState)
         assertEquals(previous.lines, unavailable.lines)
+        assertEquals(previous.updatedAt, unavailable.updatedAt)
     }
 
     @Test
@@ -72,6 +75,7 @@ class ProviderUsageSnapshotTest {
         val cursorPrevious = ProviderUsageSnapshot(
             providerId = ProviderId.CURSOR,
             connectionState = ProviderConnectionState.CONNECTED,
+            updatedAt = "2026-06-18T04:00:00Z",
             lines = listOf(ProviderUsageLine(label = "Total usage", remainingPercent = 0.94f))
         )
         val cursorFailed = ProviderUsageSnapshot.failedKeepingPrevious(
@@ -87,8 +91,43 @@ class ProviderUsageSnapshotTest {
 
         assertEquals(ProviderConnectionState.CONNECTED, cursorFailed.connectionState)
         assertEquals(cursorPrevious.lines, cursorFailed.lines)
+        assertEquals(cursorPrevious.updatedAt, cursorFailed.updatedAt)
         assertEquals(ProviderConnectionState.CONNECTED, cursorUnavailable.connectionState)
         assertEquals(cursorPrevious.lines, cursorUnavailable.lines)
+        assertEquals(cursorPrevious.updatedAt, cursorUnavailable.updatedAt)
+    }
+
+    @Test
+    fun collectingWithPreviousUsagePreservesLastUsageUpdatedAt() {
+        val previous = ProviderUsageSnapshot(
+            providerId = ProviderId.CODEX,
+            connectionState = ProviderConnectionState.CONNECTED,
+            updatedAt = "2026-06-18T04:00:00Z",
+            lines = listOf(ProviderUsageLine(label = "Codex Session", remainingPercent = 0.8f))
+        )
+
+        val collecting = ProviderUsageSnapshot.collecting(previous)
+
+        assertEquals(ProviderConnectionState.COLLECTING, collecting.connectionState)
+        assertEquals(ProviderRefreshState.REFRESHING, collecting.refreshState)
+        assertEquals(previous.lines, collecting.lines)
+        assertEquals(previous.updatedAt, collecting.updatedAt)
+    }
+
+    @Test
+    fun statusTransitionTimestampOnlyUsesNowWhenNoPreviousUsageExists() {
+        val previous = ProviderUsageSnapshot(
+            providerId = ProviderId.CODEX,
+            connectionState = ProviderConnectionState.CONNECTED,
+            updatedAt = "2026-06-18T04:00:00Z",
+            lines = listOf(ProviderUsageLine(label = "Codex Session", remainingPercent = 0.8f))
+        )
+
+        assertEquals(previous.updatedAt, snapshotUpdatedAtForStatusTransition(previous, "2026-06-18T07:00:00Z"))
+        assertEquals(
+            "2026-06-18T07:00:00Z",
+            snapshotUpdatedAtForStatusTransition(previous.copy(lines = emptyList()), "2026-06-18T07:00:00Z")
+        )
     }
 
     @Test

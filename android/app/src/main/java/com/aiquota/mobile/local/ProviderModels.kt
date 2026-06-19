@@ -115,6 +115,7 @@ data class ProviderUsageSnapshot(
     val planLabel: String? = null,
     val account: String? = null,
     val updatedAt: String = Instant.now().toString(),
+    val statusUpdatedAt: String = updatedAt,
     val message: String? = null,
     val lines: List<ProviderUsageLine> = emptyList()
 ) {
@@ -152,10 +153,12 @@ data class ProviderUsageSnapshot(
         }
 
         fun collecting(previous: ProviderUsageSnapshot): ProviderUsageSnapshot {
+            val now = Instant.now().toString()
             return previous.copy(
                 connectionState = ProviderConnectionState.COLLECTING,
                 refreshState = ProviderRefreshState.REFRESHING,
-                updatedAt = Instant.now().toString(),
+                updatedAt = snapshotUpdatedAtForStatusTransition(previous, now),
+                statusUpdatedAt = now,
                 message = "Collecting usage"
             )
         }
@@ -170,6 +173,7 @@ data class ProviderUsageSnapshot(
         }
 
         fun connectedWithoutUsage(providerId: ProviderId, previous: ProviderUsageSnapshot?, message: String): ProviderUsageSnapshot {
+            val now = Instant.now().toString()
             return previous?.copy(
                 connectionState = providerConnectionStateAfterPreviousUsageFailure(
                     providerId = providerId,
@@ -177,12 +181,32 @@ data class ProviderUsageSnapshot(
                     withoutPreviousUsage = ProviderConnectionState.UNAVAILABLE
                 ),
                 refreshState = ProviderRefreshState.IDLE,
-                updatedAt = Instant.now().toString(),
+                updatedAt = snapshotUpdatedAtForStatusTransition(previous, now),
+                statusUpdatedAt = now,
                 message = message
             ) ?: connectedWithoutUsage(providerId, message)
         }
 
+        fun connectedWithoutPlan(
+            providerId: ProviderId,
+            previous: ProviderUsageSnapshot?,
+            planLabel: String,
+            message: String
+        ): ProviderUsageSnapshot {
+            val now = Instant.now().toString()
+            return (previous ?: disconnected(providerId)).copy(
+                connectionState = ProviderConnectionState.CONNECTED,
+                refreshState = ProviderRefreshState.IDLE,
+                planLabel = planLabel,
+                updatedAt = now,
+                statusUpdatedAt = now,
+                message = message,
+                lines = emptyList()
+            )
+        }
+
         fun failedKeepingPrevious(providerId: ProviderId, previous: ProviderUsageSnapshot?, message: String): ProviderUsageSnapshot {
+            val now = Instant.now().toString()
             return previous?.copy(
                 connectionState = providerConnectionStateAfterPreviousUsageFailure(
                     providerId = providerId,
@@ -190,7 +214,8 @@ data class ProviderUsageSnapshot(
                     withoutPreviousUsage = ProviderConnectionState.ERROR
                 ),
                 refreshState = ProviderRefreshState.IDLE,
-                updatedAt = Instant.now().toString(),
+                updatedAt = snapshotUpdatedAtForStatusTransition(previous, now),
+                statusUpdatedAt = now,
                 message = message
             ) ?: ProviderUsageSnapshot(
                 providerId = providerId,
@@ -208,7 +233,8 @@ data class ProviderUsageSnapshot(
             return previous?.copy(
                 connectionState = ProviderConnectionState.INTERACTIVE_AUTH_REQUIRED,
                 refreshState = ProviderRefreshState.IDLE,
-                updatedAt = now,
+                updatedAt = snapshotUpdatedAtForStatusTransition(previous, now),
+                statusUpdatedAt = now,
                 message = message
             ) ?: ProviderUsageSnapshot(
                 providerId = providerId,
@@ -219,6 +245,10 @@ data class ProviderUsageSnapshot(
             )
         }
     }
+}
+
+internal fun snapshotUpdatedAtForStatusTransition(snapshot: ProviderUsageSnapshot, now: String): String {
+    return if (snapshot.lines.isNotEmpty()) snapshot.updatedAt else now
 }
 
 internal fun providerConnectionStateAfterPreviousUsageFailure(

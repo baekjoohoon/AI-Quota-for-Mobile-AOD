@@ -54,6 +54,7 @@ class ProviderBackgroundRefreshService : Service() {
     private var nextRequestId = 0L
     private var activeWebJob: ServiceWebRefreshJob? = null
     private var activeWebContinuation: CancellableContinuation<ServiceRefreshOutcome>? = null
+    private val webJobLastUrls = mutableMapOf<Long, String>()
     private var observedCodexAccountId: String? = null
     private var pendingManualProviderId: ProviderId? = null
     private var pendingManualWidgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID
@@ -313,6 +314,15 @@ class ProviderBackgroundRefreshService : Service() {
                         message = outcome.failure.message,
                         automaticRefresh = automaticRefresh
                     )
+                } else if (
+                    effectiveJob.providerId == ProviderId.GLM &&
+                    GlmNoSubscriptionPolicy.isNoSubscriptionMessage(outcome.failure.message)
+                ) {
+                    repository.markConnectedWithoutPlan(
+                        providerId = ProviderId.GLM,
+                        planLabel = GlmNoSubscriptionPolicy.PLAN_LABEL,
+                        message = GlmNoSubscriptionPolicy.MESSAGE
+                    )
                 } else if (effectiveJob.providerId == ProviderId.GEMINI || effectiveJob.providerId == ProviderId.ANTIGRAVITY) {
                     repository.markGoogleUsagePending(effectiveJob.providerId, outcome.failure.message)
                 } else {
@@ -330,6 +340,13 @@ class ProviderBackgroundRefreshService : Service() {
     }
 
     private fun resolveRuntimeRefreshJob(job: ProviderRefreshJob): ProviderRefreshJob {
+        if (job.providerId == ProviderId.OPENCODE) {
+            val usageUrl = ProviderScopedStateRepository(applicationContext).readOpenCodeUsageUrl()
+            if (!usageUrl.isNullOrBlank()) {
+                return job.copy(startUrl = usageUrl)
+            }
+            return job
+        }
         if (job.providerId != ProviderId.GLM) return job
         if (GlmUsageRepository(applicationContext).connectionMode() != GlmConnectionMode.WEB_OAUTH) return job
         return job.copy(
@@ -348,9 +365,11 @@ class ProviderBackgroundRefreshService : Service() {
             repository.failKeepingPrevious(providerId, message)
             return
         }
-        if (ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(providerId)) {
-            ProviderSessionResetter(applicationContext).disconnect(providerId)
+        if (!ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(providerId)) {
+            repository.failKeepingPrevious(providerId, message)
+            return
         }
+        ProviderSessionResetter(applicationContext).disconnect(providerId)
         repository.markSessionExpired(providerId, message)
     }
 
@@ -415,6 +434,7 @@ class ProviderBackgroundRefreshService : Service() {
 
     private suspend fun collectWebProviderUsage(job: ProviderRefreshJob): ServiceRefreshOutcome {
         val requestId = ++nextRequestId
+        webJobLastUrls[requestId] = job.startUrl
         val result = withTimeoutOrNull(ProviderRefreshPlan.timeoutMillisFor(job.providerId)) {
             suspendCancellableCoroutine { continuation ->
                 mainHandler.post {
@@ -429,10 +449,10 @@ class ProviderBackgroundRefreshService : Service() {
                 }
             }
         }
+        val lastUrl = webJobLastUrls[requestId]
         clearActiveWebJob(requestId)
-        return result ?: ServiceRefreshOutcome.Failure(
-            ProviderRefreshFailure(ProviderRefreshFailureKind.TIMEOUT, "Background refresh timed out.")
-        )
+        webJobLastUrls.remove(requestId)
+        return result ?: ServiceRefreshOutcome.Failure(ProviderRefreshTimeoutPolicy.failureFor(job.providerId, lastUrl))
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -493,6 +513,10 @@ class ProviderBackgroundRefreshService : Service() {
         activeWebContinuation = null
     }
 
+    private fun recordWebJobUrl(requestId: Long, url: String) {
+        webJobLastUrls[requestId] = url
+    }
+
     private fun injectCollectorIfReady(providerId: ProviderId, view: WebView, url: String, pageText: String) {
         val active = currentWebJobFor(providerId) ?: return
         val cookies = cookiesFor(url)
@@ -501,7 +525,8 @@ class ProviderBackgroundRefreshService : Service() {
             return
         }
         val injectionKey = "${active.requestId}:${providerId.storageId}:${hostOf(url)}:${pathOf(url)}"
-        if (!collectorInjectionKeys.add(injectionKey)) return
+        val firstInjectionForPage = collectorInjectionKeys.add(injectionKey)
+        if (!firstInjectionForPage && !ProviderWebCollectorScripts.shouldAllowCollectorReinjection(providerId)) return
         val script = ProviderWebCollectorScripts.build(
             providerId = providerId,
             cookies = cookies,
@@ -511,7 +536,11 @@ class ProviderBackgroundRefreshService : Service() {
             pageText = pageText,
             pageUrl = url
         )
-        Log.d(TAG, "inject provider=${providerId.storageId} url=${hostOf(url)}${pathOf(url)}")
+        Log.d(
+            TAG,
+            "${if (firstInjectionForPage) "inject" else "reinject"} " +
+                "provider=${providerId.storageId} url=${hostOf(url)}${pathOf(url)}"
+        )
         view.evaluateJavascript(script, null)
     }
 
@@ -520,6 +549,7 @@ class ProviderBackgroundRefreshService : Service() {
     ) : WebViewClient() {
         override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
             val active = currentWebJobFor(ownerProviderId) ?: return
+            recordWebJobUrl(active.requestId, url)
             if (ProviderWebCollectorScripts.isRefreshLoginPage(ownerProviderId, url)) {
                 completeWebJob(active.requestId, ServiceRefreshOutcome.Failure(ProviderRefreshFailure.interactiveAuthRequired(LOGIN_PAGE_REACHED_MESSAGE)))
                 return
@@ -541,6 +571,7 @@ class ProviderBackgroundRefreshService : Service() {
         override fun onLoadResource(view: WebView, url: String) {
             val active = currentWebJobFor(ownerProviderId) ?: return
             val pageUrl = view.url ?: url
+            recordWebJobUrl(active.requestId, pageUrl)
             if (!ProviderWebCollectorScripts.shouldRunCollectorFromResource(ownerProviderId, pageUrl, url)) return
             val requestId = active.requestId
             view.evaluateJavascript(PAGE_CAPTURE_SCRIPT) { encoded ->
@@ -557,6 +588,7 @@ class ProviderBackgroundRefreshService : Service() {
         override fun onPageFinished(view: WebView, url: String) {
             val active = currentWebJobFor(ownerProviderId) ?: return
             val requestId = active.requestId
+            recordWebJobUrl(requestId, url)
             Log.d(TAG, "pageFinished provider=${ownerProviderId.storageId} url=${hostOf(url)}${pathOf(url)}")
             if (ProviderWebCollectorScripts.isRefreshLoginPage(ownerProviderId, url)) {
                 completeWebJob(requestId, ServiceRefreshOutcome.Failure(ProviderRefreshFailure.interactiveAuthRequired(LOGIN_PAGE_REACHED_MESSAGE)))
@@ -589,6 +621,14 @@ class ProviderBackgroundRefreshService : Service() {
 
         override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: WebResourceResponse) {
             if (!request.isForMainFrame || errorResponse.statusCode < 400) return
+            if (ProviderRefreshHttpErrorPolicy.shouldIgnoreMainFrameHttpError(
+                    ownerProviderId,
+                    request.url.toString(),
+                    errorResponse.statusCode
+                )
+            ) {
+                return
+            }
             val active = currentWebJobFor(ownerProviderId) ?: return
             completeWebJob(
                 active.requestId,

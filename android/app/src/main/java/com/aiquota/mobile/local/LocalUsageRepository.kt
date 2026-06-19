@@ -2,6 +2,7 @@
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.aiquota.mobile.providers.GlmNoSubscriptionPolicy
 import com.aiquota.mobile.providers.ProviderSnapshotCodec
 import com.aiquota.mobile.providers.ProviderScopedStateRepository
 import java.time.Duration
@@ -23,6 +24,7 @@ class LocalUsageRepository(context: Context) {
             .map(::recoverStoppedBackgroundRefreshWithPreviousUsage)
             .map(::recoverGoogleCollectingWithoutTrustedUsage)
             .map(::recoverGoogleRecoverableUsageFailure)
+            .map(::recoverGlmNoSubscriptionPlan)
             .map(::clearStaleRefreshing)
             .map(::clearExpiredProviderSpecificLines)
         if (cleaned != stored) {
@@ -35,15 +37,17 @@ class LocalUsageRepository(context: Context) {
 
     private fun clearStaleRefreshing(snapshot: ProviderUsageSnapshot): ProviderUsageSnapshot {
         if (snapshot.refreshState != ProviderRefreshState.REFRESHING) return snapshot
-        val updatedAt = runCatching { Instant.parse(snapshot.updatedAt) }.getOrNull() ?: return snapshot
+        val statusUpdatedAt = runCatching { Instant.parse(snapshot.statusUpdatedAt) }.getOrNull() ?: return snapshot
         val staleTimeout = when {
             snapshot.providerId == ProviderId.GEMINI || snapshot.providerId == ProviderId.ANTIGRAVITY ->
                 GOOGLE_STALE_REFRESH_TIMEOUT
+            snapshot.providerId == ProviderId.OPENCODE -> OPENCODE_STALE_REFRESH_TIMEOUT
             snapshot.connectionState == ProviderConnectionState.CONNECTING -> STALE_CONNECTING_TIMEOUT
             snapshot.providerId == ProviderId.CODEX -> CODEX_STALE_REFRESH_TIMEOUT
             else -> STALE_REFRESH_TIMEOUT
         }
-        if (Duration.between(updatedAt, Instant.now()) < staleTimeout) return snapshot
+        val now = Instant.now()
+        if (Duration.between(statusUpdatedAt, now) < staleTimeout) return snapshot
         val nextConnectionState = when (snapshot.connectionState) {
             ProviderConnectionState.CONNECTING,
             ProviderConnectionState.COLLECTING -> providerConnectionStateAfterPreviousUsageFailure(
@@ -56,6 +60,7 @@ class LocalUsageRepository(context: Context) {
         return snapshot.copy(
             connectionState = nextConnectionState,
             refreshState = ProviderRefreshState.IDLE,
+            statusUpdatedAt = now.toString(),
             message = "Previous collection did not finish."
         )
     }
@@ -86,11 +91,13 @@ class LocalUsageRepository(context: Context) {
 
     fun markConnecting(providerId: ProviderId) {
         val current = readSnapshots().firstOrNull { it.providerId == providerId }
+        val now = Instant.now().toString()
         saveSnapshot(
             current?.copy(
                 connectionState = ProviderConnectionState.CONNECTING,
                 refreshState = ProviderRefreshState.REFRESHING,
-                updatedAt = Instant.now().toString(),
+                updatedAt = snapshotUpdatedAtForStatusTransition(current, now),
+                statusUpdatedAt = now,
                 message = "Opening provider login"
             ) ?: ProviderUsageSnapshot.connecting(providerId)
         )
@@ -103,6 +110,7 @@ class LocalUsageRepository(context: Context) {
         ) {
             return
         }
+        val now = Instant.now().toString()
         saveSnapshot(
             current.copy(
                 connectionState = providerConnectionStateAfterPreviousUsageFailure(
@@ -111,7 +119,8 @@ class LocalUsageRepository(context: Context) {
                     withoutPreviousUsage = ProviderConnectionState.DISCONNECTED
                 ),
                 refreshState = ProviderRefreshState.IDLE,
-                updatedAt = Instant.now().toString(),
+                updatedAt = snapshotUpdatedAtForStatusTransition(current, now),
+                statusUpdatedAt = now,
                 message = message
             )
         )
@@ -133,6 +142,17 @@ class LocalUsageRepository(context: Context) {
         )
     }
 
+    fun markConnectedWithoutPlan(providerId: ProviderId, planLabel: String, message: String) {
+        saveSnapshot(
+            ProviderUsageSnapshot.connectedWithoutPlan(
+                providerId = providerId,
+                previous = readSnapshots().firstOrNull { it.providerId == providerId },
+                planLabel = planLabel,
+                message = message
+            )
+        )
+    }
+
     fun markGoogleUsagePending(providerId: ProviderId, message: String) {
         if (providerId != ProviderId.GEMINI && providerId != ProviderId.ANTIGRAVITY) {
             markConnectedWithoutUsage(providerId, message)
@@ -140,6 +160,7 @@ class LocalUsageRepository(context: Context) {
         }
         val current = readSnapshots().firstOrNull { it.providerId == providerId }
         val base = current ?: ProviderUsageSnapshot.disconnected(providerId)
+        val now = Instant.now().toString()
         saveSnapshot(
             base.copy(
                 connectionState = if (base.lines.isEmpty()) {
@@ -148,7 +169,8 @@ class LocalUsageRepository(context: Context) {
                     ProviderConnectionState.CONNECTED
                 },
                 refreshState = ProviderRefreshState.IDLE,
-                updatedAt = Instant.now().toString(),
+                updatedAt = snapshotUpdatedAtForStatusTransition(base, now),
+                statusUpdatedAt = now,
                 message = message
             )
         )
@@ -173,9 +195,11 @@ class LocalUsageRepository(context: Context) {
     }
 
     fun markSessionExpired(providerId: ProviderId, message: String) {
+        val now = Instant.now().toString()
         saveSnapshot(
             ProviderUsageSnapshot.disconnected(providerId).copy(
-                updatedAt = Instant.now().toString(),
+                updatedAt = now,
+                statusUpdatedAt = now,
                 message = message
             )
         )
@@ -218,6 +242,7 @@ class LocalUsageRepository(context: Context) {
         const val GOOGLE_USAGE_PENDING_MESSAGE = "Provider session reached, but trusted usage payload was not available yet."
         val STALE_CONNECTING_TIMEOUT: Duration = Duration.ofMinutes(15)
         val STALE_REFRESH_TIMEOUT: Duration = Duration.ofSeconds(10)
+        val OPENCODE_STALE_REFRESH_TIMEOUT: Duration = Duration.ofSeconds(30)
         val CODEX_STALE_REFRESH_TIMEOUT: Duration = Duration.ofSeconds(45)
         val GOOGLE_STALE_REFRESH_TIMEOUT: Duration = Duration.ofSeconds(90)
     }
@@ -237,6 +262,7 @@ private fun recoverGoogleRecoverableUsageFailure(snapshot: ProviderUsageSnapshot
     ) {
         return snapshot
     }
+    val now = Instant.now().toString()
     return snapshot.copy(
         connectionState = if (snapshot.lines.isEmpty()) {
             ProviderConnectionState.UNAVAILABLE
@@ -244,8 +270,20 @@ private fun recoverGoogleRecoverableUsageFailure(snapshot: ProviderUsageSnapshot
             ProviderConnectionState.CONNECTED
         },
         refreshState = ProviderRefreshState.IDLE,
-        updatedAt = Instant.now().toString(),
+        updatedAt = snapshotUpdatedAtForStatusTransition(snapshot, now),
+        statusUpdatedAt = now,
         message = "Provider session reached, but trusted usage payload was not available yet."
+    )
+}
+
+internal fun recoverGlmNoSubscriptionPlan(snapshot: ProviderUsageSnapshot): ProviderUsageSnapshot {
+    if (!GlmNoSubscriptionPolicy.isNoSubscriptionSnapshot(snapshot)) return snapshot
+    return snapshot.copy(
+        connectionState = ProviderConnectionState.CONNECTED,
+        refreshState = ProviderRefreshState.IDLE,
+        planLabel = GlmNoSubscriptionPolicy.PLAN_LABEL,
+        message = GlmNoSubscriptionPolicy.MESSAGE,
+        lines = emptyList()
     )
 }
 
@@ -281,10 +319,12 @@ internal fun recoverGoogleCollectingWithoutTrustedUsage(snapshot: ProviderUsageS
     ) {
         return snapshot
     }
+    val now = Instant.now().toString()
     return snapshot.copy(
         connectionState = ProviderConnectionState.UNAVAILABLE,
         refreshState = ProviderRefreshState.IDLE,
-        updatedAt = Instant.now().toString(),
+        updatedAt = now,
+        statusUpdatedAt = now,
         message = GOOGLE_USAGE_PENDING_MESSAGE
     )
 }

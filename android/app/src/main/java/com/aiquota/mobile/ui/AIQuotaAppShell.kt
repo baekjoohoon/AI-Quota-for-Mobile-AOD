@@ -74,6 +74,7 @@ import com.aiquota.mobile.local.ProviderPreferencesRepository
 import com.aiquota.mobile.local.ProviderRefreshState
 import com.aiquota.mobile.local.ProviderUsageSnapshot
 import com.aiquota.mobile.local.ThemePreferencesRepository
+import com.aiquota.mobile.local.snapshotUpdatedAtForStatusTransition
 import com.aiquota.mobile.notification.UsageLimitNotificationController
 import com.aiquota.mobile.providers.AntigravityLoopbackOAuthActivity
 import com.aiquota.mobile.providers.GeminiCliLoopbackOAuthActivity
@@ -245,7 +246,8 @@ fun AIQuotaAppShell(
             currentSnapshot.copy(
                 connectionState = ProviderConnectionState.CONNECTING,
                 refreshState = ProviderRefreshState.REFRESHING,
-                updatedAt = now,
+                updatedAt = snapshotUpdatedAtForStatusTransition(currentSnapshot, now),
+                statusUpdatedAt = now,
                 message = launchContext.getString(R.string.provider_login_opened_message)
             )
         )

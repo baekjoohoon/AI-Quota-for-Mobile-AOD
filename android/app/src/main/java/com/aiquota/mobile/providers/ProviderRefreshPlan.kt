@@ -5,6 +5,7 @@ import com.aiquota.mobile.local.ProviderConnectionState
 import com.aiquota.mobile.local.ProviderRefreshState
 import com.aiquota.mobile.local.ProviderUsageSnapshot
 import com.aiquota.mobile.sync.ForegroundRefreshPolicy
+import java.time.Duration
 import java.time.Instant
 
 enum class ProviderRefreshMode {
@@ -24,6 +25,7 @@ object ProviderRefreshPlan {
     const val MIN_AUTO_REFRESH_DELAY_MILLIS = 5_000L
     const val PROVIDER_REFRESH_TIMEOUT_MILLIS = 10_000L
     const val CODEX_REFRESH_TIMEOUT_MILLIS = 60_000L
+    const val OPENCODE_REFRESH_TIMEOUT_MILLIS = 20_000L
     const val GOOGLE_REFRESH_TIMEOUT_MILLIS = 75_000L
     const val RESET_REFRESH_QOS = 1
     const val NORMAL_REFRESH_QOS = 5
@@ -31,6 +33,7 @@ object ProviderRefreshPlan {
     fun timeoutMillisFor(providerId: ProviderId): Long {
         return when (providerId) {
             ProviderId.CODEX -> CODEX_REFRESH_TIMEOUT_MILLIS
+            ProviderId.OPENCODE -> OPENCODE_REFRESH_TIMEOUT_MILLIS
             ProviderId.GLM -> PROVIDER_REFRESH_TIMEOUT_MILLIS
             ProviderId.GEMINI,
             ProviderId.ANTIGRAVITY -> GOOGLE_REFRESH_TIMEOUT_MILLIS
@@ -65,7 +68,7 @@ object ProviderRefreshPlan {
             .filterNot { it in refreshingProviders }
             .filterNot { it in resetProviders }
             .filter { providerId -> snapshotsByProvider[providerId]?.connectionState != ProviderConnectionState.COLLECTING }
-            .filter { providerId -> snapshotsByProvider[providerId]?.isAutomaticRefreshEligible() != false }
+            .filter { providerId -> snapshotsByProvider[providerId]?.isAutomaticRefreshEligible(now) != false }
             .map(::manualJobFor)
         return resetJobs + normalJobs
     }
@@ -94,7 +97,7 @@ object ProviderRefreshPlan {
     private fun hiddenCollectorUrl(providerId: ProviderId): String {
         return when (providerId) {
             ProviderId.CLAUDE -> "https://claude.ai/"
-            ProviderId.CODEX -> "https://chatgpt.com/"
+            ProviderId.CODEX -> ProviderLoginStrategy.CODEX_CALLBACK_RECOVERY_URL
             ProviderId.GLM -> GlmProviderUrls.WEB_OAUTH_URL
             ProviderId.OPENCODE -> "https://opencode.ai/auth"
             ProviderId.COPILOT -> "https://github.com/settings/copilot/features"
@@ -121,11 +124,34 @@ object ProviderRefreshPlan {
         )
     }
 
-    private fun ProviderUsageSnapshot.isAutomaticRefreshEligible(): Boolean {
+    private fun ProviderUsageSnapshot.isAutomaticRefreshEligible(now: Instant): Boolean {
+        if (providerId == ProviderId.GLM && GlmNoSubscriptionPolicy.isNoSubscriptionSnapshot(this)) return false
+        if (isRecentAutomaticFailureBackedOff(now)) return false
         if (providerId != ProviderId.GEMINI && providerId != ProviderId.ANTIGRAVITY) return true
         if (connectionState != ProviderConnectionState.STALE) return true
         if (lines.isNotEmpty()) return true
         return GoogleUsagePendingRetryPolicy.retryDelayMillis(this) != null
     }
+
+    private fun ProviderUsageSnapshot.isRecentAutomaticFailureBackedOff(now: Instant): Boolean {
+        if (message != LOGIN_PAGE_REACHED_MESSAGE && !isCodexNoFinishFailure()) return false
+        val statusAt = runCatching { Instant.parse(statusUpdatedAt) }.getOrNull() ?: return false
+        return Duration.between(statusAt, now) < AUTOMATIC_FAILURE_BACKOFF
+    }
+
+    private fun ProviderUsageSnapshot.isCodexNoFinishFailure(): Boolean {
+        if (providerId != ProviderId.CODEX) return false
+        return message == BACKGROUND_REFRESH_TIMEOUT_MESSAGE ||
+            message == PREVIOUS_COLLECTION_DID_NOT_FINISH_MESSAGE ||
+            message == BACKGROUND_NO_TRUSTED_PAYLOAD_MESSAGE ||
+            message?.startsWith(CODEX_USAGE_UNAVAILABLE_MESSAGE_PREFIX) == true
+    }
+
+    private val AUTOMATIC_FAILURE_BACKOFF: Duration = Duration.ofMinutes(15)
+    private const val LOGIN_PAGE_REACHED_MESSAGE = "Background refresh reached a provider login page."
+    private const val BACKGROUND_REFRESH_TIMEOUT_MESSAGE = "Background refresh timed out."
+    private const val PREVIOUS_COLLECTION_DID_NOT_FINISH_MESSAGE = "Previous collection did not finish."
+    private const val BACKGROUND_NO_TRUSTED_PAYLOAD_MESSAGE = "Background collector ran. No trusted usage payload found."
+    private const val CODEX_USAGE_UNAVAILABLE_MESSAGE_PREFIX = "Codex session reached, but trusted usage payload was not available."
 
 }

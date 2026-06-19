@@ -45,13 +45,8 @@ object ProviderWebCollectorScripts {
                             path.startsWith("/sessions") ||
                             path.startsWith("/session") ||
                             path.contains("two-factor"))) ||
-                    host == "api.workos.com" ||
-                    host == "auth.workos.com" ||
-                    host == "workos.com" ||
-                    host == "authenticate.cursor.sh" ||
-                    host == "authenticator.cursor.sh" ||
                     ((host == "cursor.com" || host == "www.cursor.com") &&
-                        (path.contains("login") || path.contains("signin") || path.contains("auth")))
+                        (path.contains("login") || path.contains("signin")))
         }
     }
 
@@ -74,10 +69,23 @@ object ProviderWebCollectorScripts {
                 !text.contains("usage")
         }
         if (providerId == ProviderId.OPENCODE) {
-            if (host != "opencode.ai" && host != "www.opencode.ai") return false
+            if (host != "opencode.ai" && host != "www.opencode.ai" && host != "auth.opencode.ai") return false
             val text = pageText.lowercase(Locale.US)
+            if (host == "auth.opencode.ai") return looksLikeOpenCodeLoginText(text)
             return (path == "/auth" || path.contains("login") || path.contains("signin")) &&
                 looksLikeOpenCodeLoginText(text)
+        }
+        if (providerId == ProviderId.CURSOR) {
+            if (host !in CURSOR_AUTH_EXCHANGE_HOSTS &&
+                host != "cursor.com" &&
+                host != "www.cursor.com"
+            ) {
+                return false
+            }
+            val text = pageText.lowercase(Locale.US)
+            if (host in CURSOR_AUTH_EXCHANGE_HOSTS) return looksLikeCursorLoginText(text)
+            return (path.contains("login") || path.contains("signin")) &&
+                looksLikeCursorLoginText(text)
         }
         return false
     }
@@ -163,6 +171,19 @@ object ProviderWebCollectorScripts {
         }
     }
 
+    fun shouldAllowCollectorReinjection(providerId: ProviderId): Boolean {
+        return when (providerId) {
+            ProviderId.CLAUDE,
+            ProviderId.CODEX,
+            ProviderId.OPENCODE,
+            ProviderId.COPILOT,
+            ProviderId.CURSOR,
+            ProviderId.GLM -> true
+            ProviderId.GEMINI,
+            ProviderId.ANTIGRAVITY -> false
+        }
+    }
+
     private fun looksLikeChatGptLoginText(pageText: String): Boolean {
         val text = pageText.lowercase(Locale.US)
         return (text.contains("로그인") && text.contains("회원가입")) ||
@@ -185,6 +206,30 @@ object ProviderWebCollectorScripts {
                 text.contains("continue with google") ||
                 text.contains("continue with github"))
     }
+
+    private fun looksLikeCursorLoginText(pageText: String): Boolean {
+        val text = pageText.lowercase(Locale.US)
+        if (text.isBlank()) return false
+        val hasUsage = text.contains("usage") ||
+            text.contains("dashboard") ||
+            text.contains("billing") ||
+            text.contains("requests")
+        return !hasUsage &&
+            (text.contains("sign in") ||
+                text.contains("login") ||
+                text.contains("log in") ||
+                text.contains("continue with google") ||
+                text.contains("continue with github") ||
+                text.contains("single sign-on"))
+    }
+
+    private val CURSOR_AUTH_EXCHANGE_HOSTS = setOf(
+        "api.workos.com",
+        "auth.workos.com",
+        "workos.com",
+        "authenticate.cursor.sh",
+        "authenticator.cursor.sh"
+    )
 
     fun shouldRunCollectorOnResource(providerId: ProviderId, url: String): Boolean {
         val uri = runCatching { URI(url) }.getOrNull() ?: return false
@@ -331,7 +376,11 @@ object ProviderWebCollectorScripts {
         pageUrl: String,
         awaitInteractiveLoginUsage: Boolean
     ): String {
-        val cookieJson = JSONObject(cookies).toString()
+        val collectorCookies = when (providerId) {
+            ProviderId.CLAUDE -> cookies.filterKeys { it == "lastActiveOrg" }
+            else -> emptyMap()
+        }
+        val cookieJson = JSONObject(collectorCookies).toString()
         val observedAccountJson = JSONObject.quote(observedAccountId.orEmpty())
         val pageTextJson = JSONObject.quote(pageText)
         val pageUrlJson = JSONObject.quote(pageUrl)
@@ -896,6 +945,8 @@ object ProviderWebCollectorScripts {
               var c = window.__AIQuotaCollector;
               if (!c) return;
               var attempts = 0;
+              var codexUsageNavigationStateKey = "__AIQuotaCodexUsageNavigationAttempts";
+              var codexUsageNavigationStateTtlMs = 120000;
               var codexUsageDashboardUrls = [
                 "https://chatgpt.com/codex/cloud/settings/analytics#usage",
                 "https://chatgpt.com/codex/settings/usage"
@@ -1844,12 +1895,35 @@ object ProviderWebCollectorScripts {
                 return path.indexOf("/codex/") >= 0 &&
                   (path.indexOf("/settings/analytics") >= 0 || path.indexOf("/settings/usage") >= 0);
               }
+              function readCodexUsageNavigationAttempts() {
+                try {
+                  var state = JSON.parse(sessionStorage.getItem(codexUsageNavigationStateKey) || "{}");
+                  if (!state.startedAt || Date.now() - state.startedAt > codexUsageNavigationStateTtlMs) return 0;
+                  return Number(state.attempts || 0) || 0;
+                } catch (error) {
+                  return Number(window.__AIQuotaCodexUsageNavigationAttempts || 0) || 0;
+                }
+              }
+              function writeCodexUsageNavigationAttempts(value) {
+                try {
+                  sessionStorage.setItem(codexUsageNavigationStateKey, JSON.stringify({
+                    attempts: value,
+                    startedAt: Date.now()
+                  }));
+                } catch (error) {
+                  window.__AIQuotaCodexUsageNavigationAttempts = value;
+                }
+              }
               function navigateCodexUsageDashboardIfNeeded(result) {
                 if (!result || !result.sessionOk || result.usageOk) return false;
                 if (isCodexUsageDashboardLocation()) return false;
-                var target = codexUsageDashboardUrls[0];
+                var codexUsageNavigationAttempts = readCodexUsageNavigationAttempts();
+                if (codexUsageNavigationAttempts >= codexUsageDashboardUrls.length) return false;
+                var target = codexUsageDashboardUrls[Math.min(codexUsageNavigationAttempts, codexUsageDashboardUrls.length - 1)];
+                writeCodexUsageNavigationAttempts(codexUsageNavigationAttempts + 1);
                 console.log("AIQuotaCodex navigate usage dashboard");
                 try { location.assign(target); } catch (error) { location.href = target; }
+                setTimeout(runProbe, codexProbeRetryDelayMs);
                 return true;
               }
               function continueCodexInteractiveLoginUntilUsagePayload(reason) {
@@ -2089,6 +2163,10 @@ object ProviderWebCollectorScripts {
               if (!window.__AIQuotaStartProviderCollector || !window.__AIQuotaStartProviderCollector("glm")) return;
               var c = window.__AIQuotaCollector;
               if (!c) return;
+              var glmNoSubscriptionText = "you don't have any subscription";
+              function hasGlmNoSubscriptionText(value) {
+                return String(value || "").toLowerCase().indexOf(glmNoSubscriptionText) >= 0;
+              }
               function number(value) {
                 if (value === null || value === undefined || value === "") return null;
                 var parsed = Number(value);
@@ -2225,7 +2303,8 @@ object ProviderWebCollectorScripts {
                 if (lower.indexOf("tokens_limit") < 0 &&
                     lower.indexOf("time_limit") < 0 &&
                     lower.indexOf("/api/monitor/usage") < 0 &&
-                    lower.indexOf("/api/biz/subscription") < 0) {
+                    lower.indexOf("/api/biz/subscription") < 0 &&
+                    !hasGlmNoSubscriptionText(lower)) {
                   return;
                 }
                 window.__AIQuotaGlmNetworkRows = window.__AIQuotaGlmNetworkRows || [];
@@ -2270,6 +2349,20 @@ object ProviderWebCollectorScripts {
               function scanRows(payload) {
                 var rows = (window.__AIQuotaGlmNetworkRows || []).concat(c.rows ? c.rows() : []);
                 rows.forEach(function(row) { scanJsonText(row, payload); });
+              }
+              function hasGlmNoSubscription() {
+                if (hasGlmNoSubscriptionText(c.text ? c.text() : "")) return true;
+                var rows = (window.__AIQuotaGlmNetworkRows || []).concat(c.rows ? c.rows() : []);
+                for (var i = 0; i < rows.length; i += 1) {
+                  if (hasGlmNoSubscriptionText(rows[i])) return true;
+                }
+                try {
+                  var scripts = document && document.scripts ? document.scripts : [];
+                  for (var j = 0; j < scripts.length; j += 1) {
+                    if (hasGlmNoSubscriptionText(scripts[j].textContent || "")) return true;
+                  }
+                } catch (error) {}
+                return false;
               }
               function scanPageState(payload) {
                 var candidates = [];
@@ -2350,6 +2443,10 @@ object ProviderWebCollectorScripts {
                 dedupeLimits(payload);
                 if (hasTrustedPayload(payload)) {
                   c.post(payload);
+                  return;
+                }
+                if (hasGlmNoSubscription()) {
+                  c.fail("glm_no_subscription", "You don't have any subscription");
                   return;
                 }
                 if (attempt < 8) {

@@ -39,9 +39,11 @@ class ProviderSessionResetter(context: Context) {
             ProviderId.GLM -> {
                 GlmUsageRepository(appContext).clear()
             }
+            ProviderId.OPENCODE -> {
+                ProviderScopedStateRepository(appContext).clearOpenCodeUsageUrl()
+            }
             ProviderId.CODEX,
             ProviderId.CLAUDE,
-            ProviderId.OPENCODE,
             ProviderId.COPILOT,
             ProviderId.CURSOR -> Unit
         }

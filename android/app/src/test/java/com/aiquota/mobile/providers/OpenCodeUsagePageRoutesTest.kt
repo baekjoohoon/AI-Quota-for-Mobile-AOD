@@ -28,4 +28,17 @@ class OpenCodeUsagePageRoutesTest {
         assertNull(OpenCodeUsagePageRoutes.goUsageUrlFrom("https://opencode.ai/docs/go/"))
         assertNull(OpenCodeUsagePageRoutes.goUsageUrlFrom("https://example.com/workspace/wrk_123"))
     }
+
+    @Test
+    fun canonicalGoUsageUrlAcceptsCurrentGoPageAndWorkspaceShell() {
+        assertEquals(
+            "https://opencode.ai/workspace/wrk_123/go",
+            OpenCodeUsagePageRoutes.canonicalGoUsageUrlFrom("https://opencode.ai/workspace/wrk_123/go?tab=usage#limits")
+        )
+        assertEquals(
+            "https://opencode.ai/workspace/wrk_123/go",
+            OpenCodeUsagePageRoutes.canonicalGoUsageUrlFrom("https://opencode.ai/workspace/wrk_123/settings")
+        )
+        assertNull(OpenCodeUsagePageRoutes.canonicalGoUsageUrlFrom("https://opencode.ai/auth"))
+    }
 }

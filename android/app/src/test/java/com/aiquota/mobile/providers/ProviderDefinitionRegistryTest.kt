@@ -60,6 +60,7 @@ class ProviderDefinitionRegistryTest {
         assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.GLM, "https://chat.z.ai/"))
         assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.GLM, "https://accounts.google.com/o/oauth2/v2/auth"))
         assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.OPENCODE, "https://opencode.ai/auth"))
+        assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.OPENCODE, "https://auth.opencode.ai/authorize"))
         assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.OPENCODE, "https://opencode.ai/zen/go/usage"))
         assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.OPENCODE, "https://accounts.google.com/o/oauth2/v2/auth"))
         assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.OPENCODE, "https://github.com/login/oauth/authorize"))
@@ -102,6 +103,7 @@ class ProviderDefinitionRegistryTest {
         assertTrue(ProviderDefinitionRegistry.isLoginNavigationAllowed(ProviderId.CURSOR, "https://accounts.youtube.com/accounts/SetSID?ssdc=1"))
         assertTrue(ProviderDefinitionRegistry.isLoginNavigationAllowed(ProviderId.CURSOR, "https://play.google.com/log?format=json"))
         assertTrue(ProviderDefinitionRegistry.isLoginNavigationAllowed(ProviderId.OPENCODE, "https://opencode.ai/auth"))
+        assertTrue(ProviderDefinitionRegistry.isLoginNavigationAllowed(ProviderId.OPENCODE, "https://auth.opencode.ai/authorize"))
         assertTrue(ProviderDefinitionRegistry.isLoginNavigationAllowed(ProviderId.OPENCODE, "https://github.com/login/oauth/authorize"))
 
         assertFalse(ProviderDefinitionRegistry.isLoginNavigationAllowed(ProviderId.CLAUDE, "https://firebase.googleapis.com/relay"))
@@ -143,9 +145,12 @@ class ProviderDefinitionRegistryTest {
         assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.GLM, "https://api.z.ai/api/monitor/usage/quota/limit"))
         assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.GLM, "https://z.ai/manage-apikey/coding-plan/personal/my-plan"))
         assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.OPENCODE, "https://opencode.ai/auth"))
+        assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.OPENCODE, "https://auth.opencode.ai/authorize"))
         assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.OPENCODE, "https://opencode.ai/zen/go/usage"))
         assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.COPILOT, "https://github.com/settings/copilot/features"))
         assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.CURSOR, "https://cursor.com/dashboard"))
+        assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.CURSOR, "https://api.workos.com/user_management/authorize"))
+        assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.CURSOR, "https://authenticate.cursor.sh/user_management/authorize"))
 
         assertFalse(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.CLAUDE, "https://accounts.google.com/signin/v2/challenge/pwd"))
         assertFalse(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.CODEX, "https://auth.openai.com/authorize"))

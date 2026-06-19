@@ -53,10 +53,13 @@ class ProviderWebCollectorScriptsTest {
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.COPILOT, "https://github.com/login"))
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.COPILOT, "https://github.com/sessions/two-factor"))
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.ANTIGRAVITY, "https://accounts.google.com/signin"))
-        assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CURSOR, "https://api.workos.com/sso/authorize"))
+        assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CURSOR, "https://api.workos.com/sso/authorize"))
+        assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CURSOR, "https://api.workos.com/sso/authorize", "Sign in to Cursor"))
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CURSOR, "https://github.com/login"))
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.GLM, "https://z.ai/login"))
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.OPENCODE, "https://opencode.ai/auth", "Sign in to OpenCode"))
+        assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.OPENCODE, "https://auth.opencode.ai/authorize"))
+        assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.OPENCODE, "https://auth.opencode.ai/authorize", "Sign in to OpenCode"))
 
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CLAUDE, "https://claude.ai/new"))
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CODEX, "https://chatgpt.com/"))
@@ -65,6 +68,36 @@ class ProviderWebCollectorScriptsTest {
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CURSOR, "https://cursor.com/dashboard"))
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.GLM, "https://z.ai/manage-apikey/coding-plan/personal/my-plan"))
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.OPENCODE, "https://opencode.ai/auth", "OpenCode Go usage limits"))
+    }
+
+    @Test
+    fun serviceCollectorCanReinjectWebDomProvidersAfterPageSettles() {
+        assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.CLAUDE))
+        assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.CODEX))
+        assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.OPENCODE))
+        assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.COPILOT))
+        assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.CURSOR))
+        assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.GLM))
+        assertFalse(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.GEMINI))
+        assertFalse(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.ANTIGRAVITY))
+    }
+
+    @Test
+    fun collectorScriptsExposeOnlyProviderSafeCookiesToPageJavascript() {
+        val cookies = mapOf(
+            "lastActiveOrg" to "org_123",
+            "aiquota_sensitive_cookie_name" to "cookie_secret_xyz"
+        )
+
+        val glm = ProviderWebCollectorScripts.build(ProviderId.GLM, cookies, "")
+        assertFalse(glm.contains("cookie_secret_xyz"))
+        assertFalse(glm.contains("aiquota_sensitive_cookie_name"))
+        assertFalse(glm.contains("\"lastActiveOrg\":\"org_123\""))
+
+        val claude = ProviderWebCollectorScripts.build(ProviderId.CLAUDE, cookies, "")
+        assertTrue(claude.contains("\"lastActiveOrg\":\"org_123\""))
+        assertFalse(claude.contains("cookie_secret_xyz"))
+        assertFalse(claude.contains("aiquota_sensitive_cookie_name"))
     }
 
     @Test
@@ -154,6 +187,88 @@ class ProviderWebCollectorScriptsTest {
             val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
             val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
             assertTrue("GLM collector did not post trusted quota payload:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun glmCollectorReportsNoSubscriptionWhenPlanPageSaysNoSubscription() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected GLM runtime checks", node != null)
+
+        val glm = ProviderWebCollectorScripts.build(ProviderId.GLM, emptyMap(), "")
+        val path = Files.createTempFile("ai-quota-glm-no-subscription-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            const pageText = "GLM Coding Plan\nYou don't have any subscription";
+            global.window = global;
+            global.location = {
+              hostname: "z.ai",
+              pathname: "/manage-apikey/coding-plan/personal/my-plan",
+              href: "https://z.ai/manage-apikey/coding-plan/personal/my-plan"
+            };
+            global.document = {
+              title: "My Coding Plan",
+              body: { innerText: pageText },
+              documentElement: { innerText: pageText },
+              scripts: [],
+              querySelectorAll: () => []
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.fetch = async function() {
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => "" }; },
+                text: async () => ""
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn) {
+              timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $glm
+            (async function() {
+              for (let i = 0; i < 8 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              if (posted.length !== 0 || errors.length === 0 || errors[0].errorKind !== "glm_no_subscription") {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              if (errors[0].message !== "You don't have any subscription") {
+                console.error(JSON.stringify(errors[0]));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("GLM no-subscription DOM was not reported as a planless state:\n$output", process.waitFor() == 0)
         } finally {
             Files.deleteIfExists(path)
         }
@@ -2145,8 +2260,13 @@ class ProviderWebCollectorScriptsTest {
         val codex = ProviderWebCollectorScripts.build(ProviderId.CODEX, emptyMap(), "")
 
         assertTrue(codex.contains("codexUsageDashboardUrls"))
+        assertTrue(codex.contains("codexUsageNavigationAttempts"))
+        assertTrue(codex.contains("__AIQuotaCodexUsageNavigationAttempts"))
+        assertTrue(codex.contains("sessionStorage.setItem(codexUsageNavigationStateKey"))
         assertTrue(codex.contains("navigateCodexUsageDashboardIfNeeded"))
         assertTrue(codex.contains("location.assign"))
+        assertTrue(codex.contains("codexUsageNavigationAttempts >= codexUsageDashboardUrls.length"))
+        assertTrue(codex.contains("Math.min(codexUsageNavigationAttempts, codexUsageDashboardUrls.length - 1)"))
         assertTrue(codex.contains("https://chatgpt.com/codex/cloud/settings/analytics#usage"))
         assertTrue(codex.contains("https://chatgpt.com/codex/settings/usage"))
     }

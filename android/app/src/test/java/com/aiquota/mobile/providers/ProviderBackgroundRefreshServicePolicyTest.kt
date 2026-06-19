@@ -81,7 +81,7 @@ class ProviderBackgroundRefreshServicePolicyTest {
         val authFailureHandler = service.substringAfter("private fun handleRefreshAuthFailure")
             .substringBefore("private suspend fun collectNativeProviderUsage")
         val automaticBranch = authFailureHandler.substringAfter("if (automaticRefresh)")
-            .substringBefore("if (ProviderRefreshSessionPolicy")
+            .substringBefore("if (!ProviderRefreshSessionPolicy")
         val payloadBranch = service.substringAfter("is ServiceRefreshOutcome.Payload ->")
             .substringBefore("} else if (effectiveJob.providerId == ProviderId.GEMINI")
         val failureBranch = service.substringAfter("is ServiceRefreshOutcome.Failure ->")
@@ -96,6 +96,24 @@ class ProviderBackgroundRefreshServicePolicyTest {
     }
 
     @Test
+    fun opencodeRefreshReusesLastTrustedGoUsagePage() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val backgroundCollector = File("src/main/java/com/aiquota/mobile/ui/BackgroundProviderWebCollector.kt").readText()
+        val login = File("src/main/java/com/aiquota/mobile/providers/WebLoginActivity.kt").readText()
+        val stateRepository = File("src/main/java/com/aiquota/mobile/providers/ProviderScopedStateRepository.kt").readText()
+        val runtimeResolver = service.substringAfter("private fun resolveRuntimeRefreshJob")
+            .substringBefore("private fun handleRefreshAuthFailure")
+
+        assertTrue(stateRepository.contains("fun saveOpenCodeUsageUrl"))
+        assertTrue(stateRepository.contains("fun readOpenCodeUsageUrl"))
+        assertTrue(login.contains("saveOpenCodeUsageUrl(pageUrl)"))
+        assertTrue(login.contains("saveOpenCodeUsageUrl(goUsageUrl)"))
+        assertTrue(backgroundCollector.contains("saveOpenCodeUsageUrl(pageUrl)"))
+        assertTrue(runtimeResolver.contains("readOpenCodeUsageUrl()"))
+        assertTrue(runtimeResolver.contains("job.copy(startUrl = usageUrl)"))
+    }
+
+    @Test
     fun explicitProviderRefreshUsesManualRefreshIntent() {
         val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
         val manualFactory = service.substringAfter("fun createRefreshIntent")
@@ -107,14 +125,30 @@ class ProviderBackgroundRefreshServicePolicyTest {
     }
 
     @Test
-    fun explicitAuthFailureMarksProviderDisconnected() {
+    fun serviceWebCollectorCanReinjectAfterInitialPageStartInjection() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val injectBlock = service.substringAfter("private fun injectCollectorIfReady")
+            .substringBefore("private inner class ServiceCollectorWebViewClient")
+
+        assertTrue(injectBlock.contains("val firstInjectionForPage = collectorInjectionKeys.add(injectionKey)"))
+        assertTrue(injectBlock.contains("ProviderWebCollectorScripts.shouldAllowCollectorReinjection(providerId)"))
+        assertTrue(injectBlock.contains("\"reinject\""))
+    }
+
+    @Test
+    fun manualWebSessionAuthFailuresKeepPreviousUsageButNativeTokenAuthFailuresExpireSession() {
         val repository = File("src/main/java/com/aiquota/mobile/local/LocalUsageRepository.kt").readText()
         val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val authFailureHandler = service.substringAfter("private fun handleRefreshAuthFailure")
+            .substringBefore("private suspend fun collectNativeProviderUsage")
 
         assertTrue(repository.contains("fun markSessionExpired(providerId: ProviderId, message: String)"))
         assertTrue(repository.contains("ProviderUsageSnapshot.disconnected(providerId).copy("))
-        assertTrue(service.contains("repository.markSessionExpired("))
-        assertFalse(service.contains("repository.markInteractiveAuthRequired("))
+        assertTrue(authFailureHandler.contains("repository.failKeepingPrevious(providerId, message)"))
+        assertTrue(authFailureHandler.contains("!ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(providerId)"))
+        assertTrue(authFailureHandler.contains("ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(providerId)"))
+        assertTrue(authFailureHandler.contains("repository.markSessionExpired(providerId, message)"))
+        assertFalse(authFailureHandler.contains("repository.markInteractiveAuthRequired("))
     }
 
     @Test
@@ -154,11 +188,14 @@ class ProviderBackgroundRefreshServicePolicyTest {
     @Test
     fun providerRefreshServiceLogsStayRedacted() {
         val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val backgroundCollector = File("src/main/java/com/aiquota/mobile/ui/BackgroundProviderWebCollector.kt").readText()
 
         assertFalse(service.contains("Log.d(TAG, rawPayload"))
         assertFalse(service.contains("Log.e(TAG, rawPayload"))
         assertFalse(service.contains("Log.d(TAG, cookiesFor"))
         assertFalse(service.contains("Log.e(TAG, cookiesFor"))
+        assertFalse(backgroundCollector.contains("message=${'$'}{errorJson?.optString(\"message\").orEmpty()}"))
+        assertTrue(backgroundCollector.contains("messagePresent="))
         assertTrue(service.contains("provider=${'$'}{job.providerId.storageId}"))
     }
 

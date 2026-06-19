@@ -821,7 +821,6 @@ internal fun dashboardEmptyMessageResource(snapshot: ProviderUsageSnapshot): Int
 
 internal fun dashboardUsagePreviewLines(snapshot: ProviderUsageSnapshot): List<ProviderUsageLine> {
     return when (snapshot.providerId) {
-        ProviderId.CLAUDE -> snapshot.lines.take(3)
         ProviderId.ANTIGRAVITY -> {
             val byKey = snapshot.lines.associateBy { dashboardAntigravityLineKey(it.label) }
             val preferred = listOfNotNull(

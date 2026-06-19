@@ -43,6 +43,7 @@ object ProviderSnapshotCodec {
             .putNullable("planLabel", planLabel)
             .putNullable("account", account)
             .put("updatedAt", updatedAt)
+            .put("statusUpdatedAt", statusUpdatedAt)
             .putNullable("message", message)
             .put("lines", JSONArray().also { array ->
                 lines.forEach { line -> array.put(line.toJson()) }
@@ -78,6 +79,10 @@ object ProviderSnapshotCodec {
             planLabel = optionalString("planLabel") ?: optionalString("plan"),
             account = optionalString("account"),
             updatedAt = optionalString("updatedAt") ?: optionalString("fetchedAt").orEmpty(),
+            statusUpdatedAt = optionalString("statusUpdatedAt")
+                ?: optionalString("stateUpdatedAt")
+                ?: optionalString("updatedAt")
+                ?: optionalString("fetchedAt").orEmpty(),
             message = optionalString("message"),
             lines = buildList {
                 for (index in 0 until linesJson.length()) {
@@ -112,6 +117,7 @@ object ProviderSnapshotCodec {
     private fun ProviderUsageSnapshot.requireUsageForConnectedState(): ProviderUsageSnapshot {
         if (lines.isNotEmpty()) return this
         if (connectionState != ProviderConnectionState.CONNECTED) return this
+        if (GlmNoSubscriptionPolicy.isNoSubscriptionSnapshot(this)) return this
         return copy(
             connectionState = ProviderConnectionState.UNAVAILABLE,
             refreshState = ProviderRefreshState.IDLE,

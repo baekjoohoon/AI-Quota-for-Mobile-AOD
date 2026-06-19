@@ -326,6 +326,7 @@ class WebLoginActivity : Activity() {
                     Log.w("AIQuotaCollector", "provider=${providerId.storageId} collectorMode=webview-js ignoredPayload page=${pathOf(pageUrl)}")
                     return@runOnUiThread
                 }
+                saveOpenCodeUsageUrl(pageUrl)
                 Log.i("AIQuotaCollector", "provider=${providerId.storageId} collectorMode=webview-js rawPayloadPresent=${rawPayload.isNotBlank()}")
                 finishSuccessfulLogin(rawPayload)
             }
@@ -342,6 +343,10 @@ class WebLoginActivity : Activity() {
                 val errorKind = runCatching { JSONObject(rawError).optString("errorKind", "collector_error") }
                     .getOrDefault("collector_error")
                 Log.w("AIQuotaCollector", "provider=${providerId.storageId} collectorMode=webview-js errorKind=$errorKind keptPreviousSnapshot=true")
+                if (providerId == ProviderId.GLM && errorKind == GlmNoSubscriptionPolicy.ERROR_KIND) {
+                    finishGlmNoSubscription(errorKind)
+                    return@runOnUiThread
+                }
                 if (shouldKeepLoginOpenUntilUsagePayload(errorKind)) {
                     Log.i("AIQuotaCollector", "provider=${providerId.storageId} awaitingUsagePayload=true errorKind=$errorKind")
                     return@runOnUiThread
@@ -412,6 +417,7 @@ class WebLoginActivity : Activity() {
         val goUsageUrl = OpenCodeUsagePageRoutes.goUsageUrlFrom(url) ?: return false
         openCodePostLoginRedirected = true
         collectorInjectionKeys.clear()
+        saveOpenCodeUsageUrl(goUsageUrl)
         Log.i("AIQuotaLogin", "provider=opencode postLoginRedirect=workspace/go from=${hostOf(url)}${pathOf(url)}")
         view.loadUrl(goUsageUrl)
         return true
@@ -569,6 +575,21 @@ class WebLoginActivity : Activity() {
         finish()
     }
 
+    private fun finishGlmNoSubscription(errorKind: String) {
+        if (finished) return
+        finished = true
+        CookieManager.getInstance().flush()
+        val repository = LocalUsageRepository(applicationContext)
+        repository.markConnectedWithoutPlan(
+            providerId = ProviderId.GLM,
+            planLabel = GlmNoSubscriptionPolicy.PLAN_LABEL,
+            message = GlmNoSubscriptionPolicy.MESSAGE
+        )
+        Log.i("AIQuotaLogin", "provider=${providerId.storageId} errorKind=$errorKind connectedWithoutPlan=true")
+        UsageSurfaceRefresher.refresh(applicationContext, repository)
+        finish()
+    }
+
     private fun finishConnectedWithoutUsage(message: String, errorKind: String) {
         if (finished) return
         if (isGoogleProvider()) {
@@ -626,6 +647,11 @@ class WebLoginActivity : Activity() {
         Log.w("AIQuotaLogin", "provider=${providerId.storageId} errorKind=$errorKind keptPreviousSnapshot=true")
         UsageSurfaceRefresher.refresh(applicationContext, repository)
         finish()
+    }
+
+    private fun saveOpenCodeUsageUrl(url: String) {
+        if (providerId != ProviderId.OPENCODE) return
+        ProviderScopedStateRepository(applicationContext).saveOpenCodeUsageUrl(url)
     }
 
     private fun shouldKeepGoogleLoginRetryPending(errorKind: String, message: String): Boolean {

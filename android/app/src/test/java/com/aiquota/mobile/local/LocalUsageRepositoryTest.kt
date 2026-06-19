@@ -35,6 +35,8 @@ class LocalUsageRepositoryTest {
 
         assertEquals(true, source.contains("Duration.ofMinutes(15)"))
         assertEquals(true, source.contains("GOOGLE_STALE_REFRESH_TIMEOUT: Duration = Duration.ofSeconds(90)"))
+        assertEquals(true, source.contains("OPENCODE_STALE_REFRESH_TIMEOUT: Duration = Duration.ofSeconds(30)"))
+        assertEquals(true, staleRefreshPolicy.contains("ProviderId.OPENCODE"))
         assertEquals(true, staleRefreshPolicy.contains("ProviderId.GEMINI"))
         assertEquals(true, staleRefreshPolicy.contains("ProviderId.ANTIGRAVITY"))
     }
@@ -78,6 +80,26 @@ class LocalUsageRepositoryTest {
     }
 
     @Test
+    fun glmNoSubscriptionFailureIsRecoveredToConnectedPlanlessState() {
+        val snapshot = ProviderUsageSnapshot(
+            providerId = ProviderId.GLM,
+            connectionState = ProviderConnectionState.ERROR,
+            refreshState = ProviderRefreshState.IDLE,
+            planLabel = "Plan 없음",
+            message = "Background refresh timed out.",
+            lines = emptyList()
+        )
+
+        val recovered = recoverGlmNoSubscriptionPlan(snapshot)
+
+        assertEquals(ProviderConnectionState.CONNECTED, recovered.connectionState)
+        assertEquals(ProviderRefreshState.IDLE, recovered.refreshState)
+        assertEquals("Plan 없음", recovered.planLabel)
+        assertEquals("You don't have any subscription", recovered.message)
+        assertEquals(emptyList<ProviderUsageLine>(), recovered.lines)
+    }
+
+    @Test
     fun connectingLoginStatePreservesPreviousTrustedUsageAndCanBeCancelled() {
         val source = java.io.File("src/main/java/com/aiquota/mobile/local/LocalUsageRepository.kt").readText()
         val markConnecting = source.substringAfter("fun markConnecting")
@@ -85,14 +107,23 @@ class LocalUsageRepositoryTest {
         val markLoginCancelled = source.substringAfter("fun markLoginCancelled")
             .substringBefore("fun markCollecting")
         val webLoginActivity = java.io.File("src/main/java/com/aiquota/mobile/providers/WebLoginActivity.kt").readText()
+        val appShell = java.io.File("src/main/java/com/aiquota/mobile/ui/AIQuotaAppShell.kt").readText()
+        val connectProvider = appShell.substringAfter("fun connectProvider")
+            .substringBefore("fun disconnectProvider")
 
         assertEquals(true, markConnecting.contains("val current = readSnapshots().firstOrNull"))
         assertEquals(true, markConnecting.contains("current?.copy("))
         assertEquals(true, markConnecting.contains("connectionState = ProviderConnectionState.CONNECTING"))
         assertEquals(true, markConnecting.contains("refreshState = ProviderRefreshState.REFRESHING"))
+        assertEquals(true, markConnecting.contains("updatedAt = snapshotUpdatedAtForStatusTransition(current, now)"))
+        assertEquals(true, markConnecting.contains("statusUpdatedAt = now"))
         assertEquals(true, markLoginCancelled.contains("providerConnectionStateAfterPreviousUsageFailure"))
         assertEquals(true, markLoginCancelled.contains("hasPreviousUsage = current.lines.isNotEmpty()"))
         assertEquals(true, markLoginCancelled.contains("withoutPreviousUsage = ProviderConnectionState.DISCONNECTED"))
+        assertEquals(true, markLoginCancelled.contains("updatedAt = snapshotUpdatedAtForStatusTransition(current, now)"))
+        assertEquals(true, markLoginCancelled.contains("statusUpdatedAt = now"))
+        assertEquals(true, connectProvider.contains("updatedAt = snapshotUpdatedAtForStatusTransition(currentSnapshot, now)"))
+        assertEquals(true, connectProvider.contains("statusUpdatedAt = now"))
         assertEquals(true, webLoginActivity.contains("markLoginCancelled("))
         assertEquals(true, webLoginActivity.contains("Provider login was cancelled."))
     }

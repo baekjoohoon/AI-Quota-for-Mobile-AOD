@@ -38,7 +38,7 @@ class UnifiedDashboardDragReorderTest {
     }
 
     @Test
-    fun claudeDashboardPreviewIncludesCollectedExtraUsageLine() {
+    fun claudeDashboardPreviewKeepsTwoLineLimitWhenExtraUsageExists() {
         val snapshot = ProviderUsageSnapshot(
             providerId = ProviderId.CLAUDE,
             connectionState = ProviderConnectionState.CONNECTED,
@@ -51,7 +51,7 @@ class UnifiedDashboardDragReorderTest {
         )
 
         assertEquals(
-            listOf("Claude Session", "Claude Weekly", "Extra Usage"),
+            listOf("Claude Session", "Claude Weekly"),
             dashboardUsagePreviewLines(snapshot).map { it.label }
         )
     }

@@ -28,7 +28,7 @@ class ProviderRefreshSessionPolicyTest {
         val authFailureHandler = service.substringAfter("private fun handleRefreshAuthFailure")
             .substringBefore("private suspend fun collectNativeProviderUsage")
         val automaticBranch = authFailureHandler.substringAfter("if (automaticRefresh)")
-            .substringBefore("if (ProviderRefreshSessionPolicy")
+            .substringBefore("if (!ProviderRefreshSessionPolicy")
 
         assertFalse(automaticBranch.contains("ProviderSessionResetter(applicationContext).disconnect"))
         assertTrue(authFailureHandler.contains("ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(providerId)"))

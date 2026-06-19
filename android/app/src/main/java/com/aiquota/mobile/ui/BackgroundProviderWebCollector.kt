@@ -37,9 +37,12 @@ import com.aiquota.mobile.providers.ProviderCollectorErrorPolicy
 import com.aiquota.mobile.providers.ProviderHiddenWebViewRetentionPolicy
 import com.aiquota.mobile.providers.ProviderRefreshFailure
 import com.aiquota.mobile.providers.ProviderRefreshFailureKind
+import com.aiquota.mobile.providers.ProviderRefreshHttpErrorPolicy
 import com.aiquota.mobile.providers.ProviderRefreshJob
 import com.aiquota.mobile.providers.ProviderRefreshMode
 import com.aiquota.mobile.providers.ProviderRefreshPlan
+import com.aiquota.mobile.providers.ProviderScopedStateRepository
+import com.aiquota.mobile.providers.ProviderRefreshTimeoutPolicy
 import com.aiquota.mobile.providers.ProviderWebCollectorScripts
 import com.aiquota.mobile.providers.ProviderWebViewUserAgent
 import java.net.URI
@@ -88,8 +91,9 @@ fun BackgroundProviderWebCollector(
 
     LaunchedEffect(currentJob?.requestId) {
         val job = currentJob ?: return@LaunchedEffect
-        val failure = ProviderRefreshFailure(ProviderRefreshFailureKind.TIMEOUT, "Background refresh timed out.")
         delay(ProviderRefreshPlan.timeoutMillisFor(job.job.providerId))
+        val lastUrl = retainedWebViews[job.job.providerId]?.url ?: job.job.startUrl
+        val failure = ProviderRefreshTimeoutPolicy.failureFor(job.job.providerId, lastUrl)
         if (job.job.mode == ProviderRefreshMode.HIDDEN_WEB_COLLECTOR &&
             ProviderHiddenWebViewRetentionPolicy.shouldRecreateAfterFailure(failure.kind)
         ) {
@@ -307,6 +311,14 @@ private class BackgroundCollectorWebViewClient(
     override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: WebResourceResponse) {
         if (!request.isForMainFrame || errorResponse.statusCode < 400) return
         val job = currentProviderJob() ?: return
+        if (ProviderRefreshHttpErrorPolicy.shouldIgnoreMainFrameHttpError(
+                job.job.providerId,
+                request.url.toString(),
+                errorResponse.statusCode
+            )
+        ) {
+            return
+        }
         val failure = ProviderRefreshFailure(
             ProviderRefreshFailureKind.TRANSIENT_HTTP,
             "Background refresh returned HTTP ${errorResponse.statusCode}."
@@ -407,6 +419,9 @@ private class BackgroundUsageBridge(
                 "AIQuotaBgCollector",
                 "payload provider=${job.job.providerId.storageId} length=${rawPayload.length}"
             )
+            if (job.job.providerId == ProviderId.OPENCODE) {
+                ProviderScopedStateRepository(applicationContext).saveOpenCodeUsageUrl(pageUrl)
+            }
             CookieManager.getInstance().flush()
             onPayload(job, rawPayload)
             onFinished(job.requestId)
@@ -427,9 +442,10 @@ private class BackgroundUsageBridge(
             }
             val errorJson = runCatching { JSONObject(rawError) }.getOrNull()
             val errorKind = errorJson?.optString("errorKind", "collector_error") ?: "collector_error"
+            val messagePresent = errorJson?.optString("message").orEmpty().isNotBlank()
             Log.d(
                 "AIQuotaBgCollector",
-                "error provider=${job.job.providerId.storageId} kind=$errorKind message=${errorJson?.optString("message").orEmpty()}"
+                "error provider=${job.job.providerId.storageId} kind=$errorKind messagePresent=$messagePresent"
             )
             val failure = ProviderCollectorErrorPolicy.failureFor(job.job.providerId, rawError)
             if (ProviderHiddenWebViewRetentionPolicy.shouldRecreateAfterFailure(failure.kind)) {

@@ -49,6 +49,31 @@ class ProviderScopedStateRepository(context: Context) {
         return ProviderSnapshotCodec.decode(raw).firstOrNull { it.providerId == providerId }
     }
 
+    fun saveOpenCodeUsageUrl(url: String) {
+        val usageUrl = OpenCodeUsagePageRoutes.canonicalGoUsageUrlFrom(url) ?: return
+        val stores = ProviderScriptProviders.storeNamesFor(ProviderId.OPENCODE)
+        appContext.getSharedPreferences(stores.scriptData, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_OPENCODE_USAGE_URL, usageUrl)
+            .apply()
+    }
+
+    fun readOpenCodeUsageUrl(): String? {
+        val stores = ProviderScriptProviders.storeNamesFor(ProviderId.OPENCODE)
+        val raw = appContext.getSharedPreferences(stores.scriptData, Context.MODE_PRIVATE)
+            .getString(KEY_OPENCODE_USAGE_URL, "")
+            .orEmpty()
+        return OpenCodeUsagePageRoutes.canonicalGoUsageUrlFrom(raw)
+    }
+
+    fun clearOpenCodeUsageUrl() {
+        val stores = ProviderScriptProviders.storeNamesFor(ProviderId.OPENCODE)
+        appContext.getSharedPreferences(stores.scriptData, Context.MODE_PRIVATE)
+            .edit()
+            .remove(KEY_OPENCODE_USAGE_URL)
+            .apply()
+    }
+
     private fun SharedPreferences.Editor.putOptionalString(
         key: String,
         value: String?
@@ -64,6 +89,7 @@ class ProviderScopedStateRepository(context: Context) {
         const val KEY_PLAN = "plan"
         const val KEY_CONNECTION_STATE = "connection_state"
         const val KEY_SCRIPT_VERSION = "script_version"
+        const val KEY_OPENCODE_USAGE_URL = "opencode_usage_url"
         const val KEY_UPDATED_AT = "updated_at"
     }
 }

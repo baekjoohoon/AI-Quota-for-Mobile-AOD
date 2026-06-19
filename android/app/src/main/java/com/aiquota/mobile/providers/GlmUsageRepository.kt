@@ -1,6 +1,8 @@
 package com.aiquota.mobile.providers
 
 import android.content.Context
+import com.aiquota.mobile.local.ProviderId
+import com.aiquota.mobile.local.ProviderUsageSnapshot
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
@@ -15,6 +17,22 @@ data class GlmUsageResult(
 object GlmProviderUrls {
     const val WEB_OAUTH_URL = "https://z.ai/manage-apikey/coding-plan/personal/my-plan"
     const val API_QUOTA_URL = "https://api.z.ai/api/monitor/usage/quota/limit"
+}
+
+object GlmNoSubscriptionPolicy {
+    const val ERROR_KIND = "glm_no_subscription"
+    const val MESSAGE = "You don't have any subscription"
+    const val PLAN_LABEL = "Plan 없음"
+
+    fun isNoSubscriptionMessage(value: String?): Boolean {
+        return value.orEmpty().contains(MESSAGE, ignoreCase = true)
+    }
+
+    fun isNoSubscriptionSnapshot(snapshot: ProviderUsageSnapshot): Boolean {
+        return snapshot.providerId == ProviderId.GLM &&
+            snapshot.lines.isEmpty() &&
+            (snapshot.planLabel == PLAN_LABEL || isNoSubscriptionMessage(snapshot.message))
+    }
 }
 
 enum class GlmConnectionMode(val storageValue: String) {
@@ -102,16 +120,20 @@ class GlmUsageRepository(context: Context) {
 
 object GlmUsageFetcher {
     fun fetchUsagePayload(apiKey: String): GlmUsageResult {
-        val rawResult = fetchUsagePayload(apiKey, authorizationHeader = apiKey)
+        return fetchUsagePayload(apiKey, GlmProviderUrls.API_QUOTA_URL)
+    }
+
+    internal fun fetchUsagePayload(apiKey: String, endpointUrl: String): GlmUsageResult {
+        val rawResult = executeFetch(apiKey, endpointUrl, authorizationHeader = apiKey)
         if (rawResult.shouldRetryWithBearer()) {
-            return fetchUsagePayload(apiKey, authorizationHeader = "Bearer ${apiKey.trim()}")
+            return executeFetch(apiKey, endpointUrl, authorizationHeader = "Bearer ${apiKey.trim()}")
         }
         return rawResult
     }
 
-    private fun fetchUsagePayload(apiKey: String, authorizationHeader: String): GlmUsageResult {
+    private fun executeFetch(apiKey: String, endpointUrl: String, authorizationHeader: String): GlmUsageResult {
         return runCatching {
-            val connection = (URL(GlmProviderUrls.API_QUOTA_URL).openConnection() as HttpURLConnection).apply {
+            val connection = (URL(endpointUrl).openConnection() as HttpURLConnection).apply {
                 connectTimeout = NETWORK_TIMEOUT_MS
                 readTimeout = NETWORK_TIMEOUT_MS
                 requestMethod = "GET"
@@ -124,9 +146,12 @@ object GlmUsageFetcher {
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
             val text = stream?.bufferedReader(StandardCharsets.UTF_8)?.use { it.readText() }.orEmpty()
             connection.disconnect()
+            if (status == 401 || status == 403) {
+                return GlmUsageResult(null, requiresAuth = true, diagnostic = "glm_auth_required")
+            }
             val json = runCatching { JSONObject(text) }.getOrNull()
                 ?: return GlmUsageResult(null, requiresAuth = false, diagnostic = "glm_invalid_json")
-            if (status == 401 || status == 403 || json.looksLikeAuthFailure()) {
+            if (json.looksLikeAuthFailure()) {
                 return GlmUsageResult(null, requiresAuth = true, diagnostic = "glm_auth_required")
             }
             if (status !in 200..299) {

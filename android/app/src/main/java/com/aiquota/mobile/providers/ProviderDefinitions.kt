@@ -87,6 +87,7 @@ object ProviderDefinitionRegistry {
             allowedHosts = setOf(
                 "opencode.ai",
                 "www.opencode.ai",
+                "auth.opencode.ai",
                 "accounts.google.com",
                 "myaccount.google.com",
                 "google.com",
@@ -106,7 +107,8 @@ object ProviderDefinitionRegistry {
             ),
             collectorAllowedHosts = setOf(
                 "opencode.ai",
-                "www.opencode.ai"
+                "www.opencode.ai",
+                "auth.opencode.ai"
             ),
             preferredUsageEndpoint = "https://opencode.ai/auth",
             authStoreKind = ProviderAuthStoreKind.WEBVIEW_PROFILE,
@@ -220,7 +222,12 @@ object ProviderDefinitionRegistry {
             ),
             collectorAllowedHosts = setOf(
                 "cursor.com",
-                "www.cursor.com"
+                "www.cursor.com",
+                "api.workos.com",
+                "auth.workos.com",
+                "workos.com",
+                "authenticate.cursor.sh",
+                "authenticator.cursor.sh"
             ),
             preferredUsageEndpoint = "https://api2.cursor.sh/auth/poll",
             authStoreKind = ProviderAuthStoreKind.TOKEN_OR_WEBVIEW_FALLBACK,

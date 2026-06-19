@@ -16,6 +16,12 @@ object ProviderCollectorErrorPolicy {
                     error.message ?: "Codex session reached, but trusted usage payload was not available."
                 )
             }
+            providerId == ProviderId.GLM && error.errorKind == GlmNoSubscriptionPolicy.ERROR_KIND -> {
+                ProviderRefreshFailure(
+                    ProviderRefreshFailureKind.NO_TRUSTED_PAYLOAD,
+                    error.message ?: GlmNoSubscriptionPolicy.MESSAGE
+                )
+            }
             else -> ProviderRefreshFailure(
                 ProviderRefreshFailureKind.COLLECTOR_ERROR,
                 "Background collector failed: ${error.errorKind}"
