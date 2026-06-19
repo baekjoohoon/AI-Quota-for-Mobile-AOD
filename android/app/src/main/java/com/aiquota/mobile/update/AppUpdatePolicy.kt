@@ -7,8 +7,7 @@ data class AppUpdateSignal(
 )
 
 object AppUpdatePolicy {
-    fun shouldStartImmediateUpdate(signal: AppUpdateSignal): Boolean {
-        return signal.developerTriggeredUpdateInProgress ||
-            (signal.updateAvailable && signal.immediateAllowed)
+    fun shouldShowStoreUpdatePrompt(signal: AppUpdateSignal): Boolean {
+        return signal.updateAvailable
     }
 }

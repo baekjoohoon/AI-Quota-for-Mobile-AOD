@@ -11,12 +11,14 @@ data class UsageNotificationContent(
     val summary: String,
     val compactTitle: String,
     val compactText: String,
+    val updateMessage: String?,
     val gauges: List<WidgetProviderGauge>
 ) {
     val gaugeRows: List<UsageNotificationGaugeRow> = gauges.map { gauge ->
         UsageNotificationGaugeRow(
             providerId = gauge.providerId,
             remainingRatio = gauge.remainingRatio,
+            compactRemainingText = gauge.remainingText.compactRemainingText(),
             remainingText = gauge.remainingText,
             resetText = gauge.resetText.orEmpty()
         )
@@ -26,27 +28,36 @@ data class UsageNotificationContent(
 data class UsageNotificationGaugeRow(
     val providerId: String,
     val remainingRatio: Float,
+    val compactRemainingText: String,
     val remainingText: String,
     val resetText: String
 )
 
 fun buildUsageNotificationContent(
     snapshotJson: String,
-    now: Instant = Instant.now()
+    now: Instant = Instant.now(),
+    updateMessage: String? = null
 ): UsageNotificationContent {
     val connectedProviderKeys = connectedNotificationProviderKeys(snapshotJson)
     val gauges = parseWidgetProviderGauges(snapshotJson, now)
         .filter { gauge -> connectedProviderKeys.isEmpty() || gauge.providerId.notificationKey() in connectedProviderKeys }
         .take(MAX_NOTIFICATION_GAUGES)
     val summary = notificationSummary(gauges, snapshotJson)
+        .withUpdateMessage(updateMessage)
     val compactLines = compactNotificationLines(summary)
     return UsageNotificationContent(
         title = "AI Quota",
         summary = summary,
         compactTitle = compactLines.first,
         compactText = compactLines.second,
+        updateMessage = updateMessage?.trim()?.takeIf { it.isNotBlank() },
         gauges = gauges
     )
+}
+
+private fun String.withUpdateMessage(updateMessage: String?): String {
+    val message = updateMessage?.trim()?.takeIf { it.isNotBlank() } ?: return this
+    return "$this\n$message"
 }
 
 private fun notificationSummary(gauges: List<WidgetProviderGauge>, snapshotJson: String): String {

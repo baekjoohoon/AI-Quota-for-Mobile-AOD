@@ -44,6 +44,19 @@ class NotificationSixProvidersTest {
     }
 
     @Test
+    fun updateMessageIsAddedToNotificationTextWithoutReplacingGaugeRows() {
+        val content = buildUsageNotificationContent(
+            snapshotJson = sixProviderSnapshotJson(),
+            updateMessage = "Update available"
+        )
+
+        assertEquals(6, content.gaugeRows.size)
+        assertTrue(content.summary.contains("claude 100%"))
+        assertTrue(content.summary.contains("Update available"))
+        assertTrue(content.compactText.contains("Update available"))
+    }
+
+    @Test
     fun expandedNotificationLayoutDefinesSixRows() {
         val layout = File("src/main/res/layout/notification_usage_gauges.xml").readText()
         val controller = File("src/main/java/com/aiquota/mobile/notification/UsageLimitNotificationController.kt").readText()
@@ -74,18 +87,36 @@ class NotificationSixProvidersTest {
     }
 
     @Test
-    fun collapsedNotificationShowsUsageSummaryTextOnly() {
+    fun collapsedNotificationShowsSixProviderCompactItems() {
         val compactLayout = File("src/main/res/layout/notification_usage_compact.xml").readText()
         val controller = File("src/main/java/com/aiquota/mobile/notification/UsageLimitNotificationController.kt").readText()
 
-        assertTrue(compactLayout.contains("@+id/notification_compact_summary"))
+        (0..5).forEach { index ->
+            assertTrue(compactLayout.contains("@+id/notification_compact_item_$index"))
+            assertTrue(compactLayout.contains("@+id/notification_compact_icon_$index"))
+            assertTrue(compactLayout.contains("@+id/notification_compact_text_$index"))
+            assertTrue(controller.contains("R.id.notification_compact_item_$index"))
+            assertTrue(controller.contains("R.id.notification_compact_icon_$index"))
+            assertTrue(controller.contains("R.id.notification_compact_text_$index"))
+        }
         assertTrue(controller.contains(".setContentText(content.summary)"))
-        assertTrue(controller.contains("setTextViewText(R.id.notification_compact_summary, content.summary)"))
+        assertTrue(controller.contains("views.setImageViewResource(item.iconId"))
+        assertTrue(controller.contains("views.setTextViewText(item.textId, gauge.compactRemainingText)"))
         assertFalse(compactLayout.contains("notification_compact_status"))
         assertFalse(compactLayout.contains("Live refresh"))
         assertFalse(compactLayout.contains("라이브 갱신"))
         assertFalse(controller.contains("notificationLiveStatusText"))
         assertFalse(controller.contains("R.id.notification_compact_status"))
+    }
+
+    @Test
+    fun collapsedNotificationUsesReadableCompactItemSizes() {
+        val compactLayout = File("src/main/res/layout/notification_usage_compact.xml").readText()
+
+        assertTrue(compactLayout.contains("android:layout_height=\"20dp\""))
+        assertTrue(compactLayout.contains("android:layout_width=\"15dp\""))
+        assertTrue(compactLayout.contains("android:layout_height=\"15dp\""))
+        assertTrue(compactLayout.contains("android:textSize=\"12sp\""))
     }
 
     @Test

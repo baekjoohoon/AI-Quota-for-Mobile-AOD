@@ -5,17 +5,15 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.aiquota.mobile.R
+import com.aiquota.mobile.update.AppUpdateStoreNavigator
 
 object AppUpdateNotificationController {
     private const val CHANNEL_ID = "app_updates"
     private const val NOTIFICATION_ID = 1003
-    private const val PLAY_STORE_PACKAGE = "com.android.vending"
 
     @SuppressLint("MissingPermission")
     fun notifyUpdateAvailable(context: Context) {
@@ -52,29 +50,11 @@ object AppUpdateNotificationController {
     }
 
     private fun playStoreIntent(context: Context): PendingIntent {
-        val intent = appStoreIntent(context)
         return PendingIntent.getActivity(
             context,
             NOTIFICATION_ID,
-            intent,
+            AppUpdateStoreNavigator.storeIntent(context),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-    }
-
-    private fun appStoreIntent(context: Context): Intent {
-        val packageName = context.packageName
-        val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")).apply {
-            setPackage(PLAY_STORE_PACKAGE)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        if (marketIntent.resolveActivity(context.packageManager) != null) {
-            return marketIntent
-        }
-        return Intent(
-            Intent.ACTION_VIEW,
-            Uri.parse("https://play.google.com/store/apps/details?id=$packageName")
-        ).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
     }
 }

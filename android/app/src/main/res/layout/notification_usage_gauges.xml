@@ -8,6 +8,17 @@
   android:paddingEnd="12dp"
   android:paddingBottom="6dp">
 
+  <TextView
+    android:id="@+id/notification_update_status"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="4dp"
+    android:ellipsize="end"
+    android:maxLines="1"
+    android:textColor="#111827"
+    android:textSize="12sp"
+    android:visibility="gone" />
+
   <LinearLayout
     android:id="@+id/notification_row_0"
     android:layout_width="match_parent"

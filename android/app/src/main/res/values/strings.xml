@@ -58,6 +58,11 @@
     <string name="app_update_notification_channel">App updates</string>
     <string name="app_update_notification_title">Update AI Quota</string>
     <string name="app_update_notification_body">A required update is available. Tap to open Google Play.</string>
+    <string name="app_update_prompt_title">New version available</string>
+    <string name="app_update_prompt_body">Update AI Quota from Google Play to get the latest fixes.</string>
+    <string name="app_update_prompt_update">Update</string>
+    <string name="app_update_prompt_later">Later</string>
+    <string name="app_update_status_bar_text">AI Quota update available</string>
     <string name="settings_live_refresh_status">Live refresh status: %1$s</string>
     <string name="settings_live_refresh_status_running">Running</string>
     <string name="settings_live_refresh_status_stopped">Stopped</string>

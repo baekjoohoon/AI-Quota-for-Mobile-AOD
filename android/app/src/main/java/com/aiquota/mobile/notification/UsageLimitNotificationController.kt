@@ -16,6 +16,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.aiquota.mobile.MainActivity
 import com.aiquota.mobile.R
+import com.aiquota.mobile.update.AppUpdateStateStore
 import com.aiquota.mobile.ui.provider.providerIconRes as sharedProviderIconRes
 import com.aiquota.mobile.widget.WidgetSnapshotCache
 
@@ -27,6 +28,7 @@ object UsageLimitNotificationController {
     private const val PREFS = "ai_quota_notifications"
     private const val KEY_ENABLED = "status_bar_summary_enabled"
     private const val KEY_PERMISSION_REQUESTED = "post_notifications_permission_requested"
+    private const val NOTIFICATION_COMPACT_FIRST_ROW_ITEM_COUNT = 3
 
     fun isEnabled(context: Context): Boolean {
         return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -66,7 +68,7 @@ object UsageLimitNotificationController {
 
     fun foregroundNotification(context: Context): Notification {
         val snapshotJson = WidgetSnapshotCache(context).readState().snapshotJson
-        val content = buildUsageNotificationContent(snapshotJson)
+        val content = buildUsageNotificationContentForContext(context, snapshotJson)
         createChannel(context)
         return buildNotification(context, content)
     }
@@ -76,7 +78,7 @@ object UsageLimitNotificationController {
         if (!isEnabled(context)) return
         if (!canPostNotifications(context)) return
 
-        val content = buildUsageNotificationContent(snapshotJson)
+        val content = buildUsageNotificationContentForContext(context, snapshotJson)
         createChannel(context)
         val notification = buildNotification(context, content)
 
@@ -180,17 +182,61 @@ object UsageLimitNotificationController {
         for (index in content.gaugeRows.size until rows.size) {
             views.setViewVisibility(rows[index].containerId, View.GONE)
         }
+        if (content.updateMessage == null) {
+            views.setViewVisibility(R.id.notification_update_status, View.GONE)
+        } else {
+            views.setViewVisibility(R.id.notification_update_status, View.VISIBLE)
+            views.setTextViewText(R.id.notification_update_status, content.updateMessage)
+        }
         return views
     }
 
     private fun compactRemoteViews(context: Context, content: UsageNotificationContent): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.notification_usage_compact)
-        views.setTextViewText(R.id.notification_compact_summary, content.summary)
+        val items = compactItemIds()
+        if (content.gaugeRows.isEmpty()) {
+            views.setViewVisibility(R.id.notification_compact_summary, View.VISIBLE)
+            views.setViewVisibility(R.id.notification_compact_grid, View.GONE)
+            views.setTextViewText(R.id.notification_compact_summary, content.summary)
+            return views
+        }
+
+        views.setViewVisibility(R.id.notification_compact_summary, View.GONE)
+        views.setViewVisibility(R.id.notification_compact_grid, View.VISIBLE)
+        views.setViewVisibility(R.id.notification_compact_row_0, View.VISIBLE)
+        views.setViewVisibility(
+            R.id.notification_compact_row_1,
+            if (content.gaugeRows.size > NOTIFICATION_COMPACT_FIRST_ROW_ITEM_COUNT) View.VISIBLE else View.GONE
+        )
+        content.gaugeRows.forEachIndexed { index, gauge ->
+            val item = items[index]
+            views.setViewVisibility(item.containerId, View.VISIBLE)
+            views.setImageViewResource(item.iconId, providerIconRes(gauge.providerId))
+            views.setTextViewText(item.textId, gauge.compactRemainingText)
+        }
+        for (index in content.gaugeRows.size until items.size) {
+            views.setViewVisibility(items[index].containerId, View.INVISIBLE)
+        }
         return views
     }
 
     private fun providerIconRes(providerId: String): Int {
         return sharedProviderIconRes(providerId)
+    }
+
+    private fun buildUsageNotificationContentForContext(
+        context: Context,
+        snapshotJson: String
+    ): UsageNotificationContent {
+        val updateMessage = if (AppUpdateStateStore.isUpdateAvailable(context)) {
+            context.getString(R.string.app_update_status_bar_text)
+        } else {
+            null
+        }
+        return buildUsageNotificationContent(
+            snapshotJson = snapshotJson,
+            updateMessage = updateMessage
+        )
     }
 
     private fun rowIds(): List<NotificationGaugeRow> {
@@ -203,6 +249,17 @@ object UsageLimitNotificationController {
             NotificationGaugeRow(R.id.notification_row_5, R.id.notification_icon_5, R.id.notification_progress_5, R.id.notification_remaining_5, R.id.notification_reset_5)
         )
     }
+
+    private fun compactItemIds(): List<NotificationCompactItem> {
+        return listOf(
+            NotificationCompactItem(R.id.notification_compact_item_0, R.id.notification_compact_icon_0, R.id.notification_compact_text_0),
+            NotificationCompactItem(R.id.notification_compact_item_1, R.id.notification_compact_icon_1, R.id.notification_compact_text_1),
+            NotificationCompactItem(R.id.notification_compact_item_2, R.id.notification_compact_icon_2, R.id.notification_compact_text_2),
+            NotificationCompactItem(R.id.notification_compact_item_3, R.id.notification_compact_icon_3, R.id.notification_compact_text_3),
+            NotificationCompactItem(R.id.notification_compact_item_4, R.id.notification_compact_icon_4, R.id.notification_compact_text_4),
+            NotificationCompactItem(R.id.notification_compact_item_5, R.id.notification_compact_icon_5, R.id.notification_compact_text_5)
+        )
+    }
 }
 
 private data class NotificationGaugeRow(
@@ -211,4 +268,10 @@ private data class NotificationGaugeRow(
     val progressId: Int,
     val remainingTextId: Int,
     val resetTextId: Int
+)
+
+private data class NotificationCompactItem(
+    val containerId: Int,
+    val iconId: Int,
+    val textId: Int
 )

@@ -5,6 +5,16 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import com.aiquota.mobile.notification.UsageLimitNotificationController
 import com.aiquota.mobile.sync.ForegroundRefreshController
 import com.aiquota.mobile.ui.AIQuotaAppShell
@@ -20,16 +30,28 @@ class MainActivity : ComponentActivity() {
         appUpdateCoordinator = AppUpdateCoordinator(this)
         postCachedNotificationWhenAllowed()
         setContent {
+            var showUpdatePrompt by remember { mutableStateOf(false) }
+            DisposableEffect(appUpdateCoordinator) {
+                appUpdateCoordinator.onUpdateAvailable = {
+                    showUpdatePrompt = true
+                    postCachedNotificationWhenAllowed()
+                }
+                onDispose {
+                    appUpdateCoordinator.onUpdateAvailable = {}
+                }
+            }
             AIQuotaAppShell(context = this)
+            if (showUpdatePrompt) {
+                AppUpdatePromptDialog(
+                    onUpdate = {
+                        showUpdatePrompt = false
+                        appUpdateCoordinator.openStoreListing()
+                    },
+                    onDismiss = { showUpdatePrompt = false }
+                )
+            }
         }
-        appUpdateCoordinator.checkForRequiredUpdate()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (::appUpdateCoordinator.isInitialized) {
-            appUpdateCoordinator.resumeRequiredUpdateIfNeeded()
-        }
+        appUpdateCoordinator.checkForStoreUpdate()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -55,4 +77,26 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
+
+@Composable
+private fun AppUpdatePromptDialog(
+    onUpdate: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.app_update_prompt_title)) },
+        text = { Text(stringResource(R.string.app_update_prompt_body)) },
+        confirmButton = {
+            TextButton(onClick = onUpdate) {
+                Text(stringResource(R.string.app_update_prompt_update))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.app_update_prompt_later))
+            }
+        }
+    )
 }

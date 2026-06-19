@@ -58,6 +58,11 @@
     <string name="app_update_notification_channel">앱 업데이트</string>
     <string name="app_update_notification_title">AI Quota 업데이트</string>
     <string name="app_update_notification_body">필수 업데이트가 있습니다. Google Play에서 업데이트해주세요.</string>
+    <string name="app_update_prompt_title">새 버전을 사용할 수 있습니다</string>
+    <string name="app_update_prompt_body">최신 수정 사항을 받으려면 Google Play에서 AI Quota를 업데이트해주세요.</string>
+    <string name="app_update_prompt_update">업데이트</string>
+    <string name="app_update_prompt_later">나중에</string>
+    <string name="app_update_status_bar_text">AI Quota 업데이트 가능</string>
     <string name="settings_live_refresh_status">라이브 갱신 상태: %1$s</string>
     <string name="settings_live_refresh_status_running">진행 중</string>
     <string name="settings_live_refresh_status_stopped">중단</string>
