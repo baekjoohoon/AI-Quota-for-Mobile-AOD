@@ -15,7 +15,7 @@ class ProviderRefreshPlanTest {
     fun providerRefreshTimeoutsKeepFastDefaultAndGiveSlowCollectorsMoreTime() {
         assertEquals(60_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.CODEX))
         assertEquals(10_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.CLAUDE))
-        assertEquals(75_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.GEMINI))
+        assertEquals(45_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.GEMINI))
         assertEquals(10_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.COPILOT))
         assertEquals(75_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.ANTIGRAVITY))
         assertEquals(10_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.CURSOR))
@@ -28,7 +28,7 @@ class ProviderRefreshPlanTest {
     }
 
     @Test
-    fun manualRefreshUsesHiddenCollectorUrlsForWebSessionProvidersAndNativeForNativeTokenProviders() {
+    fun manualRefreshUsesHiddenCollectorUrlsForWebSessionProvidersAndNativeForNativeRefreshProviders() {
         val jobs = listOf(
             ProviderId.CLAUDE,
             ProviderId.CODEX,
@@ -39,27 +39,38 @@ class ProviderRefreshPlanTest {
             ProviderId.CURSOR
         ).map(ProviderRefreshPlan::manualJobFor)
 
-        assertTrue(jobs.filterNot { it.providerId == ProviderId.GEMINI || it.providerId == ProviderId.ANTIGRAVITY }.all { it.mode == ProviderRefreshMode.HIDDEN_WEB_COLLECTOR })
-        assertEquals(ProviderRefreshMode.NATIVE_API, jobs.first { it.providerId == ProviderId.GEMINI }.mode)
+        assertTrue(
+            jobs
+                .filterNot { it.providerId == ProviderId.ANTIGRAVITY }
+                .all { it.mode == ProviderRefreshMode.HIDDEN_WEB_COLLECTOR }
+        )
         assertEquals(ProviderRefreshMode.NATIVE_API, jobs.first { it.providerId == ProviderId.ANTIGRAVITY }.mode)
         assertFalse(jobs.any { it.startUrl.contains("/auth/login") || it.startUrl.contains("/login") })
         assertEquals("https://claude.ai/", jobs.first { it.providerId == ProviderId.CLAUDE }.startUrl)
         assertEquals(ProviderLoginStrategy.CODEX_CALLBACK_RECOVERY_URL, jobs.first { it.providerId == ProviderId.CODEX }.startUrl)
         assertEquals("https://opencode.ai/auth", jobs.first { it.providerId == ProviderId.OPENCODE }.startUrl)
-        assertEquals("", jobs.first { it.providerId == ProviderId.GEMINI }.startUrl)
+        assertEquals("https://gemini.google.com/usage", jobs.first { it.providerId == ProviderId.GEMINI }.startUrl)
         assertEquals("https://github.com/settings/copilot/features", jobs.first { it.providerId == ProviderId.COPILOT }.startUrl)
         assertEquals("", jobs.first { it.providerId == ProviderId.ANTIGRAVITY }.startUrl)
         assertEquals("https://cursor.com/dashboard", jobs.first { it.providerId == ProviderId.CURSOR }.startUrl)
     }
 
     @Test
-    fun geminiAndAntigravityRefreshThroughNativeApi() {
+    fun geminiRefreshesThroughUsageDomAndAntigravityRefreshesThroughNativeApi() {
         val jobs = listOf(ProviderId.GEMINI, ProviderId.ANTIGRAVITY).map(ProviderRefreshPlan::manualJobFor)
 
-        assertEquals(ProviderRefreshMode.NATIVE_API, jobs.first { it.providerId == ProviderId.GEMINI }.mode)
+        assertEquals(ProviderRefreshMode.HIDDEN_WEB_COLLECTOR, jobs.first { it.providerId == ProviderId.GEMINI }.mode)
         assertEquals(ProviderRefreshMode.NATIVE_API, jobs.first { it.providerId == ProviderId.ANTIGRAVITY }.mode)
-        assertEquals("", jobs.first { it.providerId == ProviderId.GEMINI }.startUrl)
+        assertEquals("https://gemini.google.com/usage", jobs.first { it.providerId == ProviderId.GEMINI }.startUrl)
         assertEquals("", jobs.first { it.providerId == ProviderId.ANTIGRAVITY }.startUrl)
+    }
+
+    @Test
+    fun geminiRefreshUsesUsageDomCollector() {
+        val geminiJob = ProviderRefreshPlan.manualJobFor(ProviderId.GEMINI)
+
+        assertEquals(ProviderRefreshMode.HIDDEN_WEB_COLLECTOR, geminiJob.mode)
+        assertEquals("https://gemini.google.com/usage", geminiJob.startUrl)
     }
 
     @Test
@@ -197,6 +208,30 @@ class ProviderRefreshPlanTest {
         assertEquals(
             listOf(ProviderId.COPILOT),
             ProviderRefreshPlan.automaticJobsFor(listOf(oldLoginPageFailure), now = now).map { it.providerId }
+        )
+    }
+
+    @Test
+    fun automaticRefreshKeepsRetryingGeminiLoginPageFailureWhenLastKnownUsageExists() {
+        val now = Instant.parse("2026-06-18T09:55:00Z")
+        val recentGeminiLoginPageFailure = snapshot(ProviderId.GEMINI, ProviderConnectionState.CONNECTED).copy(
+            statusUpdatedAt = now.minusSeconds(60).toString(),
+            message = "Background refresh reached a provider login page.",
+            lines = listOf(
+                ProviderUsageLine(
+                    key = "gemini:5_hour_limit",
+                    label = "5시간 한도",
+                    remainingPercent = 1f
+                )
+            )
+        )
+
+        assertEquals(
+            listOf(ProviderId.GEMINI),
+            ProviderRefreshPlan.automaticJobsFor(
+                listOf(recentGeminiLoginPageFailure),
+                now = now
+            ).map { it.providerId }
         )
     }
 

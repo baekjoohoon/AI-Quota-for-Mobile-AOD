@@ -26,6 +26,7 @@ object ProviderRefreshPlan {
     const val PROVIDER_REFRESH_TIMEOUT_MILLIS = 10_000L
     const val CODEX_REFRESH_TIMEOUT_MILLIS = 60_000L
     const val OPENCODE_REFRESH_TIMEOUT_MILLIS = 20_000L
+    const val GEMINI_WEB_REFRESH_TIMEOUT_MILLIS = 45_000L
     const val GOOGLE_REFRESH_TIMEOUT_MILLIS = 75_000L
     const val RESET_REFRESH_QOS = 1
     const val NORMAL_REFRESH_QOS = 5
@@ -35,7 +36,7 @@ object ProviderRefreshPlan {
             ProviderId.CODEX -> CODEX_REFRESH_TIMEOUT_MILLIS
             ProviderId.OPENCODE -> OPENCODE_REFRESH_TIMEOUT_MILLIS
             ProviderId.GLM -> PROVIDER_REFRESH_TIMEOUT_MILLIS
-            ProviderId.GEMINI,
+            ProviderId.GEMINI -> GEMINI_WEB_REFRESH_TIMEOUT_MILLIS
             ProviderId.ANTIGRAVITY -> GOOGLE_REFRESH_TIMEOUT_MILLIS
             else -> PROVIDER_REFRESH_TIMEOUT_MILLIS
         }
@@ -135,6 +136,7 @@ object ProviderRefreshPlan {
 
     private fun ProviderUsageSnapshot.isRecentAutomaticFailureBackedOff(now: Instant): Boolean {
         if (message != LOGIN_PAGE_REACHED_MESSAGE && !isCodexNoFinishFailure()) return false
+        if (providerId == ProviderId.GEMINI && message == LOGIN_PAGE_REACHED_MESSAGE && lines.isNotEmpty()) return false
         val statusAt = runCatching { Instant.parse(statusUpdatedAt) }.getOrNull() ?: return false
         return Duration.between(statusAt, now) < AUTOMATIC_FAILURE_BACKOFF
     }

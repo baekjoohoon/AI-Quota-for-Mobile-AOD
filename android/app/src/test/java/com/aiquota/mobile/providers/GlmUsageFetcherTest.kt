@@ -12,7 +12,7 @@ import kotlin.concurrent.thread
 
 class GlmUsageFetcherTest {
     @Test
-    fun retriesWithBearerAfterEmptyUnauthorizedResponse() {
+    fun retriesWithoutBearerAfterBearerUnauthorizedResponse() {
         val authorizationHeaders = mutableListOf<String?>()
         val server = ServerSocket().apply {
             reuseAddress = true
@@ -58,9 +58,58 @@ class GlmUsageFetcherTest {
             assertFalse(result.requiresAuth)
             assertNotNull(result.payload)
             assertEquals(
-                listOf("zai_test_key", "Bearer zai_test_key"),
+                listOf("Bearer zai_test_key", "zai_test_key"),
                 authorizationHeaders
             )
+        } finally {
+            server.close()
+            serverThread.join(1_000L)
+        }
+    }
+
+    @Test
+    fun retriesWithoutBearerWhenBearerResponseOnlyContainsMcpQuota() {
+        val authorizationHeaders = mutableListOf<String?>()
+        val server = ServerSocket().apply {
+            reuseAddress = true
+            bind(InetSocketAddress("127.0.0.1", 0))
+        }
+        val serverThread = thread(name = "glm-usage-fetcher-token-fallback-test-server") {
+            repeat(2) { index ->
+                server.accept().use { socket ->
+                    val request = socket.getInputStream().bufferedReader(StandardCharsets.UTF_8)
+                    var authorization: String? = null
+                    while (true) {
+                        val line = request.readLine() ?: break
+                        if (line.isEmpty()) break
+                        if (line.startsWith("Authorization:", ignoreCase = true)) {
+                            authorization = line.substringAfter(":").trim()
+                        }
+                    }
+                    authorizationHeaders += authorization
+                    socket.getOutputStream().writeHttpResponse(
+                        status = HttpURLConnection.HTTP_OK,
+                        reason = "OK",
+                        body = if (index == 0) mcpOnlyQuotaBody() else quotaBody()
+                    )
+                }
+            }
+        }
+
+        try {
+            val result = GlmUsageFetcher.fetchUsagePayload(
+                apiKey = "zai_test_key",
+                endpointUrl = "http://127.0.0.1:${server.localPort}/quota"
+            )
+
+            assertEquals("ok", result.diagnostic)
+            assertFalse(result.requiresAuth)
+            assertNotNull(result.payload)
+            assertEquals(
+                listOf("Bearer zai_test_key", "zai_test_key"),
+                authorizationHeaders
+            )
+            org.junit.Assert.assertTrue(result.payload!!.contains("TOKENS_LIMIT"))
         } finally {
             server.close()
             serverThread.join(1_000L)
@@ -94,6 +143,25 @@ class GlmUsageFetcherTest {
                     "usage": 100,
                     "currentValue": 10,
                     "percentage": 10
+                  }
+                ]
+              }
+            }
+        """.trimIndent().toByteArray(StandardCharsets.UTF_8)
+    }
+
+    private fun mcpOnlyQuotaBody(): ByteArray {
+        return """
+            {
+              "code": 200,
+              "msg": "success",
+              "data": {
+                "limits": [
+                  {
+                    "type": "TIME_LIMIT",
+                    "usage": 500,
+                    "currentValue": 125,
+                    "percentage": 25
                   }
                 ]
               }

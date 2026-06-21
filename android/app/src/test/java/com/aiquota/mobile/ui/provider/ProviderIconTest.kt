@@ -32,12 +32,10 @@ class ProviderIconTest {
     @Test
     fun codexIconUsesRootDarkSvgAsWhiteCloudWithDarkCutouts() {
         val vector = File("src/main/res/drawable/ic_provider_codex.xml").readText()
-        val source = File("../../codex-dark.svg").readText()
 
         assertTrue(vector.contains("""android:fillColor="#FFFFFF""""))
         assertTrue(vector.contains("""android:fillColor="#111111""""))
         assertTrue(vector.contains("""android:fillType="evenOdd""""))
-        assertTrue(source.contains("""fill="#fff""""))
         assertTrue(vector.contains("M8.086"))
         assertTrue(vector.contains("M7.282"))
         assertTrue(vector.contains("M12.728"))

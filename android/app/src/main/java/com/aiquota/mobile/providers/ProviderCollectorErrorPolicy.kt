@@ -55,6 +55,7 @@ object ProviderCollectorErrorPolicy {
         "login_required",
         "session_expired",
         "codex_auth_required",
+        "gemini_login_required",
         "oauth_failed",
         "token_refresh_failed"
     )

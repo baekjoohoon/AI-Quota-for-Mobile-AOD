@@ -136,10 +136,10 @@ object ProviderDefinitionRegistry {
             collectorAllowedHosts = setOf(
                 "gemini.google.com"
             ),
-            preferredUsageEndpoint = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota",
-            authStoreKind = ProviderAuthStoreKind.NATIVE_TOKEN,
-            collectionKind = ProviderCollectionKind.NATIVE_API,
-            sessionProbeUrl = "https://gemini.google.com/app"
+            preferredUsageEndpoint = "https://gemini.google.com/usage",
+            authStoreKind = ProviderAuthStoreKind.WEBVIEW_PROFILE,
+            collectionKind = ProviderCollectionKind.WEBVIEW_COLLECTOR,
+            sessionProbeUrl = "https://gemini.google.com/usage"
         ),
         ProviderDefinition(
             providerId = ProviderId.COPILOT,

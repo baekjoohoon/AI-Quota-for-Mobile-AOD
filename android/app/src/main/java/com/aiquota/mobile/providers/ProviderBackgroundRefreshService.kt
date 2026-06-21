@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
@@ -273,6 +274,9 @@ class ProviderBackgroundRefreshService : Service() {
             ProviderRefreshMode.NATIVE_API -> collectNativeProviderUsage(effectiveJob)
             ProviderRefreshMode.HIDDEN_WEB_COLLECTOR -> collectWebProviderUsage(effectiveJob)
         }
+        if (effectiveJob.providerId == ProviderId.GEMINI) {
+            Log.d(TAG, "outcome provider=gemini type=${outcome::class.java.simpleName}")
+        }
         if (repository.readSnapshots().none { it.providerId == effectiveJob.providerId }) {
             destroyProviderWebView(effectiveJob.providerId)
             return
@@ -347,11 +351,9 @@ class ProviderBackgroundRefreshService : Service() {
             }
             return job
         }
-        if (job.providerId != ProviderId.GLM) return job
-        if (GlmUsageRepository(applicationContext).connectionMode() != GlmConnectionMode.WEB_OAUTH) return job
-        return job.copy(
-            mode = ProviderRefreshMode.HIDDEN_WEB_COLLECTOR,
-            startUrl = GlmProviderUrls.WEB_OAUTH_URL
+        return GlmRuntimeRefreshJobs.resolve(
+            job,
+            GlmUsageRepository(applicationContext).connectionMode()
         )
     }
 
@@ -400,11 +402,7 @@ class ProviderBackgroundRefreshService : Service() {
         }
         if (job.providerId == ProviderId.GEMINI || job.providerId == ProviderId.ANTIGRAVITY) {
             val payload = withContext(Dispatchers.IO) {
-                if (job.providerId == ProviderId.GEMINI) {
-                    GeminiCliOAuthRepository(applicationContext).fetchUsagePayloadFromStoredCredential()
-                } else {
-                    AntigravityOAuthRepository(applicationContext).fetchUsagePayloadFromStoredCredential()
-                }
+                fetchGoogleNativeOrWebSessionPayload(job.providerId)
             }
             val snapshot = payload?.let {
                 ProviderUsageNormalizer.normalize(
@@ -432,6 +430,24 @@ class ProviderBackgroundRefreshService : Service() {
         )
     }
 
+    private fun fetchGoogleNativeOrWebSessionPayload(providerId: ProviderId): String? {
+        val nativePayload = if (providerId == ProviderId.GEMINI) {
+            GeminiCliOAuthRepository(applicationContext).fetchUsagePayloadFromStoredCredential()
+        } else {
+            AntigravityOAuthRepository(applicationContext).fetchUsagePayloadFromStoredCredential()
+        }
+        if (nativePayload != null) return nativePayload
+        if (!GoogleWebSessionCodeAssistFetcher.hasSessionCookie(providerId)) return null
+        val fallback = GoogleWebSessionCodeAssistFetcher.fetchUsagePayload(providerId)
+        Log.i(
+            TAG,
+            "googleWebSessionFallback provider=${providerId.storageId} " +
+                "payloadPresent=${fallback.payload != null} diagnostic=${fallback.diagnostic} " +
+                "statuses=${fallback.statuses.joinToString(",")}"
+        )
+        return fallback.payload
+    }
+
     private suspend fun collectWebProviderUsage(job: ProviderRefreshJob): ServiceRefreshOutcome {
         val requestId = ++nextRequestId
         webJobLastUrls[requestId] = job.startUrl
@@ -452,6 +468,10 @@ class ProviderBackgroundRefreshService : Service() {
         val lastUrl = webJobLastUrls[requestId]
         clearActiveWebJob(requestId)
         webJobLastUrls.remove(requestId)
+        if (result == null && job.providerId == ProviderId.GEMINI) {
+            val safeLastUrl = lastUrl.orEmpty()
+            Log.d(TAG, "timeout provider=gemini last=${hostOf(safeLastUrl)}${pathOf(safeLastUrl)}")
+        }
         return result ?: ServiceRefreshOutcome.Failure(ProviderRefreshTimeoutPolicy.failureFor(job.providerId, lastUrl))
     }
 
@@ -517,6 +537,10 @@ class ProviderBackgroundRefreshService : Service() {
         webJobLastUrls[requestId] = url
     }
 
+    private fun saveOpenCodeUsageUrl(url: String) {
+        ProviderScopedStateRepository(applicationContext).saveOpenCodeUsageUrl(url)
+    }
+
     private fun injectCollectorIfReady(providerId: ProviderId, view: WebView, url: String, pageText: String) {
         val active = currentWebJobFor(providerId) ?: return
         val cookies = cookiesFor(url)
@@ -534,7 +558,8 @@ class ProviderBackgroundRefreshService : Service() {
             antigravityCollectorAsset = antigravityCollectorAsset,
             observedAccountId = observedCodexAccountId,
             pageText = pageText,
-            pageUrl = url
+            pageUrl = url,
+            awaitInteractiveLoginUsage = providerId == ProviderId.GEMINI
         )
         Log.d(
             TAG,
@@ -544,13 +569,163 @@ class ProviderBackgroundRefreshService : Service() {
         view.evaluateJavascript(script, null)
     }
 
+    private fun maybeRedirectGeminiRefreshToUsage(active: ServiceWebRefreshJob, view: WebView, url: String): Boolean {
+        val providerId = active.job.providerId
+        if (providerId != ProviderId.GEMINI) return false
+        if (GeminiUsagePageRoutes.isUsageUrl(url)) return false
+        val usageUrl = GeminiUsagePageRoutes.usageUrlFrom(url) ?: return false
+        if (active.geminiUsageRedirectAttempts >= GEMINI_USAGE_REDIRECT_MAX_ATTEMPTS) return false
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase()
+        val path = uri.path.orEmpty()
+        val redirectKey = "$host:$path"
+        val now = SystemClock.elapsedRealtime()
+        if (redirectKey == active.lastGeminiRefreshRedirectKey &&
+            now - active.lastGeminiRefreshRedirectAtMs < GEMINI_USAGE_REDIRECT_MIN_INTERVAL_MS
+        ) {
+            return false
+        }
+        active.lastGeminiRefreshRedirectKey = redirectKey
+        active.lastGeminiRefreshRedirectAtMs = now
+        active.geminiUsageRedirectAttempts += 1
+        collectorInjectionKeys.removeAll { it.contains(":${ProviderId.GEMINI.storageId}:") }
+        Log.d(TAG, "redirectUsage provider=gemini from=${hostOf(url)}${pathOf(url)}")
+        view.stopLoading()
+        view.loadUrl(usageUrl)
+        return true
+    }
+
+    private fun maybeRedirectOpenCodeRefreshToGo(active: ServiceWebRefreshJob, view: WebView, url: String): Boolean {
+        if (active.job.providerId != ProviderId.OPENCODE) return false
+        val goUsageUrl = OpenCodeUsagePageRoutes.goUsageUrlFrom(url) ?: return false
+        collectorInjectionKeys.removeAll { it.contains(":${ProviderId.OPENCODE.storageId}:") }
+        saveOpenCodeUsageUrl(goUsageUrl)
+        Log.d(TAG, "redirectUsage provider=opencode from=${hostOf(url)}${pathOf(url)}")
+        view.stopLoading()
+        view.loadUrl(goUsageUrl)
+        return true
+    }
+
+    private fun maybeScheduleGeminiTerminalCheck(active: ServiceWebRefreshJob, view: WebView, url: String) {
+        if (active.job.providerId != ProviderId.GEMINI) return
+        if (active.geminiTerminalCheckScheduled) return
+        val uri = runCatching { URI(url) }.getOrNull() ?: return
+        val host = uri.host.orEmpty().lowercase()
+        if (host != "gemini.google.com" ||
+            (!GeminiUsagePageRoutes.isLoginLandingUrl(url) && !GeminiUsagePageRoutes.isUsageUrl(url))
+        ) {
+            return
+        }
+        active.geminiTerminalCheckScheduled = true
+        val requestId = active.requestId
+        Log.d(TAG, "terminalCheckScheduled provider=gemini url=${hostOf(url)}${pathOf(url)}")
+        mainHandler.postDelayed(
+            {
+                val current = currentWebJobFor(ProviderId.GEMINI) ?: return@postDelayed
+                if (current.requestId != requestId) return@postDelayed
+                val pageUrl = view.url ?: url
+                view.evaluateJavascript(PAGE_CAPTURE_SCRIPT) { encoded ->
+                    if (currentWebJobFor(ProviderId.GEMINI)?.requestId != requestId) return@evaluateJavascript
+                    val pageText = decodeJsString(encoded)
+                    if (ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.GEMINI, pageUrl, pageText)) {
+                        val failure = ProviderRefreshFailure.interactiveAuthRequired(LOGIN_PAGE_REACHED_MESSAGE)
+                        Log.d(TAG, "terminalCheck provider=gemini kind=${failure.kind} url=${hostOf(pageUrl)}${pathOf(pageUrl)}")
+                        completeWebJob(requestId, ServiceRefreshOutcome.Failure(failure))
+                    }
+                }
+                mainHandler.postDelayed(
+                    {
+                        if (currentWebJobFor(ProviderId.GEMINI)?.requestId != requestId) return@postDelayed
+                        Log.d(TAG, "terminalCheckFallback provider=gemini url=${hostOf(pageUrl)}${pathOf(pageUrl)}")
+                        completeWebJob(
+                            requestId,
+                            ServiceRefreshOutcome.Failure(
+                                ProviderRefreshFailure(
+                                    ProviderRefreshFailureKind.NO_TRUSTED_PAYLOAD,
+                                    "Gemini usage payload was not available."
+                                )
+                            )
+                        )
+                    },
+                    GEMINI_TERMINAL_CHECK_FALLBACK_DELAY_MS
+                )
+            },
+            GEMINI_TERMINAL_CHECK_DELAY_MS
+        )
+    }
+
+    private fun maybeClickGeminiRefreshSignIn(
+        active: ServiceWebRefreshJob,
+        view: WebView,
+        url: String,
+        pageText: String
+    ): Boolean {
+        if (active.job.providerId != ProviderId.GEMINI) return false
+        if (active.geminiSignInClickAttempts >= GEMINI_SIGN_IN_CLICK_MAX_ATTEMPTS) return false
+        if (!ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.GEMINI, url, pageText)) return false
+        active.geminiSignInClickAttempts += 1
+        collectorInjectionKeys.removeAll { it.contains(":${ProviderId.GEMINI.storageId}:") }
+        Log.d(TAG, "clickSignIn provider=gemini from=${hostOf(url)}${pathOf(url)}")
+        view.evaluateJavascript(
+            """
+            (function(){
+              var labels = ["로그인", "sign in", "log in"];
+              var elements = Array.prototype.slice.call(document.querySelectorAll("a[href], button, [role='button']"));
+              for (var i = 0; i < elements.length; i += 1) {
+                var text = String(elements[i].innerText || elements[i].textContent || elements[i].getAttribute("aria-label") || "").trim().toLowerCase();
+                var href = String(elements[i].href || "");
+                for (var j = 0; j < labels.length; j += 1) {
+                  if (text.indexOf(labels[j]) >= 0 || href.indexOf("accounts.google.com/ServiceLogin") >= 0) {
+                    if (href.indexOf("accounts.google.com/ServiceLogin") >= 0) {
+                      location.href = href;
+                    } else {
+                      elements[i].click();
+                    }
+                    return true;
+                  }
+                }
+              }
+              return false;
+            })();
+            """.trimIndent(),
+            null
+        )
+        return true
+    }
+
+    private fun shouldWaitForGeminiRefreshSignInRedirect(active: ServiceWebRefreshJob, url: String): Boolean {
+        if (active.job.providerId != ProviderId.GEMINI) return false
+        if (active.geminiSignInClickAttempts <= 0) return false
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase()
+        return host == "accounts.google.com" || host.startsWith("accounts.google.")
+    }
+
+    private fun isGeminiRefreshInteractiveSignInPage(active: ServiceWebRefreshJob, url: String): Boolean {
+        if (active.job.providerId != ProviderId.GEMINI) return false
+        if (active.geminiSignInClickAttempts <= 0) return false
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase()
+        if (host != "accounts.google.com" && !host.startsWith("accounts.google.")) return false
+        val path = uri.path.orEmpty().lowercase()
+        return path.contains("/signin/identifier")
+    }
+
     private inner class ServiceCollectorWebViewClient(
         private val ownerProviderId: ProviderId
     ) : WebViewClient() {
         override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
             val active = currentWebJobFor(ownerProviderId) ?: return
             recordWebJobUrl(active.requestId, url)
+            if (maybeRedirectOpenCodeRefreshToGo(active, view, url)) return
+            if (maybeRedirectGeminiRefreshToUsage(active, view, url)) return
+            if (isGeminiRefreshInteractiveSignInPage(active, url)) {
+                Log.d(TAG, "interactiveSignInRequired provider=gemini at=${hostOf(url)}${pathOf(url)}")
+                completeWebJob(active.requestId, ServiceRefreshOutcome.Failure(ProviderRefreshFailure.interactiveAuthRequired(LOGIN_PAGE_REACHED_MESSAGE)))
+                return
+            }
             if (ProviderWebCollectorScripts.isRefreshLoginPage(ownerProviderId, url)) {
+                if (shouldWaitForGeminiRefreshSignInRedirect(active, url)) return
                 completeWebJob(active.requestId, ServiceRefreshOutcome.Failure(ProviderRefreshFailure.interactiveAuthRequired(LOGIN_PAGE_REACHED_MESSAGE)))
                 return
             }
@@ -560,6 +735,10 @@ class ProviderBackgroundRefreshService : Service() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val active = currentWebJobFor(ownerProviderId) ?: return true
             val url = request.url.toString()
+            if (shouldWaitForGeminiRefreshSignInRedirect(active, url)) {
+                Log.d(TAG, "allowSignInRedirect provider=gemini to=${hostOf(url)}${pathOf(url)}")
+                return false
+            }
             return !ProviderDefinitionRegistry.isCollectorNavigationAllowed(active.job.providerId, url)
         }
 
@@ -578,6 +757,8 @@ class ProviderBackgroundRefreshService : Service() {
                 if (currentWebJobFor(ownerProviderId)?.requestId != requestId) return@evaluateJavascript
                 val pageText = decodeJsString(encoded)
                 if (ProviderWebCollectorScripts.isRefreshLoginPage(ownerProviderId, pageUrl, pageText)) {
+                    if (maybeClickGeminiRefreshSignIn(active, view, pageUrl, pageText)) return@evaluateJavascript
+                    if (shouldWaitForGeminiRefreshSignInRedirect(active, pageUrl)) return@evaluateJavascript
                     completeWebJob(requestId, ServiceRefreshOutcome.Failure(ProviderRefreshFailure.interactiveAuthRequired(LOGIN_PAGE_REACHED_MESSAGE)))
                     return@evaluateJavascript
                 }
@@ -590,7 +771,15 @@ class ProviderBackgroundRefreshService : Service() {
             val requestId = active.requestId
             recordWebJobUrl(requestId, url)
             Log.d(TAG, "pageFinished provider=${ownerProviderId.storageId} url=${hostOf(url)}${pathOf(url)}")
+            if (maybeRedirectOpenCodeRefreshToGo(active, view, url)) return
+            if (maybeRedirectGeminiRefreshToUsage(active, view, url)) return
+            if (isGeminiRefreshInteractiveSignInPage(active, url)) {
+                Log.d(TAG, "interactiveSignInRequired provider=gemini at=${hostOf(url)}${pathOf(url)}")
+                completeWebJob(requestId, ServiceRefreshOutcome.Failure(ProviderRefreshFailure.interactiveAuthRequired(LOGIN_PAGE_REACHED_MESSAGE)))
+                return
+            }
             if (ProviderWebCollectorScripts.isRefreshLoginPage(ownerProviderId, url)) {
+                if (shouldWaitForGeminiRefreshSignInRedirect(active, url)) return
                 completeWebJob(requestId, ServiceRefreshOutcome.Failure(ProviderRefreshFailure.interactiveAuthRequired(LOGIN_PAGE_REACHED_MESSAGE)))
                 return
             }
@@ -598,10 +787,13 @@ class ProviderBackgroundRefreshService : Service() {
                 if (currentWebJobFor(ownerProviderId)?.requestId != requestId) return@evaluateJavascript
                 val pageText = decodeJsString(encoded)
                 if (ProviderWebCollectorScripts.isRefreshLoginPage(ownerProviderId, url, pageText)) {
+                    if (maybeClickGeminiRefreshSignIn(active, view, url, pageText)) return@evaluateJavascript
+                    if (shouldWaitForGeminiRefreshSignInRedirect(active, url)) return@evaluateJavascript
                     completeWebJob(requestId, ServiceRefreshOutcome.Failure(ProviderRefreshFailure.interactiveAuthRequired(LOGIN_PAGE_REACHED_MESSAGE)))
                     return@evaluateJavascript
                 }
                 injectCollectorIfReady(ownerProviderId, view, url, pageText)
+                maybeScheduleGeminiTerminalCheck(active, view, url)
             }
         }
 
@@ -778,7 +970,12 @@ class ProviderBackgroundRefreshService : Service() {
     private data class ServiceWebRefreshJob(
         val requestId: Long,
         val job: ProviderRefreshJob,
-        val collectorRetryCounts: MutableMap<String, Int> = mutableMapOf()
+        val collectorRetryCounts: MutableMap<String, Int> = mutableMapOf(),
+        var lastGeminiRefreshRedirectKey: String? = null,
+        var lastGeminiRefreshRedirectAtMs: Long = 0L,
+        var geminiUsageRedirectAttempts: Int = 0,
+        var geminiTerminalCheckScheduled: Boolean = false,
+        var geminiSignInClickAttempts: Int = 0
     )
 
     private sealed class ServiceRefreshOutcome {
@@ -820,6 +1017,11 @@ class ProviderBackgroundRefreshService : Service() {
         }
         private const val BRIDGE_NAME = "AIQuotaCollectorBridge"
         private const val INITIAL_AUTO_REFRESH_DELAY_MILLIS = 3_000L
+        private const val GEMINI_USAGE_REDIRECT_MIN_INTERVAL_MS = 1_500L
+        private const val GEMINI_USAGE_REDIRECT_MAX_ATTEMPTS = 2
+        private const val GEMINI_SIGN_IN_CLICK_MAX_ATTEMPTS = 1
+        private const val GEMINI_TERMINAL_CHECK_DELAY_MS = 4_000L
+        private const val GEMINI_TERMINAL_CHECK_FALLBACK_DELAY_MS = 24_000L
         private const val LOGIN_PAGE_REACHED_MESSAGE = "Background refresh reached a provider login page."
         private const val TAG = "AIQuotaBgRefreshService"
         private const val PAGE_CAPTURE_SCRIPT =

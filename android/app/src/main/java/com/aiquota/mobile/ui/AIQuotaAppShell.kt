@@ -77,7 +77,6 @@ import com.aiquota.mobile.local.ThemePreferencesRepository
 import com.aiquota.mobile.local.snapshotUpdatedAtForStatusTransition
 import com.aiquota.mobile.notification.UsageLimitNotificationController
 import com.aiquota.mobile.providers.AntigravityLoopbackOAuthActivity
-import com.aiquota.mobile.providers.GeminiCliLoopbackOAuthActivity
 import com.aiquota.mobile.providers.GlmApiKeyActivity
 import com.aiquota.mobile.providers.ProviderConnectorRegistry
 import com.aiquota.mobile.providers.ProviderHostAllowlist
@@ -280,13 +279,9 @@ fun AIQuotaAppShell(
             return
         }
 
-        if (providerId == ProviderId.GEMINI || providerId == ProviderId.ANTIGRAVITY) {
+        if (providerId == ProviderId.ANTIGRAVITY) {
             val launchResult = runCatching {
-                val intent = if (providerId == ProviderId.GEMINI) {
-                    GeminiCliLoopbackOAuthActivity.createIntent(launchContext)
-                } else {
-                    AntigravityLoopbackOAuthActivity.createIntent(launchContext)
-                }
+                val intent = AntigravityLoopbackOAuthActivity.createIntent(launchContext)
                 if (launchContext !is Activity) {
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }

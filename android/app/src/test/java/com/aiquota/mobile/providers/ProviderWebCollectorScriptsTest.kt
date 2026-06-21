@@ -60,6 +60,8 @@ class ProviderWebCollectorScriptsTest {
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.OPENCODE, "https://opencode.ai/auth", "Sign in to OpenCode"))
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.OPENCODE, "https://auth.opencode.ai/authorize"))
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.OPENCODE, "https://auth.opencode.ai/authorize", "Sign in to OpenCode"))
+        assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.GEMINI, "https://gemini.google.com/app", "Gemini\n3.5 Flash\n로그인\nGemini와의 대화\n개인 AI 어시스턴트인 Gemini를 만나 보세요"))
+        assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.GEMINI, "https://gemini.google.com/usage", "Gemini\n로그인\nGemini와의 대화\n개인 AI 어시스턴트인 Gemini를 만나 보세요"))
 
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CLAUDE, "https://claude.ai/new"))
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CODEX, "https://chatgpt.com/"))
@@ -68,6 +70,7 @@ class ProviderWebCollectorScriptsTest {
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CURSOR, "https://cursor.com/dashboard"))
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.GLM, "https://z.ai/manage-apikey/coding-plan/personal/my-plan"))
         assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.OPENCODE, "https://opencode.ai/auth", "OpenCode Go usage limits"))
+        assertFalse(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.GEMINI, "https://gemini.google.com/usage", "Current usage\nUsage limit\n5-hour limit"))
     }
 
     @Test
@@ -78,7 +81,7 @@ class ProviderWebCollectorScriptsTest {
         assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.COPILOT))
         assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.CURSOR))
         assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.GLM))
-        assertFalse(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.GEMINI))
+        assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.GEMINI))
         assertFalse(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.ANTIGRAVITY))
     }
 
@@ -498,14 +501,16 @@ class ProviderWebCollectorScriptsTest {
     }
 
     @Test
-    fun geminiCollectorRunsOnlyOnAuthenticatedAppShell() {
+    fun geminiCollectorRunsOnUsagePageOrAuthenticatedAppShell() {
         assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.GEMINI, "https://gemini.google.com/app", emptyMap(), "Gemini"))
         assertTrue(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.GEMINI, "https://gemini.google.com/usage", emptyMap(), "Gemini usage"))
-        assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.GEMINI, "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"))
+        assertFalse(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.GEMINI, "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"))
+        assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.GEMINI, "https://gemini.google.com/app"))
         assertTrue(ProviderWebCollectorScripts.shouldRunCollectorOnResource(ProviderId.GEMINI, "https://gemini.google.com/usage"))
 
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.GEMINI, "https://accounts.google.com/signin", emptyMap(), ""))
         assertFalse(ProviderWebCollectorScripts.shouldAcceptCollectorPayload(ProviderId.GEMINI, "https://accounts.google.com/signin"))
+        assertTrue(ProviderWebCollectorScripts.shouldAcceptCollectorPayload(ProviderId.GEMINI, "https://gemini.google.com/app"))
     }
 
     @Test
@@ -524,10 +529,15 @@ class ProviderWebCollectorScriptsTest {
     fun geminiCollectorStopsWithNoTrustedPayloadInsteadOfWaitingForOuterTimeout() {
         val script = ProviderWebCollectorScripts.build(ProviderId.GEMINI, emptyMap(), "")
 
-        assertTrue(script.contains("collectorStartTtlMs = \"gemini\" === \"gemini\" ? 3000 : 30000"))
+        assertTrue(script.contains("collectorStartTtlMs = 30000"))
         assertTrue(script.contains("state.href === href"))
         assertTrue(script.contains("collectAttempts < 6"))
         assertTrue(script.contains("gemini_no_trusted_payload"))
+        assertTrue(script.contains("function clickGeminiSignIn()"))
+        assertTrue(script.contains("c.awaitInteractiveLoginUsage && clickGeminiSignIn()"))
+        assertTrue(script.contains("function(provider, force)"))
+        assertTrue(script.contains("!force && state.provider === provider"))
+        assertTrue(script.contains("__AIQuotaStartProviderCollector(\"gemini\", window.__AIQuotaCollector && window.__AIQuotaCollector.awaitInteractiveLoginUsage)"))
         assertTrue(script.indexOf("setTimeout(collectGeminiUsage, 5000)") < script.indexOf("gemini_no_trusted_payload"))
     }
 
@@ -542,6 +552,171 @@ class ProviderWebCollectorScriptsTest {
 
         assertTrue(script.contains("pageUrl: \"https://gemini.google.com/usage\""))
         assertTrue(script.contains("isGeminiUsagePageUrl(c.pageUrl)"))
+    }
+
+    @Test
+    fun geminiCollectorReportsLoginRequiredOnMarketingShell() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected Gemini runtime checks", node != null)
+
+        val asset = java.io.File("src/main/assets/gemini_collector.js").readText()
+        val gemini = ProviderWebCollectorScripts.build(ProviderId.GEMINI, emptyMap(), asset)
+        val path = Files.createTempFile("ai-quota-gemini-login-required-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            global.window = global;
+            global.location = {
+              hostname: "gemini.google.com",
+              pathname: "/app",
+              href: "https://gemini.google.com/app"
+            };
+            const pageText = "Gemini\n3.5 Flash\n로그인\nGemini와의 대화\n개인 AI 어시스턴트인 Gemini를 만나 보세요";
+            global.document = {
+              title: "Google Gemini",
+              body: { innerText: pageText },
+              documentElement: { innerText: pageText },
+              scripts: [],
+              querySelectorAll: () => []
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.fetch = async function() {
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => "" }; },
+                text: async () => ""
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn) {
+              timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $gemini
+            (async function() {
+              for (let i = 0; i < 4 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              if (posted.length !== 0 || errors.length === 0 || errors[0].errorKind !== "gemini_login_required") {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("Gemini marketing shell was not reported as login-required:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun geminiInteractiveCollectorClicksMarketingShellSignIn() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected Gemini runtime checks", node != null)
+
+        val gemini = ProviderWebCollectorScripts.build(
+            providerId = ProviderId.GEMINI,
+            cookies = emptyMap(),
+            geminiCollectorAsset = "",
+            awaitInteractiveLoginUsage = true
+        )
+        val path = Files.createTempFile("ai-quota-gemini-login-click-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            let clicked = false;
+            global.window = global;
+            global.location = {
+              hostname: "gemini.google.com",
+              pathname: "/app",
+              href: "https://gemini.google.com/app"
+            };
+            const pageText = "Gemini\n3.5 Flash\n로그인\nGemini와의 대화\n개인 AI 어시스턴트인 Gemini를 만나 보세요";
+            const loginElement = {
+              innerText: "로그인",
+              textContent: "로그인",
+              href: "https://accounts.google.com/ServiceLogin?continue=https://gemini.google.com/usage",
+              getAttribute: () => "",
+              click: () => { clicked = true; }
+            };
+            global.document = {
+              title: "Google Gemini",
+              body: { innerText: pageText },
+              documentElement: { innerText: pageText },
+              scripts: [],
+              querySelectorAll: () => [loginElement]
+            };
+            global.localStorage = { length: 0, key: () => null, getItem: () => "" };
+            global.sessionStorage = { length: 0, key: () => null, getItem: () => "" };
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.fetch = async function() {
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => "" }; },
+                text: async () => ""
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn) {
+              timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $gemini
+            (async function() {
+              for (let i = 0; i < 4 && !clicked && location.href.indexOf("accounts.google.com/ServiceLogin") < 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              if ((!clicked && location.href.indexOf("accounts.google.com/ServiceLogin") < 0) || posted.length !== 0 || errors.length !== 0) {
+                console.error(JSON.stringify({ clicked, href: location.href, posted, errors }));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("Gemini marketing shell sign-in was not clicked:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
     }
 
     @Test
@@ -718,8 +893,8 @@ class ProviderWebCollectorScriptsTest {
             global.window = global;
             global.location = {
               hostname: "gemini.google.com",
-              pathname: "/app",
-              href: "https://gemini.google.com/app"
+              pathname: "/usage",
+              href: "https://gemini.google.com/usage"
             };
             global.document = {
               title: "Gemini",
@@ -803,8 +978,8 @@ class ProviderWebCollectorScriptsTest {
             global.window = global;
             global.location = {
               hostname: "gemini.google.com",
-              pathname: "/app",
-              href: "https://gemini.google.com/app"
+              pathname: "/usage",
+              href: "https://gemini.google.com/usage"
             };
             global.document = {
               title: "Gemini",

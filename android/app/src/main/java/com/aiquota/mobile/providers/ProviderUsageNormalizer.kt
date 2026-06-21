@@ -108,13 +108,12 @@ object ProviderUsageNormalizer {
         val limit = optionalNumber("usage")
             ?: optionalNumber("limit")
             ?: optionalNumber("total")
-            ?: return null
         val used = optionalNumber("currentValue")
             ?: optionalNumber("current_value")
             ?: optionalNumber("used")
-            ?: return null
-        if (limit <= 0.0) return null
-        val usedPercent = optionalNumber("percentage") ?: ((used / limit) * 100.0)
+        if (limit != null && limit <= 0.0) return null
+        val usedPercent = optionalNumber("percentage")
+            ?: if (limit != null && used != null) ((used / limit) * 100.0) else return null
         val remainingPercent = ((100.0 - usedPercent).coerceIn(0.0, 100.0) / 100.0).toFloat()
         return ProviderUsageLine(
             key = key,
@@ -122,7 +121,7 @@ object ProviderUsageNormalizer {
             remainingPercent = remainingPercent,
             usedAmount = used,
             limitAmount = limit,
-            remainingAmount = (limit - used).coerceAtLeast(0.0),
+            remainingAmount = if (limit != null && used != null) (limit - used).coerceAtLeast(0.0) else null,
             unit = if (type == "TOKENS_LIMIT") "tokens" else "count",
             resetsAt = glmResetAt(),
             sourceLabel = source.label,
@@ -1826,6 +1825,10 @@ object ProviderUsageNormalizer {
     private fun geminiLineLabel(value: String?): String? {
         val raw = value?.trim()?.lowercase(Locale.US) ?: return null
         val compact = raw.replace(Regex("[^a-z0-9]+"), "")
+        when (compact) {
+            "5hourlimit", "fivehourlimit" -> return "5-hour limit"
+            "weeklylimit", "7daylimit", "sevendaylimit" -> return "Weekly limit"
+        }
         GEMINI_MODEL_LABELS.firstOrNull { (modelId, label) ->
             raw == modelId || raw == label || compact == compactGeminiLabel(modelId) || compact == compactGeminiLabel(label)
         }?.let { return it.second }

@@ -20,7 +20,7 @@ class ProviderAuthStrategyTest {
             ProviderDefinitionRegistry.definitionFor(ProviderId.COPILOT).authStoreKind
         )
         assertEquals(
-            ProviderAuthStoreKind.NATIVE_TOKEN,
+            ProviderAuthStoreKind.WEBVIEW_PROFILE,
             ProviderDefinitionRegistry.definitionFor(ProviderId.GEMINI).authStoreKind
         )
         assertEquals(

@@ -12,11 +12,11 @@ class ProviderRefreshSessionPolicyTest {
         assertFalse(ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(ProviderId.COPILOT))
         assertFalse(ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(ProviderId.CURSOR))
         assertFalse(ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(ProviderId.CODEX))
+        assertFalse(ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(ProviderId.GEMINI))
     }
 
     @Test
     fun nativeTokenProvidersMayClearInvalidStoredCredentialsAfterAuthFailure() {
-        assertTrue(ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(ProviderId.GEMINI))
         assertTrue(ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(ProviderId.ANTIGRAVITY))
     }
 

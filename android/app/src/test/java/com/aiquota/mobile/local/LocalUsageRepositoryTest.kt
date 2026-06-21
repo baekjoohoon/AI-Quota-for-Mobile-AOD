@@ -64,6 +64,22 @@ class LocalUsageRepositoryTest {
     }
 
     @Test
+    fun geminiExplicitLoginRequiredDoesNotStayConnectedBecauseOfPreviousUsage() {
+        val source = java.io.File("src/main/java/com/aiquota/mobile/local/LocalUsageRepository.kt").readText()
+        val failKeepingPrevious = source.substringAfter("fun failKeepingPrevious")
+            .substringBefore("fun markInteractiveAuthRequired")
+        val authMessageClassifier = source.substringAfter("private fun String.isGeminiInteractiveAuthRequiredMessage")
+            .substringBefore("private const val GOOGLE_USAGE_PENDING_MESSAGE")
+
+        assertEquals(true, failKeepingPrevious.contains("providerId == ProviderId.GEMINI"))
+        assertEquals(true, failKeepingPrevious.contains("message.isGeminiInteractiveAuthRequiredMessage()"))
+        assertEquals(true, failKeepingPrevious.contains("ProviderUsageSnapshot.interactiveAuthRequiredKeepingPrevious"))
+        assertEquals(true, failKeepingPrevious.indexOf("message.isGeminiInteractiveAuthRequiredMessage()") < failKeepingPrevious.indexOf("message.isRecoverableGoogleUsageFailureMessage()"))
+        assertEquals(true, authMessageClassifier.contains("gemini login is required."))
+        assertEquals(true, authMessageClassifier.contains("background refresh reached a provider login page."))
+    }
+
+    @Test
     fun googleCollectingWithoutTrustedUsageIsRecoveredToPendingIdleState() {
         val snapshot = ProviderUsageSnapshot(
             providerId = ProviderId.GEMINI,

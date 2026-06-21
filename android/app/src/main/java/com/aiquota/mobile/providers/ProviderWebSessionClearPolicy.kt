@@ -17,8 +17,7 @@ object ProviderWebSessionClearPolicy {
     fun cookieUrls(providerId: ProviderId): List<String> {
         return when (providerId) {
             ProviderId.CLAUDE -> listOf(
-                "https://claude.ai",
-                "https://accounts.google.com"
+                "https://claude.ai"
             )
             ProviderId.CODEX -> listOf(
                 "https://chatgpt.com",
@@ -34,12 +33,10 @@ object ProviderWebSessionClearPolicy {
                 "https://chat.openai.com",
                 "https://auth.openai.com",
                 "https://auth.openai.com/authorize",
-                "https://auth.openai.com/u/login",
-                "https://accounts.google.com"
+                "https://auth.openai.com/u/login"
             )
             ProviderId.GEMINI -> listOf(
                 "https://gemini.google.com",
-                "https://accounts.google.com",
                 "https://oauth2.googleapis.com"
             )
             ProviderId.COPILOT -> listOf(
@@ -48,7 +45,6 @@ object ProviderWebSessionClearPolicy {
             ProviderId.ANTIGRAVITY -> listOf(
                 "https://antigravity.google",
                 "https://www.antigravity.google",
-                "https://accounts.google.com",
                 "https://oauth2.googleapis.com"
             )
             ProviderId.CURSOR -> listOf(
@@ -60,22 +56,18 @@ object ProviderWebSessionClearPolicy {
                 "https://api.workos.com",
                 "https://auth.workos.com",
                 "https://workos.com",
-                "https://github.com",
-                "https://accounts.google.com"
+                "https://github.com"
             )
             ProviderId.GLM -> listOf(
                 "https://z.ai",
                 "https://www.z.ai",
                 "https://chat.z.ai",
-                "https://api.z.ai",
-                "https://accounts.google.com"
+                "https://api.z.ai"
             )
             ProviderId.OPENCODE -> listOf(
                 "https://opencode.ai",
                 "https://opencode.ai/auth",
-                "https://www.opencode.ai",
-                "https://accounts.google.com",
-                "https://github.com"
+                "https://www.opencode.ai"
             )
         }
     }
@@ -125,11 +117,15 @@ object ProviderWebSessionClearPolicy {
         val host = runCatching { URI(url.orEmpty()).host.orEmpty().lowercase() }.getOrDefault("")
         if (host.isBlank() || host == "localhost" || host == "127.0.0.1") return emptyList()
         val domains = mutableListOf(host, ".$host")
-        parentCookieDomain(host)?.let { parent ->
+        parentCookieDomain(host)?.takeUnless { isSharedGoogleIdentityParent(host, it) }?.let { parent ->
             domains += parent
             domains += ".$parent"
         }
         return domains.distinct()
+    }
+
+    private fun isSharedGoogleIdentityParent(host: String, parent: String): Boolean {
+        return parent == "google.com" && host != parent
     }
 
     private fun parentCookieDomain(host: String): String? {

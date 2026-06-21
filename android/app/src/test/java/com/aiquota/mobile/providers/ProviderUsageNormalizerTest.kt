@@ -282,6 +282,54 @@ class ProviderUsageNormalizerTest {
     }
 
     @Test
+    fun glmQuotaLimitResponseKeepsPercentageOnlyTokenLimits() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.GLM,
+            """
+            {
+              "code": 200,
+              "msg": "success",
+              "success": true,
+              "data": {
+                "limits": [
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "unit": 3,
+                    "number": 5,
+                    "percentage": 25,
+                    "nextResetTime": 1792537200000
+                  },
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "unit": 6,
+                    "number": 7,
+                    "percentage": 40
+                  },
+                  {
+                    "type": "TIME_LIMIT",
+                    "usage": 500,
+                    "currentValue": 125,
+                    "percentage": 25
+                  }
+                ]
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.PROVIDER_API
+        )!!
+
+        assertEquals(
+            listOf("5-Hour Token Limit", "Weekly Token Limit", "MCP Monthly Quota"),
+            snapshot.lines.map { it.label }
+        )
+        assertEquals(0.75f, snapshot.lines.single { it.key == "glm:tokens" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.60f, snapshot.lines.single { it.key == "glm:weekly_tokens" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals("2026-10-20T23:00:00Z", snapshot.lines.single { it.key == "glm:tokens" }.resetsAt)
+        assertNull(snapshot.lines.single { it.key == "glm:tokens" }.usedAmount)
+        assertNull(snapshot.lines.single { it.key == "glm:tokens" }.limitAmount)
+    }
+
+    @Test
     fun glmWebPayloadSeparatesFiveHourAndWeeklyTokenLimits() {
         val snapshot = ProviderUsageNormalizer.normalize(
             ProviderId.GLM,
@@ -905,15 +953,15 @@ class ProviderUsageNormalizerTest {
     }
 
     @Test
-    fun geminiUsagePageCollapsedLimitPayloadIsRejected() {
+    fun geminiUsagePageLimitPayloadNormalizesDomRows() {
         val snapshot = ProviderUsageNormalizer.normalize(
             ProviderId.GEMINI,
             """
             {
-              "account": {"p": "GEMINI_FREE"},
+              "account": {"p": "GEMINI_PRO", "e": "user@example.com"},
               "usage": {
                 "x": [
-                  {"l": "5-hour limit", "u": 0, "t": "오후 5:56에 초기화"},
+                  {"l": "5-hour limit", "u": 0.04, "t": "오후 5:56에 초기화"},
                   {"l": "Weekly limit", "u": 0, "t": "6월 4일 오후 12:56에 초기화"}
                 ]
               }
@@ -922,7 +970,16 @@ class ProviderUsageNormalizerTest {
             ProviderPayloadSource.STRUCTURED_SCRIPT
         )
 
-        assertNull(snapshot)
+        assertNotNull(snapshot)
+        snapshot!!
+        assertEquals("Pro", snapshot.plan)
+        assertEquals("user@example.com", snapshot.account)
+        assertEquals(listOf("5-hour limit", "Weekly limit"), snapshot.lines.map { it.label })
+        assertEquals(listOf("gemini:5_hour_limit", "gemini:weekly_limit"), snapshot.lines.map { it.key })
+        assertEquals(0.96f, snapshot.lines[0].remainingPercent ?: 0f, 0.001f)
+        assertEquals(1.0f, snapshot.lines[1].remainingPercent ?: 0f, 0.001f)
+        assertEquals("오후 5:56에 초기화", snapshot.lines[0].resetText)
+        assertEquals("6월 4일 오후 12:56에 초기화", snapshot.lines[1].resetText)
     }
 
     @Test

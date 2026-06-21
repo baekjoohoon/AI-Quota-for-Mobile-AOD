@@ -64,7 +64,6 @@ class ProviderWebSessionClearPolicyTest {
     @Test
     fun explicitDisconnectUsesProviderScopedCookieUrls() {
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CLAUDE).contains("https://claude.ai"))
-        assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CLAUDE).contains("https://accounts.google.com"))
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CODEX).contains("https://chatgpt.com"))
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CODEX).contains("https://chatgpt.com/api/auth/session"))
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CODEX).contains("https://chatgpt.com/backend-api/me"))
@@ -75,10 +74,8 @@ class ProviderWebSessionClearPolicyTest {
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CODEX).contains("https://sentinel.openai.com"))
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CODEX).contains("https://oaistatic.com"))
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.GEMINI).contains("https://gemini.google.com"))
-        assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.GEMINI).contains("https://accounts.google.com"))
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.COPILOT).contains("https://github.com"))
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.ANTIGRAVITY).contains("https://antigravity.google"))
-        assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.ANTIGRAVITY).contains("https://accounts.google.com"))
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CURSOR).contains("https://cursor.com"))
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CURSOR).contains("https://auth.workos.com"))
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CURSOR).contains("https://github.com"))
@@ -87,10 +84,16 @@ class ProviderWebSessionClearPolicyTest {
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.GLM).contains("https://api.z.ai"))
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.OPENCODE).contains("https://opencode.ai"))
         assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.OPENCODE).contains("https://opencode.ai/auth"))
-        assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.OPENCODE).contains("https://accounts.google.com"))
-        assertTrue(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.OPENCODE).contains("https://github.com"))
 
         assertFalse(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CODEX).contains("https://github.com"))
+        assertFalse(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CLAUDE).contains("https://accounts.google.com"))
+        assertFalse(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CODEX).contains("https://accounts.google.com"))
+        assertFalse(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.GEMINI).contains("https://accounts.google.com"))
+        assertFalse(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.ANTIGRAVITY).contains("https://accounts.google.com"))
+        assertFalse(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.CURSOR).contains("https://accounts.google.com"))
+        assertFalse(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.GLM).contains("https://accounts.google.com"))
+        assertFalse(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.OPENCODE).contains("https://accounts.google.com"))
+        assertFalse(ProviderWebSessionClearPolicy.cookieUrls(ProviderId.OPENCODE).contains("https://github.com"))
     }
 
     @Test
@@ -158,14 +161,16 @@ class ProviderWebSessionClearPolicyTest {
     }
 
     @Test
-    fun expiringCookieHeadersIncludeParentDomainVariantsForOauthSubdomains() {
+    fun expiringCookieHeadersPreserveSharedGoogleIdentityParentDomain() {
         val headers = ProviderWebSessionClearPolicy.expiringCookieHeaders(
             cookieHeader = "sso=secret",
-            url = "https://accounts.google.com"
+            url = "https://gemini.google.com"
         )
 
-        assertTrue(headers.contains("sso=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=google.com"))
-        assertTrue(headers.contains("sso=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=.google.com"))
+        assertTrue(headers.contains("sso=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=gemini.google.com"))
+        assertTrue(headers.contains("sso=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=.gemini.google.com"))
+        assertFalse(headers.contains("sso=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=google.com"))
+        assertFalse(headers.contains("sso=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=.google.com"))
         assertFalse(headers.joinToString("\n").contains("secret"))
     }
 

@@ -115,7 +115,6 @@
     <string name="provider_status_auth_required">Connection needs attention</string>
     <string name="provider_status_error">Error</string>
     <string name="provider_last_known_usage">%1$s</string>
-    <string name="provider_coming_soon_message">Business account usage collection is being prepared.</string>
     <string name="provider_login_unavailable_message">Local web login is unavailable for %1$s.</string>
     <string name="provider_login_opened_message">Login opened. Subscription limits will be checked locally after sign-in.</string>
     <string name="provider_login_connected_message">Login confirmed. Connection saved on this device.</string>

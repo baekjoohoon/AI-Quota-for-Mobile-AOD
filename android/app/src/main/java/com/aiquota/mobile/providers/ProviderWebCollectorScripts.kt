@@ -75,6 +75,10 @@ object ProviderWebCollectorScripts {
             return (path == "/auth" || path.contains("login") || path.contains("signin")) &&
                 looksLikeOpenCodeLoginText(text)
         }
+        if (providerId == ProviderId.GEMINI) {
+            if (!GeminiUsagePageRoutes.isLoginLandingUrl(url) && !GeminiUsagePageRoutes.isUsageUrl(url)) return false
+            return looksLikeGeminiLoginText(pageText)
+        }
         if (providerId == ProviderId.CURSOR) {
             if (host !in CURSOR_AUTH_EXCHANGE_HOSTS &&
                 host != "cursor.com" &&
@@ -88,6 +92,26 @@ object ProviderWebCollectorScripts {
                 looksLikeCursorLoginText(text)
         }
         return false
+    }
+
+    private fun looksLikeGeminiLoginText(pageText: String): Boolean {
+        val text = pageText.lowercase(Locale.US)
+        if (text.isBlank()) return false
+        val hasUsage = text.contains("usage limit") ||
+            text.contains("current usage") ||
+            text.contains("5-hour") ||
+            text.contains("weekly") ||
+            text.contains("사용량") ||
+            text.contains("한도")
+        if (hasUsage) return false
+        val hasLoginAction = text.contains("로그인") ||
+            text.contains("sign in") ||
+            text.contains("log in")
+        val hasGeminiLandingCopy = text.contains("gemini와의 대화") ||
+            text.contains("개인 ai") ||
+            text.contains("meet gemini") ||
+            text.contains("personal ai")
+        return hasLoginAction && hasGeminiLandingCopy
     }
 
     fun shouldRunCollector(providerId: ProviderId, url: String, cookies: Map<String, String>, pageText: String): Boolean {
@@ -178,8 +202,8 @@ object ProviderWebCollectorScripts {
             ProviderId.OPENCODE,
             ProviderId.COPILOT,
             ProviderId.CURSOR,
-            ProviderId.GLM -> true
-            ProviderId.GEMINI,
+            ProviderId.GLM,
+            ProviderId.GEMINI -> true
             ProviderId.ANTIGRAVITY -> false
         }
     }
@@ -282,8 +306,7 @@ object ProviderWebCollectorScripts {
                         path == "/api/usage-summary" ||
                         path == "/api/dashboard/get-credit-grants-balance")
             ProviderId.GEMINI ->
-                (host == "cloudcode-pa.googleapis.com" && path.contains("v1internal")) ||
-                    (host == "gemini.google.com" && (path.startsWith("/app") || path.startsWith("/usage")))
+                host == "gemini.google.com" && (path.startsWith("/app") || path.startsWith("/usage"))
             ProviderId.COPILOT ->
                 (host == "github.com" &&
                     (path == "/github-copilot/chat/entitlement" ||
@@ -388,13 +411,13 @@ object ProviderWebCollectorScripts {
         return """
             (function(){
               if (!window.__AIQuotaStartProviderCollector) {
-                window.__AIQuotaStartProviderCollector = function(provider) {
+                window.__AIQuotaStartProviderCollector = function(provider, force) {
                   var now = Date.now ? Date.now() : new Date().getTime();
-                  var collectorStartTtlMs = "${providerId.storageId}" === "gemini" ? 3000 : 30000;
+                  var collectorStartTtlMs = 30000;
                   var href = "";
                   try { href = String(location && location.href || ""); } catch (error) {}
                   var state = window.__AIQuotaProviderCollectorState || {};
-                  if (state.provider === provider && state.href === href && now - (state.startedAt || 0) < collectorStartTtlMs) {
+                  if (!force && state.provider === provider && state.href === href && now - (state.startedAt || 0) < collectorStartTtlMs) {
                     return false;
                   }
                   window.__AIQuotaProviderCollectorState = {
@@ -1978,7 +2001,9 @@ object ProviderWebCollectorScripts {
         }
         return """
             (function(){
-              if (!window.__AIQuotaStartProviderCollector || !window.__AIQuotaStartProviderCollector("gemini")) return;
+              if (!window.__AIQuotaStartProviderCollector ||
+                !window.__AIQuotaStartProviderCollector("gemini", window.__AIQuotaCollector && window.__AIQuotaCollector.awaitInteractiveLoginUsage)
+              ) return;
               function safeText(value) { return value === null || value === undefined ? "" : String(value); }
               function parseNumber(value) { var n = Number(value); return Number.isFinite(n) ? n : null; }
               function isNumber(value) { return typeof value === "number" && Number.isFinite(value); }
@@ -2096,6 +2121,49 @@ object ProviderWebCollectorScripts {
                 var text = safeText(value);
                 return /^https?:\/\/([^\/]+\.)?gemini\.google\.com\/usage(?:[/?#]|${'$'})/i.test(text);
               }
+              function looksLikeGeminiLoginText(value) {
+                var text = safeText(value).toLowerCase();
+                if (!text) return false;
+                if (
+                  text.indexOf("usage limit") >= 0 ||
+                  text.indexOf("current usage") >= 0 ||
+                  text.indexOf("5-hour") >= 0 ||
+                  text.indexOf("weekly") >= 0 ||
+                  text.indexOf("사용량") >= 0 ||
+                  text.indexOf("한도") >= 0
+                ) return false;
+                var hasLoginAction = text.indexOf("로그인") >= 0 ||
+                  text.indexOf("sign in") >= 0 ||
+                  text.indexOf("log in") >= 0;
+                var hasGeminiLandingCopy = text.indexOf("gemini와의 대화") >= 0 ||
+                  text.indexOf("개인 ai") >= 0 ||
+                  text.indexOf("meet gemini") >= 0 ||
+                  text.indexOf("personal ai") >= 0;
+                return hasLoginAction && hasGeminiLandingCopy;
+              }
+              function clickGeminiSignIn() {
+                window.__AIQuotaGeminiSignInClicks = window.__AIQuotaGeminiSignInClicks || 0;
+                if (window.__AIQuotaGeminiSignInClicks >= 2) return false;
+                var labels = ["로그인", "sign in", "log in"];
+                var elements = Array.prototype.slice.call(document.querySelectorAll("a, button, [role='button']"));
+                for (var i = 0; i < elements.length; i += 1) {
+                  var text = safeText(elements[i].innerText || elements[i].textContent).trim().toLowerCase();
+                  var href = safeText(elements[i].href || elements[i].getAttribute && elements[i].getAttribute("href") || "");
+                  if (!text && !href) continue;
+                  for (var j = 0; j < labels.length; j += 1) {
+                    if (text.indexOf(labels[j]) >= 0 || href.indexOf("accounts.google.com/ServiceLogin") >= 0) {
+                      window.__AIQuotaGeminiSignInClicks += 1;
+                      if (href.indexOf("accounts.google.com/ServiceLogin") >= 0) {
+                        location.href = href;
+                      } else {
+                        elements[i].click();
+                      }
+                      return true;
+                    }
+                  }
+                }
+                return false;
+              }
               window.PROVIDER_ID = "gemini";
               $collectorAsset
               var c = window.__AIQuotaCollector;
@@ -2108,6 +2176,13 @@ object ProviderWebCollectorScripts {
                   var rows = c.rows().concat(window.__AIQuotaGeminiNetworkRows || []);
                   var visibleText = c.text ? c.text() : (c.pageText || "");
                   var limits = [];
+                  if (looksLikeGeminiLoginText(visibleText)) {
+                    if (c.awaitInteractiveLoginUsage && clickGeminiSignIn()) {
+                      return true;
+                    }
+                    c.fail("gemini_login_required", "Gemini login is required.");
+                    return true;
+                  }
                   rows.forEach(function(row) {
                     extractJsonCandidates(row).forEach(function(candidate) {
                       try { scanGeminiQuotaResponse(JSON.parse(candidate), ["root"], "page-state", limits); } catch (error) {}

@@ -16,6 +16,7 @@ data class GlmUsageResult(
 
 object GlmProviderUrls {
     const val WEB_OAUTH_URL = "https://z.ai/manage-apikey/coding-plan/personal/my-plan"
+    const val WEB_USAGE_URL = "https://z.ai/manage-apikey/coding-plan/personal/usage"
     const val API_QUOTA_URL = "https://api.z.ai/api/monitor/usage/quota/limit"
 }
 
@@ -124,11 +125,12 @@ object GlmUsageFetcher {
     }
 
     internal fun fetchUsagePayload(apiKey: String, endpointUrl: String): GlmUsageResult {
-        val rawResult = executeFetch(apiKey, endpointUrl, authorizationHeader = apiKey)
-        if (rawResult.shouldRetryWithBearer()) {
-            return executeFetch(apiKey, endpointUrl, authorizationHeader = "Bearer ${apiKey.trim()}")
+        val bearerResult = executeFetch(apiKey, endpointUrl, authorizationHeader = "Bearer ${apiKey.trim()}")
+        if (bearerResult.shouldRetryWithoutBearer() || bearerResult.isMcpOnlyQuotaPayload()) {
+            val rawResult = executeFetch(apiKey, endpointUrl, authorizationHeader = apiKey)
+            if (rawResult.hasTokenQuotaPayload() || bearerResult.payload == null) return rawResult
         }
-        return rawResult
+        return bearerResult
     }
 
     private fun executeFetch(apiKey: String, endpointUrl: String, authorizationHeader: String): GlmUsageResult {
@@ -174,8 +176,18 @@ object GlmUsageFetcher {
         }
     }
 
-    private fun GlmUsageResult.shouldRetryWithBearer(): Boolean {
+    private fun GlmUsageResult.shouldRetryWithoutBearer(): Boolean {
         return requiresAuth || diagnostic == "glm_http_400" || diagnostic == "glm_http_404"
+    }
+
+    private fun GlmUsageResult.hasTokenQuotaPayload(): Boolean {
+        val json = payload?.let { runCatching { JSONObject(it) }.getOrNull() } ?: return false
+        return json.hasGlmQuotaLimitType("TOKENS_LIMIT")
+    }
+
+    private fun GlmUsageResult.isMcpOnlyQuotaPayload(): Boolean {
+        val json = payload?.let { runCatching { JSONObject(it) }.getOrNull() } ?: return false
+        return json.hasGlmQuotaLimitType("TIME_LIMIT") && !json.hasGlmQuotaLimitType("TOKENS_LIMIT")
     }
 
     private fun JSONObject.looksLikeAuthFailure(): Boolean {
@@ -189,6 +201,14 @@ object GlmUsageFetcher {
 
     private fun JSONObject.hasGlmQuotaLimits(): Boolean {
         return (optJSONObject("data") ?: this).optJSONArray("limits")?.length()?.let { it > 0 } == true
+    }
+
+    private fun JSONObject.hasGlmQuotaLimitType(type: String): Boolean {
+        val limits = (optJSONObject("data") ?: this).optJSONArray("limits") ?: return false
+        for (index in 0 until limits.length()) {
+            if (limits.optJSONObject(index)?.optString("type") == type) return true
+        }
+        return false
     }
 
     private fun JSONObject.glmQuotaDiagnostic(): String {

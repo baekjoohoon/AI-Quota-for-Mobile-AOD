@@ -87,7 +87,8 @@ class ProviderBackgroundRefreshServicePolicyTest {
         val failureBranch = service.substringAfter("is ServiceRefreshOutcome.Failure ->")
             .substringBefore("if (ProviderHiddenWebViewRetentionPolicy")
 
-        assertTrue(authFailureHandler.contains("repository.failKeepingPrevious(providerId, message)"))
+        assertTrue(automaticBranch.contains("repository.failKeepingPrevious(providerId, message)"))
+        assertFalse(automaticBranch.contains("repository.markInteractiveAuthRequired(providerId, message)"))
         assertTrue(authFailureHandler.contains("return"))
         assertFalse(automaticBranch.contains("ProviderSessionResetter(applicationContext).disconnect"))
         assertFalse(automaticBranch.contains("repository.markSessionExpired"))
@@ -125,18 +126,173 @@ class ProviderBackgroundRefreshServicePolicyTest {
     }
 
     @Test
-    fun serviceWebCollectorCanReinjectAfterInitialPageStartInjection() {
+    fun glmAndOpenCodeRefreshAreCollectedInsteadOfDiagnosticPassed() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val refreshProvider = service.substringAfter("private suspend fun refreshProvider")
+            .substringBefore("private fun resolveRuntimeRefreshJob")
+
+        assertFalse(refreshProvider.contains("shouldPassRefreshForDiagnostics(effectiveJob.providerId)"))
+        assertFalse(refreshProvider.contains("reason=diagnostic_pass"))
+        assertFalse(service.contains("private fun shouldPassRefreshForDiagnostics"))
+    }
+
+    @Test
+    fun glmWebOAuthBackgroundRefreshStartsFromUsagePage() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val runtimeResolver = service.substringAfter("private fun resolveRuntimeRefreshJob")
+            .substringBefore("private fun handleRefreshAuthFailure")
+
+        assertTrue(runtimeResolver.contains("GlmRuntimeRefreshJobs.resolve("))
+        assertFalse(runtimeResolver.contains("startUrl = GlmProviderUrls.WEB_OAUTH_URL"))
+    }
+
+    @Test
+    fun opencodeBackgroundRefreshRedirectsWorkspaceShellToGoUsagePage() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val redirect = service.substringAfter("private fun maybeRedirectOpenCodeRefreshToGo")
+            .substringBefore("private fun maybeRedirectGeminiRefreshToUsage")
+        val pageStarted = service.substringAfter("override fun onPageStarted")
+            .substringBefore("override fun shouldOverrideUrlLoading")
+        val pageFinished = service.substringAfter("override fun onPageFinished")
+            .substringBefore("override fun onReceivedError")
+
+        assertTrue(redirect.contains("active.job.providerId != ProviderId.OPENCODE"))
+        assertTrue(redirect.contains("OpenCodeUsagePageRoutes.goUsageUrlFrom(url)"))
+        assertTrue(redirect.contains("saveOpenCodeUsageUrl(goUsageUrl)"))
+        assertTrue(redirect.contains("view.loadUrl(goUsageUrl)"))
+        assertTrue(pageStarted.contains("maybeRedirectOpenCodeRefreshToGo(active, view, url)"))
+        assertTrue(pageFinished.contains("maybeRedirectOpenCodeRefreshToGo(active, view, url)"))
+    }
+
+    @Test
+    fun serviceWebCollectorUsesProductionReinjectionPolicyWithoutRunIdState() {
         val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
         val injectBlock = service.substringAfter("private fun injectCollectorIfReady")
             .substringBefore("private inner class ServiceCollectorWebViewClient")
 
         assertTrue(injectBlock.contains("val firstInjectionForPage = collectorInjectionKeys.add(injectionKey)"))
         assertTrue(injectBlock.contains("ProviderWebCollectorScripts.shouldAllowCollectorReinjection(providerId)"))
+        assertFalse(injectBlock.contains("CollectorInjectionTrigger"))
+        assertFalse(injectBlock.contains("collectorInjectionCounts"))
+        assertFalse(service.contains("MAX_COLLECTOR_REINJECTIONS_PER_PAGE"))
         assertTrue(injectBlock.contains("\"reinject\""))
+        assertFalse(injectBlock.contains("collectorRunId = active.requestId.toString()"))
     }
 
     @Test
-    fun manualWebSessionAuthFailuresKeepPreviousUsageButNativeTokenAuthFailuresExpireSession() {
+    fun geminiBackgroundRefreshRedirectsAppShellBackToUsagePage() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val redirect = service.substringAfter("private fun maybeRedirectGeminiRefreshToUsage")
+            .substringBefore("private inner class ServiceCollectorWebViewClient")
+        val pageStarted = service.substringAfter("override fun onPageStarted")
+            .substringBefore("override fun shouldOverrideUrlLoading")
+        val shouldOverride = service.substringAfter("override fun shouldOverrideUrlLoading")
+            .substringBefore("override fun shouldInterceptRequest")
+        val pageFinished = service.substringAfter("override fun onPageFinished")
+            .substringBefore("override fun onReceivedError")
+
+        assertTrue(redirect.contains("providerId != ProviderId.GEMINI"))
+        assertTrue(redirect.contains("GeminiUsagePageRoutes.isUsageUrl(url)"))
+        assertTrue(redirect.contains("GeminiUsagePageRoutes.usageUrlFrom(url)"))
+        assertTrue(redirect.contains("view.loadUrl(usageUrl)"))
+        assertTrue(redirect.contains("active.geminiUsageRedirectAttempts >= GEMINI_USAGE_REDIRECT_MAX_ATTEMPTS"))
+        assertTrue(service.contains("private fun maybeScheduleGeminiTerminalCheck"))
+        assertTrue(service.contains("GeminiUsagePageRoutes.isLoginLandingUrl(url)"))
+        assertTrue(service.contains("GeminiUsagePageRoutes.isUsageUrl(url)"))
+        assertTrue(service.contains("GEMINI_TERMINAL_CHECK_DELAY_MS"))
+        assertTrue(service.contains("GEMINI_TERMINAL_CHECK_FALLBACK_DELAY_MS"))
+        assertTrue(service.contains("private const val GEMINI_TERMINAL_CHECK_DELAY_MS = 4_000L"))
+        assertTrue(service.contains("private const val GEMINI_TERMINAL_CHECK_FALLBACK_DELAY_MS = 24_000L"))
+        assertTrue(service.contains("ProviderRefreshFailureKind.NO_TRUSTED_PAYLOAD"))
+        assertTrue(service.contains("if (ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.GEMINI, pageUrl, pageText))"))
+        assertTrue(pageStarted.contains("maybeRedirectGeminiRefreshToUsage(active, view, url)"))
+        assertTrue(pageFinished.contains("maybeRedirectGeminiRefreshToUsage(active, view, url)"))
+        assertTrue(pageFinished.contains("maybeScheduleGeminiTerminalCheck(active, view, url)"))
+        assertTrue(shouldOverride.contains("shouldWaitForGeminiRefreshSignInRedirect(active, url)"))
+        assertTrue(shouldOverride.contains("allowSignInRedirect provider=gemini"))
+        assertTrue(shouldOverride.contains("return false"))
+        assertTrue(service.contains("awaitInteractiveLoginUsage = providerId == ProviderId.GEMINI"))
+        assertTrue(service.contains("private fun maybeClickGeminiRefreshSignIn"))
+        assertTrue(service.contains("clickSignIn provider=gemini"))
+        assertTrue(service.contains("private fun shouldWaitForGeminiRefreshSignInRedirect"))
+        assertTrue(service.contains("private fun isGeminiRefreshInteractiveSignInPage"))
+        assertTrue(service.contains("interactiveSignInRequired provider=gemini"))
+        assertTrue(service.contains("path.contains(\"/signin/identifier\")"))
+        assertTrue(service.contains("GEMINI_SIGN_IN_CLICK_MAX_ATTEMPTS"))
+    }
+
+    @Test
+    fun timedOutWebCollectorsAndBridgePayloadsMatchProductionFlow() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val webCollector = service.substringAfter("private suspend fun collectWebProviderUsage")
+            .substringBefore("@SuppressLint(\"SetJavaScriptEnabled\")")
+        val bridge = service.substringAfter("private inner class ServiceUsageBridge")
+            .substringBefore("private class ServiceCollectorChromeClient")
+
+        assertFalse(webCollector.contains("if (result == null)"))
+        assertFalse(webCollector.contains("destroyProviderWebView(job.providerId)"))
+        assertFalse(bridge.contains("bridgePayloadForActiveRequest(rawPayload, active)"))
+        assertFalse(bridge.contains("bridgeMessageMatchesActiveRequest(rawError"))
+        assertFalse(bridge.contains("json.remove(\"collectorRunId\")"))
+        assertFalse(bridge.contains("reason=stale_collector"))
+        assertTrue(bridge.contains("completeWebJob(active.requestId, ServiceRefreshOutcome.Payload(rawPayload))"))
+    }
+
+    @Test
+    fun codexBackgroundRefreshDoesNotUseNonProductionPostAuthRedirect() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val pageStarted = service.substringAfter("override fun onPageStarted")
+            .substringBefore("override fun shouldOverrideUrlLoading")
+        val pageFinished = service.substringAfter("override fun onPageFinished")
+            .substringBefore("override fun onReceivedError")
+
+        assertFalse(service.contains("maybeRedirectCodexPostAuthToUsage"))
+        assertFalse(service.contains("CODEX_CALLBACK_RECOVERY_URL"))
+        assertFalse(service.contains("codexPostAuthRedirected"))
+        assertFalse(pageStarted.contains("ProviderLoginStrategy.shouldRedirectCodexPostAuthLandingToUsage"))
+        assertFalse(pageFinished.contains("ProviderLoginStrategy.shouldRedirectCodexPostAuthLandingToUsage"))
+    }
+
+    @Test
+    fun codexBackgroundRefreshDoesNotUseNonProductionRouteApplicationErrorFallback() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val pageFinished = service.substringAfter("override fun onPageFinished")
+            .substringBefore("override fun onReceivedError")
+
+        assertFalse(pageFinished.contains("ProviderLoginStrategy.isCodexRouteApplicationError(url, pageText)"))
+        assertFalse(service.contains("maybeRecoverCodexUsageRouteApplicationError"))
+        assertFalse(pageFinished.contains("Codex usage route returned an application error."))
+        assertFalse(service.contains("codexUsageRouteFallbackAttempted"))
+    }
+
+    @Test
+    fun codexBackgroundRefreshDoesNotUseNonProductionSettingsUsageFallback() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val pageFinished = service.substringAfter("override fun onPageFinished")
+            .substringBefore("override fun onReceivedError")
+
+        assertFalse(service.contains("maybeFallbackCodexRootToSettingsUsage"))
+        assertFalse(service.contains("CODEX_SETTINGS_USAGE_URL"))
+        assertFalse(pageFinished.contains("maybeFallbackCodexRootToSettingsUsage(active, view, url)"))
+        assertFalse(service.contains("codexPostAuthRootFinishes"))
+        assertFalse(service.contains("codexSettingsUsageFallbackAttempted"))
+    }
+
+    @Test
+    fun codexBackgroundRefreshDoesNotDeferLoginPageFailureAfterPostAuthRoot() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val pageFinished = service.substringAfter("override fun onPageFinished")
+            .substringBefore("override fun onReceivedError")
+        val loadResource = service.substringAfter("override fun onLoadResource")
+            .substringBefore("override fun onPageFinished")
+
+        assertFalse(service.contains("shouldDeferCodexPostAuthLandingLoginPageFailure"))
+        assertFalse(pageFinished.contains("!shouldDeferCodexPostAuthLandingLoginPageFailure(active, url)"))
+        assertFalse(loadResource.contains("!shouldDeferCodexPostAuthLandingLoginPageFailure(active, pageUrl)"))
+    }
+
+    @Test
+    fun manualWebAuthFailuresKeepPreviousUsageButNativeTokenFailuresExpireSession() {
         val repository = File("src/main/java/com/aiquota/mobile/local/LocalUsageRepository.kt").readText()
         val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
         val authFailureHandler = service.substringAfter("private fun handleRefreshAuthFailure")
@@ -144,11 +300,12 @@ class ProviderBackgroundRefreshServicePolicyTest {
 
         assertTrue(repository.contains("fun markSessionExpired(providerId: ProviderId, message: String)"))
         assertTrue(repository.contains("ProviderUsageSnapshot.disconnected(providerId).copy("))
-        assertTrue(authFailureHandler.contains("repository.failKeepingPrevious(providerId, message)"))
+        assertFalse(authFailureHandler.contains("repository.markInteractiveAuthRequired(providerId, message)"))
         assertTrue(authFailureHandler.contains("!ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(providerId)"))
+        assertTrue(authFailureHandler.contains("repository.failKeepingPrevious(providerId, message)"))
         assertTrue(authFailureHandler.contains("ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(providerId)"))
+        assertTrue(authFailureHandler.contains("ProviderSessionResetter(applicationContext).disconnect(providerId)"))
         assertTrue(authFailureHandler.contains("repository.markSessionExpired(providerId, message)"))
-        assertFalse(authFailureHandler.contains("repository.markInteractiveAuthRequired("))
     }
 
     @Test
@@ -170,6 +327,28 @@ class ProviderBackgroundRefreshServicePolicyTest {
         assertTrue(nativeRefresh.contains("withContext(Dispatchers.IO)"))
         assertTrue(nativeRefresh.contains("GeminiCliOAuthRepository(applicationContext).fetchUsagePayloadFromStoredCredential()"))
         assertTrue(nativeRefresh.contains("AntigravityOAuthRepository(applicationContext).fetchUsagePayloadFromStoredCredential()"))
+        assertFalse(nativeRefresh.contains("lastFailureDiagnostic()"))
+    }
+
+    @Test
+    fun nativeGoogleRefreshFallsBackToWebSessionWhenStoredTokenHasNoPayload() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val nativeRefresh = service.substringAfter("private suspend fun collectNativeProviderUsage")
+            .substringBefore("private suspend fun collectWebProviderUsage")
+
+        assertTrue(nativeRefresh.contains("GoogleWebSessionCodeAssistFetcher.hasSessionCookie"))
+        assertTrue(nativeRefresh.contains("GoogleWebSessionCodeAssistFetcher.fetchUsagePayload"))
+    }
+
+    @Test
+    fun nativeFetchJavascriptBridgeUsesProductionWebViewUrlGuard() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val bridge = service.substringAfter("private inner class ServiceUsageBridge")
+            .substringBefore("private class ServiceCollectorChromeClient")
+        val nativeFetchGuard = bridge.substringAfter("private fun isNativeFetchBridgePageAllowed")
+
+        assertTrue(nativeFetchGuard.contains("retainedWebViews[providerId]?.url"))
+        assertFalse(nativeFetchGuard.contains("webJobLastUrls[active.requestId]"))
     }
 
     @Test

@@ -177,6 +177,16 @@ class LocalUsageRepository(context: Context) {
     }
 
     fun failKeepingPrevious(providerId: ProviderId, message: String) {
+        if (providerId == ProviderId.GEMINI && message.isGeminiInteractiveAuthRequiredMessage()) {
+            saveSnapshot(
+                ProviderUsageSnapshot.interactiveAuthRequiredKeepingPrevious(
+                    providerId = providerId,
+                    previous = readSnapshots().firstOrNull { it.providerId == providerId },
+                    message = message
+                )
+            )
+            return
+        }
         if (providerId.isGoogleProvider() && message.isRecoverableGoogleUsageFailureMessage()) {
             markGoogleUsagePending(providerId, GOOGLE_USAGE_PENDING_MESSAGE)
             return
@@ -431,6 +441,14 @@ private fun String.isRecoverableGoogleUsageFailureMessage(): Boolean {
         "background refresh stopped",
         "collection failed"
     ).any { normalized.contains(it) }
+}
+
+private fun String.isGeminiInteractiveAuthRequiredMessage(): Boolean {
+    val normalized = trim().lowercase()
+    return normalized == "gemini login is required." ||
+        normalized == "background refresh reached a provider login page." ||
+        normalized == "sign in required" ||
+        normalized == "provider session requires sign-in."
 }
 
 private const val GOOGLE_USAGE_PENDING_MESSAGE =

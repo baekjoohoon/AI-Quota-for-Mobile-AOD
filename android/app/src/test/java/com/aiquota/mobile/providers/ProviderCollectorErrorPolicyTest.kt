@@ -36,6 +36,17 @@ class ProviderCollectorErrorPolicyTest {
     }
 
     @Test
+    fun geminiLoginRequiredStaysInteractiveAuth() {
+        val failure = ProviderCollectorErrorPolicy.failureFor(
+            providerId = ProviderId.GEMINI,
+            rawError = """{"provider":"gemini","errorKind":"gemini_login_required"}"""
+        )
+
+        assertEquals(ProviderRefreshFailureKind.INTERACTIVE_AUTH_REQUIRED, failure.kind)
+        assertTrue(ProviderRefreshFailureClassifier.requiresInteractiveAuth(ProviderId.GEMINI, failure.kind))
+    }
+
+    @Test
     fun codexUsageUnavailableRetriesBeforeFailing() {
         assertTrue(CodexCollectorRetryPolicy.shouldRetry(ProviderId.CODEX, "codex_usage_unavailable", retryCount = 0))
         assertTrue(CodexCollectorRetryPolicy.shouldRetry(ProviderId.CODEX, "codex_usage_unavailable", retryCount = 1))
