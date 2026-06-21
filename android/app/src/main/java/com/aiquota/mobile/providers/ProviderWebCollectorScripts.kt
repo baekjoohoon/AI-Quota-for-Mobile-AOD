@@ -135,6 +135,7 @@ object ProviderWebCollectorScripts {
             ProviderId.CODEX ->
                 (host == "chatgpt.com" || host.endsWith(".chatgpt.com") || host == "chat.openai.com") &&
                     path != "/auth/login" &&
+                    (path != "/" || pageText.isNotBlank()) &&
                     !looksLikeChatGptLoginText(pageText)
             ProviderId.GLM ->
                 (host == "z.ai" || host == "www.z.ai" || host == "chat.z.ai") &&
@@ -198,21 +199,26 @@ object ProviderWebCollectorScripts {
     fun shouldAllowCollectorReinjection(providerId: ProviderId): Boolean {
         return when (providerId) {
             ProviderId.CLAUDE,
-            ProviderId.CODEX,
             ProviderId.OPENCODE,
             ProviderId.COPILOT,
             ProviderId.CURSOR,
             ProviderId.GLM,
             ProviderId.GEMINI -> true
+            ProviderId.CODEX,
             ProviderId.ANTIGRAVITY -> false
         }
     }
 
     private fun looksLikeChatGptLoginText(pageText: String): Boolean {
         val text = pageText.lowercase(Locale.US)
-        return (text.contains("로그인") && text.contains("회원가입")) ||
+        return (text.contains("로그인") && (
+            text.contains("회원가입") ||
+                text.contains("회원 가입") ||
+                text.contains("지금 무슨 생각")
+            )) ||
             text.contains("google 계정으로 계속하기") ||
             text.contains("log in or sign up") ||
+            (text.contains("log in") && text.contains("sign up")) ||
             text.contains("continue with google")
     }
 
@@ -324,7 +330,7 @@ object ProviderWebCollectorScripts {
 
     fun shouldRunCollectorFromResource(providerId: ProviderId, pageUrl: String, resourceUrl: String): Boolean {
         return shouldRunCollectorOnResource(providerId, resourceUrl) &&
-            shouldRunCollector(providerId, pageUrl, emptyMap(), "")
+            (shouldRunCollector(providerId, pageUrl, emptyMap(), "") || isCodexChatGptRoot(providerId, pageUrl))
     }
 
     fun shouldAcceptCollectorPayload(providerId: ProviderId, pageUrl: String): Boolean {
@@ -343,6 +349,9 @@ object ProviderWebCollectorScripts {
                 host.endsWith("claude.ai") &&
                     !path.contains("login") &&
                     !path.contains("logout")
+            ProviderId.CODEX ->
+                (host == "chatgpt.com" || host.endsWith(".chatgpt.com") || host == "chat.openai.com") &&
+                    path != "/auth/login"
             else -> shouldRunCollector(providerId, pageUrl, emptyMap(), "")
         }
     }
@@ -358,9 +367,32 @@ object ProviderWebCollectorScripts {
         return payloadProvider == providerId.storageId
     }
 
-    fun shouldAcceptCollectorError(providerId: ProviderId, pageUrl: String): Boolean {
+    fun shouldAcceptCollectorError(providerId: ProviderId, pageUrl: String, rawError: String? = null): Boolean {
+        if (isCodexChatGptRoot(providerId, pageUrl)) {
+            return isTrustedRootAuthCollectorError(providerId, pageUrl, rawError)
+        }
         return shouldAcceptCollectorPayload(providerId, pageUrl) ||
-            isRefreshLoginPage(providerId, pageUrl)
+            isRefreshLoginPage(providerId, pageUrl) ||
+            isTrustedRootAuthCollectorError(providerId, pageUrl, rawError)
+    }
+
+    private fun isTrustedRootAuthCollectorError(providerId: ProviderId, pageUrl: String, rawError: String?): Boolean {
+        if (providerId != ProviderId.CODEX || rawError.isNullOrBlank()) return false
+        val uri = runCatching { URI(pageUrl) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase(Locale.US)
+        val path = uri.path.orEmpty().lowercase(Locale.US)
+        if ((host != "chatgpt.com" && !host.endsWith(".chatgpt.com")) || (path != "/" && path.isNotBlank())) return false
+        val errorKind = ProviderCollectorErrorPolicy.errorKind(rawError)
+        return errorKind == "codex_auth_required"
+    }
+
+    private fun isCodexChatGptRoot(providerId: ProviderId, pageUrl: String): Boolean {
+        if (providerId != ProviderId.CODEX) return false
+        val uri = runCatching { URI(pageUrl) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase(Locale.US)
+        val path = uri.path.orEmpty().lowercase(Locale.US)
+        return (host == "chatgpt.com" || host.endsWith(".chatgpt.com") || host == "chat.openai.com") &&
+            (path == "/" || path.isBlank())
     }
 
     fun build(
@@ -968,8 +1000,6 @@ object ProviderWebCollectorScripts {
               var c = window.__AIQuotaCollector;
               if (!c) return;
               var attempts = 0;
-              var codexUsageNavigationStateKey = "__AIQuotaCodexUsageNavigationAttempts";
-              var codexUsageNavigationStateTtlMs = 120000;
               var codexUsageDashboardUrls = [
                 "https://chatgpt.com/codex/cloud/settings/analytics#usage",
                 "https://chatgpt.com/codex/settings/usage"
@@ -1482,7 +1512,7 @@ object ProviderWebCollectorScripts {
                 if (hours > 0) return "Resets in " + hours + "h " + minutes + "m";
                 return "Resets in " + minutes + "m";
               }
-              function normalizeCodexKoreanResetText(raw, allowTimeOnly) {
+              function normalizeCodexKoreanResetText(raw, allowTimeOnly, allowTimeOnlyTomorrow) {
                 var text = String(raw || "").replace(/\s+/g, " ").trim();
                 var reset = codexEscapeRegex(KO_CODEX_RESET);
                 var am = codexEscapeRegex(KO_CODEX_AM);
@@ -1505,11 +1535,12 @@ object ProviderWebCollectorScripts {
                 var now = new Date(nowMs);
                 var resetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0, 0);
                 if (resetDate.getTime() <= nowMs) {
+                  if (!allowTimeOnlyTomorrow) return null;
                   resetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, hour, minute, 0, 0);
                 }
                 return codexRelativeResetText(resetDate);
               }
-              function resetTextFromCodexWindow(text, allowTimeOnly) {
+              function resetTextFromCodexWindow(text, allowTimeOnly, allowTimeOnlyTomorrow) {
                 var day = codexEscapeRegex(KO_CODEX_DAY);
                 var hour = codexEscapeRegex(KO_CODEX_HOUR);
                 var minute = codexEscapeRegex(KO_CODEX_MINUTE);
@@ -1527,7 +1558,10 @@ object ProviderWebCollectorScripts {
                 var match = new RegExp("(" + resetAlternates.join("|") + ")", "i").exec(text);
                 if (!match) return null;
                 var rawResetText = match[1].replace(/\s+/g, " ").trim();
-                return normalizeCodexKoreanResetText(rawResetText, !!allowTimeOnly) || rawResetText;
+                var normalizedResetText = normalizeCodexKoreanResetText(rawResetText, !!allowTimeOnly, !!allowTimeOnlyTomorrow);
+                if (normalizedResetText) return normalizedResetText;
+                if (new RegExp("^(" + am + "|" + pm + ")\\s*\\d{1,2}:\\d{2}\\s*" + reset + "$").test(rawResetText)) return null;
+                return rawResetText;
               }
               function codexPercentNumber(value) {
                 if (value === null || value === undefined || value === "") return null;
@@ -1603,9 +1637,9 @@ object ProviderWebCollectorScripts {
                     used_percent: usedPercent
                   };
                   var allowTimeOnlyReset = type === "primary" || type === "spark_primary";
-                  var resetText = resetTextFromCodexWindow(windowText, allowTimeOnlyReset);
+                  var resetText = resetTextFromCodexWindow(windowText, allowTimeOnlyReset, false);
                   if (!resetText && (type === "secondary" || type === "spark_secondary")) {
-                    resetText = resetTextFromCodexWindow(windowText, true);
+                    resetText = resetTextFromCodexWindow(windowText, true, true);
                   }
                   if (resetText) line.reset_text = resetText;
                   return line;
@@ -1662,7 +1696,7 @@ object ProviderWebCollectorScripts {
                 if (credits) payload.usage.credits = credits;
                 return payload;
               }
-              function codexTextLine(text, labels, fallbackLabel, allowTimeOnly) {
+              function codexTextLine(text, labels, fallbackLabel, allowTimeOnly, allowTimeOnlyTomorrow) {
                 var lower = text.toLowerCase();
                 for (var i = 0; i < labels.length; i += 1) {
                   var label = labels[i];
@@ -1675,7 +1709,7 @@ object ProviderWebCollectorScripts {
                     l: fallbackLabel,
                     u: Math.max(0, Math.min(1, 1 - remainingPercent / 100)),
                     remaining_percent: remainingPercent,
-                    t: resetTextFromCodexWindow(windowText, allowTimeOnly)
+                    t: resetTextFromCodexWindow(windowText, allowTimeOnly, allowTimeOnlyTomorrow)
                   };
                 }
                 return null;
@@ -1688,14 +1722,16 @@ object ProviderWebCollectorScripts {
                   text,
                   ["Codex 5" + KO_CODEX_HOUR + " " + KO_CODEX_SESSION, "5" + KO_CODEX_HOUR + " " + KO_CODEX_SESSION, "Codex Session", "Codex 5h Session", "5h Session", "5-hour Session", "Codex " + KO_CODEX_SESSION],
                   "Codex Session",
-                  true
+                  true,
+                  false
                 );
                 if (sessionLine) rows.push(sessionLine);
                 var weeklyLine = codexTextLine(
                   text,
                   ["Codex " + KO_CODEX_WEEKLY + " " + KO_CODEX_SESSION, KO_CODEX_WEEKLY + " " + KO_CODEX_SESSION, "Codex Weekly", "Codex Weekly Session", "Weekly Session"],
                   "Codex Weekly",
-                  false
+                  true,
+                  true
                 );
                 if (weeklyLine) rows.push(weeklyLine);
                 if (rows.length === 0) return null;
@@ -1707,7 +1743,7 @@ object ProviderWebCollectorScripts {
                 };
               }
               function extractCodexUsageFromRows(accountId) {
-                var rows = (window.__AIQuotaCodexNetworkRows || []).concat(c.rows ? c.rows() : []);
+                var rows = window.__AIQuotaCodexNetworkRows || [];
                 for (var rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
                   if (!looksLikeCodexUsageText(rows[rowIndex])) continue;
                   var textPayload = scanCodexUsageText(rows[rowIndex], accountId);
@@ -1779,7 +1815,7 @@ object ProviderWebCollectorScripts {
                     }
                   });
                 } catch (error) {}
-                return extractCodexVisibleDomUsage(accountId);
+                return extractCodexUsageFromRows(accountId) || extractCodexVisibleDomUsage(accountId);
               }
               function buildCodexDiagnostics(result) {
                 result = result || {};
@@ -1864,10 +1900,10 @@ object ProviderWebCollectorScripts {
                   result.plan = result.plan || pickCodexPlan(checkRes.json, 0);
                 }
                 result.accountId =
-                  c.observedAccountId ||
                   pickCodexAccountId(result.account) ||
                   pickCodexAccountId(result.accountCheck) ||
-                  pickCodexAccountId(c.rows());
+                  pickCodexAccountId(c.rows()) ||
+                  c.observedAccountId;
                 result.usage = scanCodexPageState(result.accountId);
                 result.rowsUsagePresent = !!result.usage;
                 if (result.usage) {
@@ -1904,9 +1940,14 @@ object ProviderWebCollectorScripts {
               function looksLikeChatGptLogin() {
                 try {
                   var text = c.text().toLowerCase();
-                  return (text.indexOf("로그인") >= 0 && text.indexOf("회원가입") >= 0) ||
+                  return (text.indexOf("로그인") >= 0 && (
+                      text.indexOf("회원가입") >= 0 ||
+                      text.indexOf("회원 가입") >= 0 ||
+                      text.indexOf("지금 무슨 생각") >= 0
+                    )) ||
                     text.indexOf("google 계정으로 계속하기") >= 0 ||
                     text.indexOf("log in or sign up") >= 0 ||
+                    (text.indexOf("log in") >= 0 && text.indexOf("sign up") >= 0) ||
                     text.indexOf("continue with google") >= 0;
                 } catch (error) {
                   return false;
@@ -1918,35 +1959,24 @@ object ProviderWebCollectorScripts {
                 return path.indexOf("/codex/") >= 0 &&
                   (path.indexOf("/settings/analytics") >= 0 || path.indexOf("/settings/usage") >= 0);
               }
-              function readCodexUsageNavigationAttempts() {
-                try {
-                  var state = JSON.parse(sessionStorage.getItem(codexUsageNavigationStateKey) || "{}");
-                  if (!state.startedAt || Date.now() - state.startedAt > codexUsageNavigationStateTtlMs) return 0;
-                  return Number(state.attempts || 0) || 0;
-                } catch (error) {
-                  return Number(window.__AIQuotaCodexUsageNavigationAttempts || 0) || 0;
-                }
-              }
-              function writeCodexUsageNavigationAttempts(value) {
-                try {
-                  sessionStorage.setItem(codexUsageNavigationStateKey, JSON.stringify({
-                    attempts: value,
-                    startedAt: Date.now()
-                  }));
-                } catch (error) {
-                  window.__AIQuotaCodexUsageNavigationAttempts = value;
-                }
+              function hasCodexNavigationAuth(result) {
+                result = result || {};
+                var storage = result.storageAuthHint || {};
+                var session = result.sessionAuthHint || {};
+                return !!(
+                  storage.localTokenStringPresent ||
+                  storage.sessionTokenStringPresent ||
+                  session.bearerValuePresent ||
+                  session.nonIdTokenStringPresent
+                );
               }
               function navigateCodexUsageDashboardIfNeeded(result) {
                 if (!result || !result.sessionOk || result.usageOk) return false;
                 if (isCodexUsageDashboardLocation()) return false;
-                var codexUsageNavigationAttempts = readCodexUsageNavigationAttempts();
-                if (codexUsageNavigationAttempts >= codexUsageDashboardUrls.length) return false;
-                var target = codexUsageDashboardUrls[Math.min(codexUsageNavigationAttempts, codexUsageDashboardUrls.length - 1)];
-                writeCodexUsageNavigationAttempts(codexUsageNavigationAttempts + 1);
+                if (!hasCodexNavigationAuth(result)) return false;
+                var target = codexUsageDashboardUrls[0];
                 console.log("AIQuotaCodex navigate usage dashboard");
                 try { location.assign(target); } catch (error) { location.href = target; }
-                setTimeout(runProbe, codexProbeRetryDelayMs);
                 return true;
               }
               function continueCodexInteractiveLoginUntilUsagePayload(reason) {
@@ -1971,12 +2001,17 @@ object ProviderWebCollectorScripts {
                     c.post(result.usage);
                     return;
                   }
-                  if (navigateCodexUsageDashboardIfNeeded(result)) {
-                    return;
-                  }
                   if (attempts >= 2 && looksLikeChatGptLogin()) {
                     if (continueCodexInteractiveLoginUntilUsagePayload("login")) return;
                     c.fail("codex_auth_required", "Codex login page reached instead of a trusted usage payload.");
+                    return;
+                  }
+                  if (attempts >= 2 && !isCodexUsageDashboardLocation() && !hasCodexNavigationAuth(result)) {
+                    if (continueCodexInteractiveLoginUntilUsagePayload("missing_navigation_auth")) return;
+                    c.fail("codex_auth_required", "Codex session is missing the auth token required to reach the usage page.");
+                    return;
+                  }
+                  if (navigateCodexUsageDashboardIfNeeded(result)) {
                     return;
                   }
                   if (attempts >= 8 && (result.sessionOk || looksLikeChatGptApp())) {

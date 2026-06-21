@@ -30,7 +30,9 @@ class ProviderWebCollectorScriptsTest {
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CLAUDE, "https://claude.ai/login", emptyMap(), ""))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CLAUDE, "https://claude.ai/login", mapOf("lastActiveOrg" to "org_123"), "Claude"))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CODEX, "https://chatgpt.com/auth/login", emptyMap(), "ChatGPT"))
+        assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CODEX, "https://chatgpt.com/", emptyMap(), ""))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CODEX, "https://chatgpt.com/", emptyMap(), "로그인 또는 회원가입\nGoogle 계정으로 계속하기"))
+        assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CODEX, "https://chatgpt.com/", emptyMap(), "ChatGPT\n로그인\n무료로 회원 가입\n지금 무슨 생각을 하시나요?"))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.CODEX, "https://admin.openai.com/analytics/codex", emptyMap(), "Codex token usage"))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.GEMINI, "https://accounts.google.com/signin", emptyMap(), ""))
         assertFalse(ProviderWebCollectorScripts.shouldRunCollector(ProviderId.COPILOT, "https://github.com/login", emptyMap(), ""))
@@ -49,6 +51,7 @@ class ProviderWebCollectorScriptsTest {
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CLAUDE, "https://claude.ai/login"))
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CODEX, "https://chatgpt.com/auth/login"))
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CODEX, "https://chatgpt.com/", "로그인 또는 회원가입"))
+        assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CODEX, "https://chatgpt.com/", "ChatGPT\n로그인\n무료로 회원 가입\n지금 무슨 생각을 하시나요?"))
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.CODEX, "https://auth.openai.com/authorize"))
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.COPILOT, "https://github.com/login"))
         assertTrue(ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.COPILOT, "https://github.com/sessions/two-factor"))
@@ -74,14 +77,14 @@ class ProviderWebCollectorScriptsTest {
     }
 
     @Test
-    fun serviceCollectorCanReinjectWebDomProvidersAfterPageSettles() {
+    fun serviceCollectorReinjectsOnlyProvidersThatNeedPageSettlePasses() {
         assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.CLAUDE))
-        assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.CODEX))
         assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.OPENCODE))
         assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.COPILOT))
         assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.CURSOR))
         assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.GLM))
         assertTrue(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.GEMINI))
+        assertFalse(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.CODEX))
         assertFalse(ProviderWebCollectorScripts.shouldAllowCollectorReinjection(ProviderId.ANTIGRAVITY))
     }
 
@@ -1253,6 +1256,8 @@ class ProviderWebCollectorScriptsTest {
         assertTrue(ProviderWebCollectorScripts.shouldAcceptCollectorPayload(ProviderId.CODEX, "https://chatgpt.com/", """{"provider":"codex"}"""))
         assertFalse(ProviderWebCollectorScripts.shouldAcceptCollectorPayload(ProviderId.CODEX, "https://chatgpt.com/", """{"provider":"claude"}"""))
         assertFalse(ProviderWebCollectorScripts.shouldAcceptCollectorPayload(ProviderId.CODEX, "https://example.com/", """{"provider":"codex"}"""))
+        assertTrue(ProviderWebCollectorScripts.shouldAcceptCollectorError(ProviderId.CODEX, "https://chatgpt.com/", """{"provider":"codex","errorKind":"codex_auth_required"}"""))
+        assertFalse(ProviderWebCollectorScripts.shouldAcceptCollectorError(ProviderId.CODEX, "https://chatgpt.com/", """{"provider":"codex","errorKind":"codex_usage_unavailable"}"""))
 
         assertTrue(ProviderWebCollectorScripts.shouldAcceptCollectorError(ProviderId.CLAUDE, "https://claude.ai/new"))
         assertTrue(ProviderWebCollectorScripts.shouldAcceptCollectorError(ProviderId.CLAUDE, "https://claude.ai/login"))
@@ -2288,6 +2293,20 @@ class ProviderWebCollectorScriptsTest {
     }
 
     @Test
+    fun codexPageStateScanUsesNetworkRowsBeforeVisibleDom() {
+        val codex = ProviderWebCollectorScripts.build(ProviderId.CODEX, emptyMap(), "")
+        val scan = codex.substringAfter("function scanCodexPageState(accountId)")
+            .substringBefore("function buildCodexDiagnostics")
+
+        assertTrue(scan.contains("extractCodexUsageFromRows(accountId)"))
+        assertTrue(scan.indexOf("extractCodexUsageFromRows(accountId)") < scan.indexOf("extractCodexVisibleDomUsage(accountId)"))
+        val rowExtractor = codex.substringAfter("function extractCodexUsageFromRows(accountId)")
+            .substringBefore("function summarizeCodexRows")
+        assertTrue(rowExtractor.contains("window.__AIQuotaCodexNetworkRows || []"))
+        assertFalse(rowExtractor.contains("concat(c.rows"))
+    }
+
+    @Test
     fun codexCollectorDoesNotBlockUsageNavigationOnSubscriptionPlanFetch() {
         val codex = ProviderWebCollectorScripts.build(ProviderId.CODEX, emptyMap(), "")
         val probe = codex.substringAfter("async function probeCodexSession()")
@@ -2433,17 +2452,23 @@ class ProviderWebCollectorScriptsTest {
     @Test
     fun codexCollectorNavigatesAuthenticatedRootToUsageDashboard() {
         val codex = ProviderWebCollectorScripts.build(ProviderId.CODEX, emptyMap(), "")
+        val navigation = codex.substringAfter("function navigateCodexUsageDashboardIfNeeded(result)")
+            .substringBefore("function continueCodexInteractiveLoginUntilUsagePayload")
+        val probe = codex.substringAfter("function runProbe()")
+            .substringBefore("installCodexNetworkHook()")
 
         assertTrue(codex.contains("codexUsageDashboardUrls"))
-        assertTrue(codex.contains("codexUsageNavigationAttempts"))
-        assertTrue(codex.contains("__AIQuotaCodexUsageNavigationAttempts"))
-        assertTrue(codex.contains("sessionStorage.setItem(codexUsageNavigationStateKey"))
         assertTrue(codex.contains("navigateCodexUsageDashboardIfNeeded"))
+        assertTrue(codex.contains("function hasCodexNavigationAuth(result)"))
+        assertTrue(navigation.contains("if (!hasCodexNavigationAuth(result)) return false"))
         assertTrue(codex.contains("location.assign"))
-        assertTrue(codex.contains("codexUsageNavigationAttempts >= codexUsageDashboardUrls.length"))
-        assertTrue(codex.contains("Math.min(codexUsageNavigationAttempts, codexUsageDashboardUrls.length - 1)"))
+        assertTrue(codex.contains("var target = codexUsageDashboardUrls[0]"))
+        assertFalse(codex.contains("__AIQuotaCodexUsageNavigationAttempts"))
+        assertFalse(codex.contains("sessionStorage.setItem(codexUsageNavigationStateKey"))
         assertTrue(codex.contains("https://chatgpt.com/codex/cloud/settings/analytics#usage"))
         assertTrue(codex.contains("https://chatgpt.com/codex/settings/usage"))
+        assertTrue(probe.indexOf("looksLikeChatGptLogin()") < probe.indexOf("navigateCodexUsageDashboardIfNeeded(result)"))
+        assertTrue(probe.indexOf("!hasCodexNavigationAuth(result)") < probe.indexOf("navigateCodexUsageDashboardIfNeeded(result)"))
     }
 
     @Test
@@ -3106,7 +3131,7 @@ class ProviderWebCollectorScriptsTest {
     }
 
     @Test
-    fun codexCollectorNormalizesWeeklyTimeOnlyResetWhenWithinNextDay() {
+    fun codexCollectorDoesNotRollFiveHourTimeOnlyResetIntoTomorrow() {
         val node = nodeCommandOrNull()
         assumeTrue("node is required for injected Codex runtime checks", node != null)
 
@@ -3127,13 +3152,13 @@ class ProviderWebCollectorScriptsTest {
               "Codex",
               "5" + hour + " " + usage + " " + limit,
               "84% " + remaining,
-              "오후 2:52 " + reset,
+              "오전 9:15 " + reset,
               weekly + " " + usage + " " + limit,
               "39% " + remaining,
-              "오후 2:52 " + reset,
+              "오전 9:15 " + reset,
               "GPT-5.3-Codex-Spark " + weekly + " " + usage + " " + limit,
               "100% " + remaining,
-              "오후 2:52 " + reset,
+              "오전 9:15 " + reset,
               "남은 크레딧",
               "0"
             ].join("\n");
@@ -3179,7 +3204,7 @@ class ProviderWebCollectorScriptsTest {
               return timers.length;
             };
             global.clearTimeout = function() {};
-            Date.now = function() { return new Date(2026, 5, 16, 10, 0, 0, 0).getTime(); };
+            Date.now = function() { return new Date(2026, 5, 16, 15, 0, 0, 0).getTime(); };
             $codex
             (async function() {
               for (let i = 0; i < 12 && posted.length === 0 && errors.length === 0; i += 1) {
@@ -3192,15 +3217,19 @@ class ProviderWebCollectorScriptsTest {
                 process.exit(1);
               }
               const limits = posted[0] && posted[0].usage && posted[0].usage.rate_limits;
-              if (!limits || !limits.secondary_window || !limits.spark_secondary_window) {
+              if (!limits || !limits.primary_window || !limits.secondary_window || !limits.spark_secondary_window) {
                 console.error(JSON.stringify(posted[0]));
                 process.exit(1);
               }
-              if (limits.secondary_window.reset_text !== "Resets in 4h 52m") {
+              if (limits.primary_window.reset_text !== undefined) {
+                console.error(JSON.stringify(limits.primary_window));
+                process.exit(1);
+              }
+              if (limits.secondary_window.reset_text !== "Resets in 18h 15m") {
                 console.error(JSON.stringify(limits.secondary_window));
                 process.exit(1);
               }
-              if (limits.spark_secondary_window.reset_text !== "Resets in 4h 52m") {
+              if (limits.spark_secondary_window.reset_text !== "Resets in 18h 15m") {
                 console.error(JSON.stringify(limits.spark_secondary_window));
                 process.exit(1);
               }

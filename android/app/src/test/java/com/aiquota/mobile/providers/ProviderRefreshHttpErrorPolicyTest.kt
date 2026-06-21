@@ -1,6 +1,7 @@
 package com.aiquota.mobile.providers
 
 import com.aiquota.mobile.local.ProviderId
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -47,5 +48,29 @@ class ProviderRefreshHttpErrorPolicyTest {
                 403
             )
         )
+    }
+
+    @Test
+    fun codexMainFrameUnauthorizedOrForbiddenRequiresInteractiveAuth() {
+        listOf(401, 403).forEach { status ->
+            val failure = ProviderRefreshHttpErrorPolicy.failureForMainFrameHttpError(
+                ProviderId.CODEX,
+                "https://chatgpt.com/codex/cloud/settings/analytics",
+                status
+            )
+
+            assertEquals(ProviderRefreshFailureKind.INTERACTIVE_AUTH_REQUIRED, failure.kind)
+        }
+    }
+
+    @Test
+    fun nonCodexMainFrameForbiddenStaysTransientHttp() {
+        val failure = ProviderRefreshHttpErrorPolicy.failureForMainFrameHttpError(
+            ProviderId.CLAUDE,
+            "https://claude.ai/",
+            403
+        )
+
+        assertEquals(ProviderRefreshFailureKind.TRANSIENT_HTTP, failure.kind)
     }
 }

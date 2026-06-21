@@ -55,8 +55,7 @@ object ProviderWebSessionClearPolicy {
                 "https://authenticator.cursor.sh",
                 "https://api.workos.com",
                 "https://auth.workos.com",
-                "https://workos.com",
-                "https://github.com"
+                "https://workos.com"
             )
             ProviderId.GLM -> listOf(
                 "https://z.ai",

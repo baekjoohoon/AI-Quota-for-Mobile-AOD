@@ -188,26 +188,19 @@ class ProviderRefreshPlanTest {
     }
 
     @Test
-    fun automaticRefreshBacksOffRecentLoginPageFailuresButRetriesLater() {
+    fun automaticRefreshRetriesRecentLoginPageFailures() {
         val now = Instant.parse("2026-06-18T09:55:00Z")
         val recentLoginPageFailure = snapshot(ProviderId.COPILOT, ProviderConnectionState.CONNECTED).copy(
             statusUpdatedAt = now.minusSeconds(60).toString(),
             message = "Background refresh reached a provider login page."
         )
-        val oldLoginPageFailure = recentLoginPageFailure.copy(
-            statusUpdatedAt = now.minusSeconds(16 * 60).toString()
-        )
 
         assertEquals(
-            listOf(ProviderId.GEMINI),
+            listOf(ProviderId.COPILOT, ProviderId.GEMINI),
             ProviderRefreshPlan.automaticJobsFor(
                 listOf(recentLoginPageFailure, connected(ProviderId.GEMINI)),
                 now = now
             ).map { it.providerId }
-        )
-        assertEquals(
-            listOf(ProviderId.COPILOT),
-            ProviderRefreshPlan.automaticJobsFor(listOf(oldLoginPageFailure), now = now).map { it.providerId }
         )
     }
 
@@ -236,7 +229,7 @@ class ProviderRefreshPlanTest {
     }
 
     @Test
-    fun manualRefreshStillRunsDuringAutomaticLoginPageBackoff() {
+    fun manualRefreshStillRunsAfterRecentLoginPageFailure() {
         val now = Instant.parse("2026-06-18T09:55:00Z")
         val recentLoginPageFailure = snapshot(ProviderId.OPENCODE, ProviderConnectionState.CONNECTED).copy(
             statusUpdatedAt = now.minusSeconds(60).toString(),
@@ -254,50 +247,36 @@ class ProviderRefreshPlanTest {
     }
 
     @Test
-    fun automaticRefreshBacksOffRecentCodexTimeoutFailuresButRetriesLater() {
+    fun automaticRefreshRetriesRecentCodexTimeoutFailures() {
         val now = Instant.parse("2026-06-18T09:55:00Z")
         val recentCodexFailure = snapshot(ProviderId.CODEX, ProviderConnectionState.CONNECTED).copy(
             statusUpdatedAt = now.minusSeconds(60).toString(),
             message = "Previous collection did not finish."
         )
-        val oldCodexFailure = recentCodexFailure.copy(
-            statusUpdatedAt = now.minusSeconds(16 * 60).toString()
-        )
 
         assertEquals(
-            listOf(ProviderId.GEMINI),
+            listOf(ProviderId.CODEX, ProviderId.GEMINI),
             ProviderRefreshPlan.automaticJobsFor(
                 listOf(recentCodexFailure, connected(ProviderId.GEMINI)),
                 now = now
             ).map { it.providerId }
         )
-        assertEquals(
-            listOf(ProviderId.CODEX),
-            ProviderRefreshPlan.automaticJobsFor(listOf(oldCodexFailure), now = now).map { it.providerId }
-        )
     }
 
     @Test
-    fun automaticRefreshBacksOffRecentCodexUsageUnavailableButRetriesLater() {
+    fun automaticRefreshRetriesRecentCodexUsageUnavailable() {
         val now = Instant.parse("2026-06-18T09:55:00Z")
         val recentCodexFailure = snapshot(ProviderId.CODEX, ProviderConnectionState.CONNECTED).copy(
             statusUpdatedAt = now.minusSeconds(60).toString(),
             message = "Codex session reached, but trusted usage payload was not available. diagnostics={}"
         )
-        val oldCodexFailure = recentCodexFailure.copy(
-            statusUpdatedAt = now.minusSeconds(16 * 60).toString()
-        )
 
         assertEquals(
-            listOf(ProviderId.GEMINI),
+            listOf(ProviderId.CODEX, ProviderId.GEMINI),
             ProviderRefreshPlan.automaticJobsFor(
                 listOf(recentCodexFailure, connected(ProviderId.GEMINI)),
                 now = now
             ).map { it.providerId }
-        )
-        assertEquals(
-            listOf(ProviderId.CODEX),
-            ProviderRefreshPlan.automaticJobsFor(listOf(oldCodexFailure), now = now).map { it.providerId }
         )
     }
 

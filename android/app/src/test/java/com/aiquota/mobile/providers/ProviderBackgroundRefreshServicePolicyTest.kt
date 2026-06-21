@@ -54,6 +54,7 @@ class ProviderBackgroundRefreshServicePolicyTest {
         assertTrue(worker.contains("cancelLiveRefreshIssue"))
         assertTrue(scheduler.contains("PeriodicWorkRequestBuilder<ForegroundRefreshHealthWorker>"))
         assertTrue(scheduler.contains("15L"))
+        assertTrue(scheduler.contains("setInitialDelay(STARTUP_CHECK_DELAY_MINUTES, TimeUnit.MINUTES)"))
         assertTrue(scheduler.contains("ExistingPeriodicWorkPolicy.KEEP"))
         assertTrue(scheduler.contains("ExistingWorkPolicy.KEEP"))
         assertTrue(controller.contains("ForegroundRefreshHealthScheduler.schedule"))
@@ -171,6 +172,7 @@ class ProviderBackgroundRefreshServicePolicyTest {
             .substringBefore("private inner class ServiceCollectorWebViewClient")
 
         assertTrue(injectBlock.contains("val firstInjectionForPage = collectorInjectionKeys.add(injectionKey)"))
+        assertTrue(injectBlock.contains("routeKeyOf(url)"))
         assertTrue(injectBlock.contains("ProviderWebCollectorScripts.shouldAllowCollectorReinjection(providerId)"))
         assertFalse(injectBlock.contains("CollectorInjectionTrigger"))
         assertFalse(injectBlock.contains("collectorInjectionCounts"))

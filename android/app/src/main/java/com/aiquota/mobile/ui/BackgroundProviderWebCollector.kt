@@ -311,6 +311,10 @@ private class BackgroundCollectorWebViewClient(
     override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: WebResourceResponse) {
         if (!request.isForMainFrame || errorResponse.statusCode < 400) return
         val job = currentProviderJob() ?: return
+        Log.d(
+            "AIQuotaBgCollector",
+            "httpError provider=${job.job.providerId.storageId} status=${errorResponse.statusCode} url=${hostOf(request.url.toString())}${pathOf(request.url.toString())}"
+        )
         if (ProviderRefreshHttpErrorPolicy.shouldIgnoreMainFrameHttpError(
                 job.job.providerId,
                 request.url.toString(),
@@ -319,9 +323,10 @@ private class BackgroundCollectorWebViewClient(
         ) {
             return
         }
-        val failure = ProviderRefreshFailure(
-            ProviderRefreshFailureKind.TRANSIENT_HTTP,
-            "Background refresh returned HTTP ${errorResponse.statusCode}."
+        val failure = ProviderRefreshHttpErrorPolicy.failureForMainFrameHttpError(
+            job.job.providerId,
+            request.url.toString(),
+            errorResponse.statusCode
         )
         if (ProviderHiddenWebViewRetentionPolicy.shouldRecreateAfterFailure(failure.kind)) {
             onRecreateWebView(job.job.providerId)
@@ -341,7 +346,7 @@ private class BackgroundCollectorWebViewClient(
             )
             return
         }
-        val injectionKey = "${job.requestId}:${providerId.storageId}:${hostOf(url)}:${pathOf(url)}"
+        val injectionKey = "${job.requestId}:${providerId.storageId}:${hostOf(url)}:${routeKeyOf(url)}"
         val firstInjectionForPage = collectorInjectionKeys.add(injectionKey)
         if (providerId != ProviderId.GEMINI && providerId != ProviderId.ANTIGRAVITY && !firstInjectionForPage) return
         Log.d(
@@ -433,7 +438,7 @@ private class BackgroundUsageBridge(
         mainHandler.post {
             val job = currentProviderJob() ?: return@post
             val pageUrl = currentPageUrl().ifBlank { job.job.startUrl }
-            if (!ProviderWebCollectorScripts.shouldAcceptCollectorError(job.job.providerId, pageUrl)) {
+            if (!ProviderWebCollectorScripts.shouldAcceptCollectorError(job.job.providerId, pageUrl, rawError)) {
                 Log.d(
                     "AIQuotaBgCollector",
                     "dropCollectorError provider=${job.job.providerId.storageId} reason=untrusted_bridge_page"
@@ -528,6 +533,17 @@ private fun hostOf(url: String): String {
 
 private fun pathOf(url: String): String {
     return runCatching { URI(url).path.orEmpty() }.getOrDefault("")
+}
+
+private fun routeKeyOf(url: String): String {
+    return runCatching {
+        val uri = URI(url)
+        buildString {
+            append(uri.path.orEmpty())
+            uri.rawQuery?.takeIf { it.isNotBlank() }?.let { append("?").append(it) }
+            uri.rawFragment?.takeIf { it.isNotBlank() }?.let { append("#").append(it) }
+        }
+    }.getOrDefault(pathOf(url))
 }
 
 private fun isSameDocument(currentUrl: String?, expectedUrl: String): Boolean {

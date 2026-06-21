@@ -548,7 +548,7 @@ class ProviderBackgroundRefreshService : Service() {
             Log.d(TAG, "skipInject provider=${providerId.storageId} url=${hostOf(url)}${pathOf(url)}")
             return
         }
-        val injectionKey = "${active.requestId}:${providerId.storageId}:${hostOf(url)}:${pathOf(url)}"
+        val injectionKey = "${active.requestId}:${providerId.storageId}:${hostOf(url)}:${routeKeyOf(url)}"
         val firstInjectionForPage = collectorInjectionKeys.add(injectionKey)
         if (!firstInjectionForPage && !ProviderWebCollectorScripts.shouldAllowCollectorReinjection(providerId)) return
         val script = ProviderWebCollectorScripts.build(
@@ -813,6 +813,10 @@ class ProviderBackgroundRefreshService : Service() {
 
         override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: WebResourceResponse) {
             if (!request.isForMainFrame || errorResponse.statusCode < 400) return
+            Log.d(
+                TAG,
+                "httpError provider=${ownerProviderId.storageId} status=${errorResponse.statusCode} url=${hostOf(request.url.toString())}${pathOf(request.url.toString())}"
+            )
             if (ProviderRefreshHttpErrorPolicy.shouldIgnoreMainFrameHttpError(
                     ownerProviderId,
                     request.url.toString(),
@@ -822,14 +826,14 @@ class ProviderBackgroundRefreshService : Service() {
                 return
             }
             val active = currentWebJobFor(ownerProviderId) ?: return
+            val failure = ProviderRefreshHttpErrorPolicy.failureForMainFrameHttpError(
+                ownerProviderId,
+                request.url.toString(),
+                errorResponse.statusCode
+            )
             completeWebJob(
                 active.requestId,
-                ServiceRefreshOutcome.Failure(
-                    ProviderRefreshFailure(
-                        ProviderRefreshFailureKind.TRANSIENT_HTTP,
-                        "Background refresh returned HTTP ${errorResponse.statusCode}."
-                    )
-                )
+                ServiceRefreshOutcome.Failure(failure)
             )
         }
     }
@@ -856,7 +860,7 @@ class ProviderBackgroundRefreshService : Service() {
             mainHandler.post {
                 val active = currentWebJobFor(ownerProviderId) ?: return@post
                 val pageUrl = retainedWebViews[ownerProviderId]?.url.orEmpty().ifBlank { active.job.startUrl }
-                if (!ProviderWebCollectorScripts.shouldAcceptCollectorError(ownerProviderId, pageUrl)) {
+                if (!ProviderWebCollectorScripts.shouldAcceptCollectorError(ownerProviderId, pageUrl, rawError)) {
                     Log.d(TAG, "dropCollectorError provider=${ownerProviderId.storageId} reason=untrusted_bridge_page")
                     return@post
                 }
@@ -960,6 +964,17 @@ class ProviderBackgroundRefreshService : Service() {
 
     private fun pathOf(url: String): String {
         return runCatching { URI(url).path.orEmpty() }.getOrDefault("")
+    }
+
+    private fun routeKeyOf(url: String): String {
+        return runCatching {
+            val uri = URI(url)
+            buildString {
+                append(uri.path.orEmpty())
+                uri.rawQuery?.takeIf { it.isNotBlank() }?.let { append("?").append(it) }
+                uri.rawFragment?.takeIf { it.isNotBlank() }?.let { append("#").append(it) }
+            }
+        }.getOrDefault(pathOf(url))
     }
 
     private fun decodeJsString(value: String?): String {

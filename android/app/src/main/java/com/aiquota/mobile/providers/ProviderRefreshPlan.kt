@@ -5,7 +5,6 @@ import com.aiquota.mobile.local.ProviderConnectionState
 import com.aiquota.mobile.local.ProviderRefreshState
 import com.aiquota.mobile.local.ProviderUsageSnapshot
 import com.aiquota.mobile.sync.ForegroundRefreshPolicy
-import java.time.Duration
 import java.time.Instant
 
 enum class ProviderRefreshMode {
@@ -69,7 +68,7 @@ object ProviderRefreshPlan {
             .filterNot { it in refreshingProviders }
             .filterNot { it in resetProviders }
             .filter { providerId -> snapshotsByProvider[providerId]?.connectionState != ProviderConnectionState.COLLECTING }
-            .filter { providerId -> snapshotsByProvider[providerId]?.isAutomaticRefreshEligible(now) != false }
+            .filter { providerId -> snapshotsByProvider[providerId]?.isAutomaticRefreshEligible() != false }
             .map(::manualJobFor)
         return resetJobs + normalJobs
     }
@@ -125,35 +124,12 @@ object ProviderRefreshPlan {
         )
     }
 
-    private fun ProviderUsageSnapshot.isAutomaticRefreshEligible(now: Instant): Boolean {
+    private fun ProviderUsageSnapshot.isAutomaticRefreshEligible(): Boolean {
         if (providerId == ProviderId.GLM && GlmNoSubscriptionPolicy.isNoSubscriptionSnapshot(this)) return false
-        if (isRecentAutomaticFailureBackedOff(now)) return false
         if (providerId != ProviderId.GEMINI && providerId != ProviderId.ANTIGRAVITY) return true
         if (connectionState != ProviderConnectionState.STALE) return true
         if (lines.isNotEmpty()) return true
         return GoogleUsagePendingRetryPolicy.retryDelayMillis(this) != null
     }
-
-    private fun ProviderUsageSnapshot.isRecentAutomaticFailureBackedOff(now: Instant): Boolean {
-        if (message != LOGIN_PAGE_REACHED_MESSAGE && !isCodexNoFinishFailure()) return false
-        if (providerId == ProviderId.GEMINI && message == LOGIN_PAGE_REACHED_MESSAGE && lines.isNotEmpty()) return false
-        val statusAt = runCatching { Instant.parse(statusUpdatedAt) }.getOrNull() ?: return false
-        return Duration.between(statusAt, now) < AUTOMATIC_FAILURE_BACKOFF
-    }
-
-    private fun ProviderUsageSnapshot.isCodexNoFinishFailure(): Boolean {
-        if (providerId != ProviderId.CODEX) return false
-        return message == BACKGROUND_REFRESH_TIMEOUT_MESSAGE ||
-            message == PREVIOUS_COLLECTION_DID_NOT_FINISH_MESSAGE ||
-            message == BACKGROUND_NO_TRUSTED_PAYLOAD_MESSAGE ||
-            message?.startsWith(CODEX_USAGE_UNAVAILABLE_MESSAGE_PREFIX) == true
-    }
-
-    private val AUTOMATIC_FAILURE_BACKOFF: Duration = Duration.ofMinutes(15)
-    private const val LOGIN_PAGE_REACHED_MESSAGE = "Background refresh reached a provider login page."
-    private const val BACKGROUND_REFRESH_TIMEOUT_MESSAGE = "Background refresh timed out."
-    private const val PREVIOUS_COLLECTION_DID_NOT_FINISH_MESSAGE = "Previous collection did not finish."
-    private const val BACKGROUND_NO_TRUSTED_PAYLOAD_MESSAGE = "Background collector ran. No trusted usage payload found."
-    private const val CODEX_USAGE_UNAVAILABLE_MESSAGE_PREFIX = "Codex session reached, but trusted usage payload was not available."
 
 }

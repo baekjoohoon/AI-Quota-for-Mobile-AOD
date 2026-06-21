@@ -39,6 +39,7 @@ class GoogleWebSessionBridgeSourceTest {
             .substringBefore("private fun finishWithErrorOnce")
 
         assertTrue(inject.contains("val firstInjectionForPage = collectorInjectionKeys.add(injectionKey)"))
+        assertTrue(inject.contains("routeKeyOf(url)"))
         assertTrue(inject.contains("providerId != ProviderId.GEMINI && providerId != ProviderId.ANTIGRAVITY"))
         assertTrue(inject.contains("\"reinject\""))
     }

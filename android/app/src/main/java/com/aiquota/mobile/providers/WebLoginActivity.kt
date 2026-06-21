@@ -612,8 +612,10 @@ class WebLoginActivity : Activity() {
         if (finished) return
         val cookies = cookiesFor(url)
         if (!ProviderWebCollectorScripts.shouldRunCollector(providerId, url, cookies, pageText)) return
-        val injectionKey = "${providerId.storageId}:${hostOf(url)}:${pathOf(url)}"
-        if (collectorInjectionKeys.add(injectionKey)) {
+        val injectionKey = "${providerId.storageId}:${hostOf(url)}:${routeKeyOf(url)}"
+        val firstInjectionForPage = collectorInjectionKeys.add(injectionKey)
+        if (!firstInjectionForPage && !ProviderWebCollectorScripts.shouldAllowCollectorReinjection(providerId)) return
+        if (firstInjectionForPage) {
             Log.i("AIQuotaCollector", "provider=${providerId.storageId} collectorMode=webview-js inject host=${hostOf(url)}")
         }
         val script = ProviderWebCollectorScripts.build(
@@ -822,6 +824,17 @@ class WebLoginActivity : Activity() {
 
     private fun pathOf(url: String): String {
         return runCatching { URI(url).path.orEmpty() }.getOrDefault("")
+    }
+
+    private fun routeKeyOf(url: String): String {
+        return runCatching {
+            val uri = URI(url)
+            buildString {
+                append(uri.path.orEmpty())
+                uri.rawQuery?.takeIf { it.isNotBlank() }?.let { append("?").append(it) }
+                uri.rawFragment?.takeIf { it.isNotBlank() }?.let { append("#").append(it) }
+            }
+        }.getOrDefault(pathOf(url))
     }
 
     private fun safeUrlForLog(url: String): String {
