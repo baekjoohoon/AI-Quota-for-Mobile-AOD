@@ -46,6 +46,8 @@ class AppUpdateCheckTest {
 
         assertTrue(build.contains("com.google.android.play:app-update-ktx:2.1.0"))
         assertTrue(mainActivity.contains("AppUpdateCoordinator(this)"))
+        assertTrue(mainActivity.contains("lifecycleScope.launch"))
+        assertTrue(mainActivity.contains("delay(APP_UPDATE_CHECK_STARTUP_DELAY_MS)"))
         assertTrue(mainActivity.contains("appUpdateCoordinator.checkForStoreUpdate()"))
         assertTrue(mainActivity.contains("AppUpdatePromptDialog"))
         assertTrue(mainActivity.contains("openStoreListing()"))
@@ -79,6 +81,7 @@ class AppUpdateCheckTest {
         assertTrue(receiver.contains("AppUpdateCheckScheduler.schedule"))
         assertTrue(scheduler.contains("PeriodicWorkRequestBuilder<AppUpdateCheckWorker>"))
         assertTrue(scheduler.contains("OneTimeWorkRequestBuilder<AppUpdateCheckWorker>"))
+        assertTrue(scheduler.contains("setInitialDelay(STARTUP_CHECK_DELAY_MINUTES, TimeUnit.MINUTES)"))
         assertTrue(worker.contains("AppUpdateAvailabilityChecker.hasStoreUpdateAvailable"))
         assertTrue(worker.contains("AppUpdateStateStore.setUpdateAvailable"))
         assertTrue(worker.contains("ForegroundRefreshController"))

@@ -12,6 +12,7 @@ object AppUpdateCheckScheduler {
     private const val WORK_NAME = "ai_quota_app_update_check"
     private const val ONE_TIME_WORK_NAME = "ai_quota_app_update_check_now"
     private const val CHECK_INTERVAL_HOURS = 6L
+    private const val STARTUP_CHECK_DELAY_MINUTES = 1L
 
     fun schedule(context: Context) {
         val appContext = context.applicationContext
@@ -20,7 +21,9 @@ object AppUpdateCheckScheduler {
             CHECK_INTERVAL_HOURS,
             TimeUnit.HOURS
         ).build()
-        val oneTimeWork = OneTimeWorkRequestBuilder<AppUpdateCheckWorker>().build()
+        val oneTimeWork = OneTimeWorkRequestBuilder<AppUpdateCheckWorker>()
+            .setInitialDelay(STARTUP_CHECK_DELAY_MINUTES, TimeUnit.MINUTES)
+            .build()
 
         workManager.enqueueUniquePeriodicWork(
             WORK_NAME,
