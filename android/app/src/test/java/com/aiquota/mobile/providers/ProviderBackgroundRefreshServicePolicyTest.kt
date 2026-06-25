@@ -81,6 +81,8 @@ class ProviderBackgroundRefreshServicePolicyTest {
         val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
         val authFailureHandler = service.substringAfter("private fun handleRefreshAuthFailure")
             .substringBefore("private suspend fun collectNativeProviderUsage")
+        val geminiAutomaticBranch = authFailureHandler.substringAfter("if (automaticRefresh && providerId == ProviderId.GEMINI)")
+            .substringBefore("if (automaticRefresh)")
         val automaticBranch = authFailureHandler.substringAfter("if (automaticRefresh)")
             .substringBefore("if (!ProviderRefreshSessionPolicy")
         val payloadBranch = service.substringAfter("is ServiceRefreshOutcome.Payload ->")
@@ -88,6 +90,7 @@ class ProviderBackgroundRefreshServicePolicyTest {
         val failureBranch = service.substringAfter("is ServiceRefreshOutcome.Failure ->")
             .substringBefore("if (ProviderHiddenWebViewRetentionPolicy")
 
+        assertTrue(geminiAutomaticBranch.contains("repository.markGoogleUsagePending(providerId, GoogleUsagePendingRetryPolicy.PENDING_MESSAGE)"))
         assertTrue(automaticBranch.contains("repository.failKeepingPrevious(providerId, message)"))
         assertFalse(automaticBranch.contains("repository.markInteractiveAuthRequired(providerId, message)"))
         assertTrue(authFailureHandler.contains("return"))
@@ -95,6 +98,7 @@ class ProviderBackgroundRefreshServicePolicyTest {
         assertFalse(automaticBranch.contains("repository.markSessionExpired"))
         assertTrue(payloadBranch.contains("handleRefreshAuthFailure("))
         assertTrue(failureBranch.contains("handleRefreshAuthFailure("))
+        assertTrue(service.contains("ProviderRefreshMode.HIDDEN_WEB_COLLECTOR -> ProviderWebSessionMaintenanceGate.withMaintenanceLock"))
     }
 
     @Test

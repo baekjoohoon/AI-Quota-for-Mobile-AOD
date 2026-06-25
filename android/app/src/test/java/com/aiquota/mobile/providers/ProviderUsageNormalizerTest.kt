@@ -272,8 +272,8 @@ class ProviderUsageNormalizerTest {
 
         assertEquals(ProviderId.GLM, snapshot.providerId)
         assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
-        assertEquals("GLM Coding Plan", snapshot.plan)
-        assertEquals(listOf("5-Hour Token Limit", "MCP Monthly Quota"), snapshot.lines.map { it.label })
+        assertNull(snapshot.plan)
+        assertEquals(listOf("5시간 한도", "월간 한도"), snapshot.lines.map { it.label })
         assertEquals(0.75f, snapshot.lines.single { it.key == "glm:tokens" }.remainingPercent ?: 0f, 0.001f)
         assertEquals(0.75f, snapshot.lines.single { it.key == "glm:mcp" }.remainingPercent ?: 0f, 0.001f)
         assertEquals(2_500_000.0, snapshot.lines.single { it.key == "glm:tokens" }.usedAmount ?: 0.0, 0.001)
@@ -319,7 +319,7 @@ class ProviderUsageNormalizerTest {
         )!!
 
         assertEquals(
-            listOf("5-Hour Token Limit", "Weekly Token Limit", "MCP Monthly Quota"),
+            listOf("5시간 한도", "주간 한도", "월간 한도"),
             snapshot.lines.map { it.label }
         )
         assertEquals(0.75f, snapshot.lines.single { it.key == "glm:tokens" }.remainingPercent ?: 0f, 0.001f)
@@ -327,6 +327,48 @@ class ProviderUsageNormalizerTest {
         assertEquals("2026-10-20T23:00:00Z", snapshot.lines.single { it.key == "glm:tokens" }.resetsAt)
         assertNull(snapshot.lines.single { it.key == "glm:tokens" }.usedAmount)
         assertNull(snapshot.lines.single { it.key == "glm:tokens" }.limitAmount)
+    }
+
+    @Test
+    fun glmQuotaLimitResponseSortsFiveHourWeeklyMonthlyRegardlessOfPayloadOrder() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.GLM,
+            """
+            {
+              "code": 200,
+              "msg": "success",
+              "success": true,
+              "data": {
+                "limits": [
+                  {
+                    "type": "TIME_LIMIT",
+                    "usage": 500,
+                    "currentValue": 125,
+                    "percentage": 25
+                  },
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "unit": 6,
+                    "number": 7,
+                    "percentage": 40
+                  },
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "unit": 3,
+                    "number": 5,
+                    "percentage": 25
+                  }
+                ]
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.PROVIDER_API
+        )!!
+
+        assertEquals(
+            listOf("5시간 한도", "주간 한도", "월간 한도"),
+            snapshot.lines.map { it.label }
+        )
     }
 
     @Test
@@ -363,11 +405,46 @@ class ProviderUsageNormalizerTest {
             ProviderPayloadSource.STRUCTURED_SCRIPT
         )!!
 
-        assertEquals("GLM Coding Pro", snapshot.plan)
-        assertEquals(listOf("5-Hour Token Limit", "Weekly Token Limit"), snapshot.lines.map { it.label })
+        assertEquals("Pro", snapshot.plan)
+        assertEquals(listOf("5시간 한도", "주간 한도"), snapshot.lines.map { it.label })
         assertEquals(0.75f, snapshot.lines.single { it.key == "glm:tokens" }.remainingPercent ?: 0f, 0.001f)
         assertEquals(0.60f, snapshot.lines.single { it.key == "glm:weekly_tokens" }.remainingPercent ?: 0f, 0.001f)
         assertEquals("visible-dom", snapshot.lines.first().sourceLabel)
+    }
+
+    @Test
+    fun glmPlanNormalizesCodingPlanNamesToTierOnly() {
+        val payloads = mapOf(
+            "GLM Coding Lite Plan" to "Lite",
+            "GLM Coding Pro" to "Pro",
+            "GLM Coding Max-Yearly Plan" to "Max"
+        )
+
+        payloads.forEach { (rawPlan, expectedPlan) ->
+            val snapshot = ProviderUsageNormalizer.normalize(
+                ProviderId.GLM,
+                """
+                {
+                  "provider": "glm",
+                  "source": "visible-dom",
+                  "plan": "$rawPlan",
+                  "data": {
+                    "limits": [
+                      {
+                        "type": "TOKENS_LIMIT",
+                        "unit": 3,
+                        "number": 5,
+                        "percentage": 25
+                      }
+                    ]
+                  }
+                }
+                """.trimIndent(),
+                ProviderPayloadSource.STRUCTURED_SCRIPT
+            )!!
+
+            assertEquals(expectedPlan, snapshot.plan)
+        }
     }
 
     @Test
@@ -413,7 +490,7 @@ class ProviderUsageNormalizerTest {
         )!!
 
         assertEquals(ProviderId.OPENCODE, snapshot.providerId)
-        assertEquals("OpenCode Go", snapshot.plan)
+        assertEquals("Go", snapshot.plan)
         assertEquals("user@example.com", snapshot.account)
         assertEquals(
             listOf("Go 5-Hour Limit", "Go Weekly Limit", "Go Monthly Limit", "Zen Credits"),

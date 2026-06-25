@@ -49,6 +49,14 @@ fun displayUsageLabel(
         }
     }
 
+    if (providerId.equals(ProviderId.GLM.storageId, ignoreCase = true)) {
+        when (normalized) {
+            "5 hour token limit", "5 hour limit", "five hour token limit" -> return "5시간 한도"
+            "weekly token limit", "weekly limit", "seven day token limit" -> return "주간 한도"
+            "mcp monthly quota", "monthly quota", "monthly limit" -> return "월간 한도"
+        }
+    }
+
     return when (normalized) {
         "claude session",
         "codex session",

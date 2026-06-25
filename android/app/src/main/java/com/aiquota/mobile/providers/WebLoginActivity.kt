@@ -32,7 +32,7 @@ import java.nio.charset.StandardCharsets
 import java.util.Locale
 import org.json.JSONObject
 
-class WebLoginActivity : Activity() {
+open class WebLoginActivity : Activity() {
     private lateinit var providerId: ProviderId
     private lateinit var webView: WebView
     private lateinit var rootContainer: FrameLayout
@@ -353,7 +353,7 @@ class WebLoginActivity : Activity() {
         fun postCollectorError(rawError: String) {
             runOnUiThread {
                 val pageUrl = webView.url.orEmpty()
-                if (!ProviderWebCollectorScripts.shouldAcceptCollectorError(providerId, pageUrl)) {
+                if (!ProviderWebCollectorScripts.shouldAcceptCollectorError(providerId, pageUrl, rawError)) {
                     Log.w("AIQuotaCollector", "provider=${providerId.storageId} collectorMode=webview-js ignoredError page=${pathOf(pageUrl)}")
                     return@runOnUiThread
                 }
@@ -893,9 +893,15 @@ class WebLoginActivity : Activity() {
         }
 
         fun createIntent(context: Context, providerId: ProviderId, startUrl: String): Intent {
-            return Intent(context, WebLoginActivity::class.java)
+            val activityClass = when (providerId) {
+                ProviderId.GLM -> GlmWebLoginActivity::class.java
+                else -> WebLoginActivity::class.java
+            }
+            return Intent(context, activityClass)
                 .putExtra(EXTRA_PROVIDER_ID, providerId.storageId)
                 .putExtra(EXTRA_START_URL, startUrl)
         }
     }
 }
+
+class GlmWebLoginActivity : WebLoginActivity()

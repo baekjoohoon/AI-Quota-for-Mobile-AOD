@@ -7,6 +7,12 @@ object ProviderCollectorErrorPolicy {
     fun failureFor(providerId: ProviderId, rawError: String): ProviderRefreshFailure {
         val error = parse(rawError)
         return when {
+            providerId == ProviderId.GEMINI && error.errorKind == GEMINI_LOGIN_REQUIRED -> {
+                ProviderRefreshFailure(
+                    ProviderRefreshFailureKind.NO_TRUSTED_PAYLOAD,
+                    error.message ?: GoogleUsagePendingRetryPolicy.PENDING_MESSAGE
+                )
+            }
             error.errorKind in EXPLICIT_AUTH_ERRORS -> ProviderRefreshFailure.interactiveAuthRequired(
                 error.message ?: "Provider session requires sign-in."
             )
@@ -61,6 +67,7 @@ object ProviderCollectorErrorPolicy {
     )
 
     private const val CODEX_USAGE_UNAVAILABLE = "codex_usage_unavailable"
+    private const val GEMINI_LOGIN_REQUIRED = "gemini_login_required"
 }
 
 object CodexCollectorRetryPolicy {

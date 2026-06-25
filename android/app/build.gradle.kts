@@ -86,8 +86,8 @@ android {
         applicationId = "com.aiquota.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 21
-        versionName = "1.0.2"
+        versionCode = 22
+        versionName = "1.1.0"
         buildConfigField("String", "GOOGLE_ANDROID_OAUTH_CLIENT_ID", "\"$googleAndroidOAuthClientId\"")
         buildConfigField("String", "GOOGLE_ANDROID_OAUTH_REDIRECT_SCHEME", "\"$googleAndroidOAuthRedirectScheme\"")
         buildConfigField("String", "GEMINI_CLI_OAUTH_CLIENT_ID", "\"$geminiCliOAuthClientId\"")

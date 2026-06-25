@@ -12,8 +12,8 @@ class ProviderSessionResetterTest {
             .substringBefore("private fun clearStoredProviderCredentials")
 
         assertTrue(method.contains("clearStoredProviderCredentials(providerId)"))
-        assertTrue(method.contains("ProviderWebSessionCleaner.clearProviderWebSession(providerId)"))
-        assertTrue(method.indexOf("clearStoredProviderCredentials(providerId)") < method.indexOf("ProviderWebSessionCleaner.clearProviderWebSession(providerId)"))
+        assertTrue(method.contains("ProviderWebSessionCleaner.clearProviderWebSession(appContext, providerId)"))
+        assertTrue(method.indexOf("clearStoredProviderCredentials(providerId)") < method.indexOf("ProviderWebSessionCleaner.clearProviderWebSession(appContext, providerId)"))
     }
 
     @Test
@@ -26,8 +26,8 @@ class ProviderSessionResetterTest {
             .substringBefore("fun refreshNotificationState")
 
         assertTrue(method.contains("clearStoredProviderCredentials(providerId)"))
-        assertTrue(method.contains("ProviderWebSessionCleaner.clearProviderWebSessionAndWait(providerId)"))
-        assertTrue(method.indexOf("clearStoredProviderCredentials(providerId)") < method.indexOf("ProviderWebSessionCleaner.clearProviderWebSessionAndWait(providerId)"))
+        assertTrue(method.contains("ProviderWebSessionCleaner.clearProviderWebSessionAndWait(appContext, providerId)"))
+        assertTrue(method.indexOf("clearStoredProviderCredentials(providerId)") < method.indexOf("ProviderWebSessionCleaner.clearProviderWebSessionAndWait(appContext, providerId)"))
         assertTrue(disconnectFlow.contains("providerSessionResetter.disconnectAndWait(providerId)"))
     }
 

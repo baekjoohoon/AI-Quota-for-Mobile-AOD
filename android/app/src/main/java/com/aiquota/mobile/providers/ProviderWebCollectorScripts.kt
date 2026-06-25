@@ -196,6 +196,40 @@ object ProviderWebCollectorScripts {
         }
     }
 
+    fun collectorReadinessDiagnostic(
+        providerId: ProviderId,
+        url: String,
+        cookies: Map<String, String>,
+        pageText: String
+    ): String {
+        if (shouldRunCollector(providerId, url, cookies, pageText)) return "ready"
+        val uri = runCatching { URI(url) }.getOrNull()
+        val host = uri?.host.orEmpty().lowercase(Locale.US)
+        val path = uri?.path.orEmpty().lowercase(Locale.US)
+        val text = pageText.lowercase(Locale.US)
+        return when {
+            uri == null -> "invalid_url"
+            providerId == ProviderId.CLAUDE ->
+                "host=$host path=$path hasLastActiveOrg=${!cookies["lastActiveOrg"].isNullOrBlank()} hasClaudeText=${text.contains("claude")}"
+            providerId == ProviderId.CODEX ->
+                "host=$host path=$path textPresent=${pageText.isNotBlank()} loginText=${looksLikeChatGptLoginText(pageText)}"
+            providerId == ProviderId.GLM ->
+                "host=$host path=$path hasQuotaText=${text.contains("quota") || text.contains("usage") || text.contains("coding plan")}"
+            providerId == ProviderId.OPENCODE ->
+                "host=$host path=$path loginText=${looksLikeOpenCodeLoginText(text)} hasUsageText=${text.contains("usage") || text.contains("limit") || text.contains("balance") || text.contains("credit")}"
+            providerId == ProviderId.GEMINI ->
+                "host=$host path=$path usageUrl=${path.startsWith("/usage")} appUrl=${path.startsWith("/app")}"
+            providerId == ProviderId.COPILOT ->
+                "host=$host path=$path"
+            providerId == ProviderId.ANTIGRAVITY ->
+                "host=$host path=$path"
+            providerId == ProviderId.CURSOR ->
+                "host=$host path=$path"
+            else ->
+                "host=$host path=$path"
+        }
+    }
+
     fun shouldAllowCollectorReinjection(providerId: ProviderId): Boolean {
         return when (providerId) {
             ProviderId.CLAUDE,
@@ -382,8 +416,16 @@ object ProviderWebCollectorScripts {
         val host = uri.host.orEmpty().lowercase(Locale.US)
         val path = uri.path.orEmpty().lowercase(Locale.US)
         if ((host != "chatgpt.com" && !host.endsWith(".chatgpt.com")) || (path != "/" && path.isNotBlank())) return false
+        val payloadProvider = runCatching {
+            JSONObject(rawError)
+                .optString("provider")
+                .trim()
+                .lowercase(Locale.US)
+        }.getOrDefault("")
+        if (payloadProvider != providerId.storageId) return false
         val errorKind = ProviderCollectorErrorPolicy.errorKind(rawError)
-        return errorKind == "codex_auth_required"
+        return errorKind == "codex_auth_required" ||
+            errorKind == "codex_usage_unavailable"
     }
 
     private fun isCodexChatGptRoot(providerId: ProviderId, pageUrl: String): Boolean {
@@ -1815,7 +1857,7 @@ object ProviderWebCollectorScripts {
                     }
                   });
                 } catch (error) {}
-                return extractCodexUsageFromRows(accountId) || extractCodexVisibleDomUsage(accountId);
+                return extractCodexVisibleDomUsage(accountId);
               }
               function buildCodexDiagnostics(result) {
                 result = result || {};
@@ -1959,21 +2001,9 @@ object ProviderWebCollectorScripts {
                 return path.indexOf("/codex/") >= 0 &&
                   (path.indexOf("/settings/analytics") >= 0 || path.indexOf("/settings/usage") >= 0);
               }
-              function hasCodexNavigationAuth(result) {
-                result = result || {};
-                var storage = result.storageAuthHint || {};
-                var session = result.sessionAuthHint || {};
-                return !!(
-                  storage.localTokenStringPresent ||
-                  storage.sessionTokenStringPresent ||
-                  session.bearerValuePresent ||
-                  session.nonIdTokenStringPresent
-                );
-              }
               function navigateCodexUsageDashboardIfNeeded(result) {
                 if (!result || !result.sessionOk || result.usageOk) return false;
                 if (isCodexUsageDashboardLocation()) return false;
-                if (!hasCodexNavigationAuth(result)) return false;
                 var target = codexUsageDashboardUrls[0];
                 console.log("AIQuotaCodex navigate usage dashboard");
                 try { location.assign(target); } catch (error) { location.href = target; }
@@ -2001,17 +2031,12 @@ object ProviderWebCollectorScripts {
                     c.post(result.usage);
                     return;
                   }
+                  if (navigateCodexUsageDashboardIfNeeded(result)) {
+                    return;
+                  }
                   if (attempts >= 2 && looksLikeChatGptLogin()) {
                     if (continueCodexInteractiveLoginUntilUsagePayload("login")) return;
                     c.fail("codex_auth_required", "Codex login page reached instead of a trusted usage payload.");
-                    return;
-                  }
-                  if (attempts >= 2 && !isCodexUsageDashboardLocation() && !hasCodexNavigationAuth(result)) {
-                    if (continueCodexInteractiveLoginUntilUsagePayload("missing_navigation_auth")) return;
-                    c.fail("codex_auth_required", "Codex session is missing the auth token required to reach the usage page.");
-                    return;
-                  }
-                  if (navigateCodexUsageDashboardIfNeeded(result)) {
                     return;
                   }
                   if (attempts >= 8 && (result.sessionOk || looksLikeChatGptApp())) {
@@ -2290,6 +2315,13 @@ object ProviderWebCollectorScripts {
                 }
                 return null;
               }
+              function normalizePlan(value) {
+                var text = String(value || "").toLowerCase();
+                if (text.indexOf("lite") >= 0) return "Lite";
+                if (text.indexOf("pro") >= 0) return "Pro";
+                if (text.indexOf("max") >= 0) return "Max";
+                return null;
+              }
               function percentFromObject(object) {
                 var direct = number(first(object, ["percentage", "usedPercent", "used_percent", "percentUsed", "percent_used"]));
                 if (direct !== null) return direct;
@@ -2374,8 +2406,9 @@ object ProviderWebCollectorScripts {
                 payload.data.limits.push(output);
               }
               function rememberPlan(object, payload) {
-                payload.plan = payload.plan ||
-                  first(object, ["productName", "product_name", "planName", "plan_name", "plan", "packageName", "package_name", "tier"]);
+                payload.plan = payload.plan || normalizePlan(
+                  first(object, ["productName", "product_name", "planName", "plan_name", "plan", "packageName", "package_name", "tier"])
+                );
                 payload.account = payload.account || first(object, ["email", "account", "userEmail"]);
               }
               function scan(object, payload, depth) {
@@ -2509,7 +2542,7 @@ object ProviderWebCollectorScripts {
               function scanVisibleText(payload) {
                 var text = c.text ? c.text() : "";
                 var lower = text.toLowerCase();
-                if (lower.indexOf("coding plan") >= 0 && !payload.plan) payload.plan = "GLM Coding Plan";
+                payload.plan = payload.plan || normalizePlan(text);
                 var percentRe = /(\d{1,3}(?:\.\d+)?)\s*%/g;
                 var match;
                 while ((match = percentRe.exec(text)) !== null) {
@@ -2521,11 +2554,11 @@ object ProviderWebCollectorScripts {
                   var isRemaining = context.indexOf("remaining") >= 0 || context.indexOf("left") >= 0 || context.indexOf("남음") >= 0;
                   var usedPercent = isRemaining ? 100 - percent : percent;
                   if (context.indexOf("weekly") >= 0 || context.indexOf("7-day") >= 0 || context.indexOf("7 day") >= 0) {
-                    appendVisibleTextLimit(payload, "Weekly Token Limit", usedPercent, true, false);
+                    appendVisibleTextLimit(payload, "주간 한도", usedPercent, true, false);
                   } else if (context.indexOf("5-hour") >= 0 || context.indexOf("5 hour") >= 0 || context.indexOf("5h") >= 0 || context.indexOf("token") >= 0) {
-                    appendVisibleTextLimit(payload, "5-Hour Token Limit", usedPercent, false, false);
+                    appendVisibleTextLimit(payload, "5시간 한도", usedPercent, false, false);
                   } else if (context.indexOf("mcp") >= 0 || context.indexOf("search") >= 0 || context.indexOf("reader") >= 0 || context.indexOf("zread") >= 0) {
-                    appendVisibleTextLimit(payload, "MCP Monthly Quota", usedPercent, false, true);
+                    appendVisibleTextLimit(payload, "월간 한도", usedPercent, false, true);
                   }
                 }
               }
@@ -2546,7 +2579,7 @@ object ProviderWebCollectorScripts {
                 return Array.isArray(limits) && limits.length > 0;
               }
               function collect(attempt) {
-                var payload = { provider: "glm", source: "visible-dom", plan: "GLM Coding Plan" };
+                var payload = { provider: "glm", source: "visible-dom" };
                 scanPageState(payload);
                 scanRows(payload);
                 scanVisibleText(payload);
@@ -2744,7 +2777,7 @@ object ProviderWebCollectorScripts {
               function scanVisibleText(payload) {
                 var text = c.text ? c.text() : "";
                 if (!text) return;
-                if (!payload.data.plan && lower(text).indexOf("opencode go") >= 0) payload.data.plan = "OpenCode Go";
+                if (!payload.data.plan && lower(text).indexOf("opencode go") >= 0) payload.data.plan = "Go";
                 var lines = text.split(/\n+/).map(function(line) {
                   return String(line || "").trim();
                 }).filter(Boolean);

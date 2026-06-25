@@ -96,6 +96,12 @@
     <string name="provider_hidden_snackbar">%1$s is hidden. Restore it in Settings.</string>
     <string name="provider_updated">Updated %1$s</string>
     <string name="provider_usage_title">Usage</string>
+    <string name="provider_usage_color_button">Change color</string>
+    <string name="provider_usage_color_title">Gauge color</string>
+    <string name="provider_usage_color_input_label">Hex or RGB code</string>
+    <string name="provider_usage_color_apply">Apply</string>
+    <string name="provider_usage_color_reset">Reset</string>
+    <string name="provider_usage_color_invalid">Enter a color like #D1775E or 209,119,94.</string>
     <string name="provider_no_lines">No usage lines</string>
     <string name="provider_detail_status">Status: %1$s</string>
     <string name="provider_detail_plan">Plan: %1$s</string>

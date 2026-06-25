@@ -16,7 +16,7 @@ class GoogleUsagePendingRetryPolicyTest {
         val now = Instant.parse("2026-05-27T06:37:00Z")
         val snapshot = googlePendingSnapshot(
             providerId = ProviderId.GEMINI,
-            updatedAt = now.minusSeconds(30).toString()
+            statusUpdatedAt = now.minusSeconds(30).toString()
         ).copy(lines = listOf(ProviderUsageLine(label = "Gemini 3.5 Flash", remainingPercent = 0.8f)))
 
         assertEquals(
@@ -30,18 +30,30 @@ class GoogleUsagePendingRetryPolicyTest {
         val now = Instant.parse("2026-05-27T06:37:00Z")
         val snapshot = googlePendingSnapshot(
             providerId = ProviderId.ANTIGRAVITY,
-            updatedAt = now.minusSeconds(60).toString()
+            statusUpdatedAt = now.minusSeconds(60).toString()
         ).copy(lines = listOf(ProviderUsageLine(label = "Gemini 3.5 Flash", remainingPercent = 0.8f)))
 
         assertEquals(0L, GoogleUsagePendingRetryPolicy.retryDelayMillis(snapshot, now))
     }
 
     @Test
-    fun pendingGoogleUsageWithoutTrustedLinesDoesNotAutoRetry() {
+    fun pendingGeminiUsageWithoutTrustedLinesRetriesAfterCooldown() {
         val now = Instant.parse("2026-05-27T06:37:00Z")
         val snapshot = googlePendingSnapshot(
             providerId = ProviderId.GEMINI,
-            updatedAt = now.minusSeconds(120).toString()
+            connectionState = ProviderConnectionState.UNAVAILABLE,
+            statusUpdatedAt = now.minusSeconds(120).toString()
+        )
+
+        assertEquals(0L, GoogleUsagePendingRetryPolicy.retryDelayMillis(snapshot, now))
+    }
+
+    @Test
+    fun pendingAntigravityUsageWithoutTrustedLinesDoesNotAutoRetry() {
+        val now = Instant.parse("2026-05-27T06:37:00Z")
+        val snapshot = googlePendingSnapshot(
+            providerId = ProviderId.ANTIGRAVITY,
+            statusUpdatedAt = now.minusSeconds(120).toString()
         )
 
         assertNull(GoogleUsagePendingRetryPolicy.retryDelayMillis(snapshot, now))
@@ -52,7 +64,7 @@ class GoogleUsagePendingRetryPolicyTest {
         val now = Instant.parse("2026-05-27T06:37:00Z")
         val collecting = googlePendingSnapshot(
             providerId = ProviderId.GEMINI,
-            updatedAt = now.minusSeconds(120).toString()
+            statusUpdatedAt = now.minusSeconds(120).toString()
         ).copy(refreshState = ProviderRefreshState.REFRESHING)
         val claude = ProviderUsageSnapshot(
             providerId = ProviderId.CLAUDE,
@@ -69,18 +81,23 @@ class GoogleUsagePendingRetryPolicyTest {
         val now = Instant.parse("2026-05-27T06:37:00Z")
         val snapshot = googlePendingSnapshot(
             providerId = ProviderId.GEMINI,
-            updatedAt = now.minusSeconds(120).toString()
+            statusUpdatedAt = now.minusSeconds(120).toString()
         ).copy(message = "Gemini Cloud Code Private API is disabled for this OAuth project.")
 
         assertNull(GoogleUsagePendingRetryPolicy.retryDelayMillis(snapshot, now))
     }
 
-    private fun googlePendingSnapshot(providerId: ProviderId, updatedAt: String): ProviderUsageSnapshot {
+    private fun googlePendingSnapshot(
+        providerId: ProviderId,
+        statusUpdatedAt: String,
+        connectionState: ProviderConnectionState = ProviderConnectionState.STALE
+    ): ProviderUsageSnapshot {
         return ProviderUsageSnapshot(
             providerId = providerId,
-            connectionState = ProviderConnectionState.STALE,
+            connectionState = connectionState,
             refreshState = ProviderRefreshState.IDLE,
-            updatedAt = updatedAt,
+            updatedAt = statusUpdatedAt,
+            statusUpdatedAt = statusUpdatedAt,
             message = GoogleUsagePendingRetryPolicy.PENDING_MESSAGE
         )
     }

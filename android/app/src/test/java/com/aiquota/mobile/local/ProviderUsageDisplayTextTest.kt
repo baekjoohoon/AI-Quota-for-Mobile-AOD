@@ -43,6 +43,15 @@ class ProviderUsageDisplayTextTest {
     }
 
     @Test
+    fun koreanGlmLabelsUseLimitNames() {
+        val locale = Locale.KOREAN
+
+        assertEquals("5시간 한도", displayUsageLabel("glm", "5-Hour Token Limit", 0, locale))
+        assertEquals("주간 한도", displayUsageLabel("glm", "Weekly Token Limit", 1, locale))
+        assertEquals("월간 한도", displayUsageLabel("glm", "MCP Monthly Quota", 2, locale))
+    }
+
+    @Test
     fun koreanCodexSparkLabelsUseDisplayOnlyShortNames() {
         val locale = Locale.KOREAN
 

@@ -16,9 +16,7 @@ object ProviderWebSessionClearPolicy {
 
     fun cookieUrls(providerId: ProviderId): List<String> {
         return when (providerId) {
-            ProviderId.CLAUDE -> listOf(
-                "https://claude.ai"
-            )
+            ProviderId.CLAUDE -> listOf("https://claude.ai") + GOOGLE_AUTH_COOKIE_URLS
             ProviderId.CODEX -> listOf(
                 "https://chatgpt.com",
                 "https://chatgpt.com/auth/login",
@@ -34,45 +32,43 @@ object ProviderWebSessionClearPolicy {
                 "https://auth.openai.com",
                 "https://auth.openai.com/authorize",
                 "https://auth.openai.com/u/login"
-            )
-            ProviderId.GEMINI -> listOf(
-                "https://gemini.google.com",
-                "https://oauth2.googleapis.com"
-            )
-            ProviderId.COPILOT -> listOf(
-                "https://github.com"
-            )
+            ) + GOOGLE_AUTH_COOKIE_URLS + listOf("https://appleid.apple.com")
+            ProviderId.GEMINI -> listOf("https://gemini.google.com") + GOOGLE_AUTH_COOKIE_URLS
+            ProviderId.COPILOT -> GITHUB_AUTH_COOKIE_URLS
             ProviderId.ANTIGRAVITY -> listOf(
                 "https://antigravity.google",
-                "https://www.antigravity.google",
-                "https://oauth2.googleapis.com"
-            )
+                "https://www.antigravity.google"
+            ) + GOOGLE_AUTH_COOKIE_URLS
             ProviderId.CURSOR -> listOf(
                 "https://cursor.com",
                 "https://www.cursor.com",
+                "https://cursor.sh",
                 "https://api2.cursor.sh",
                 "https://authenticate.cursor.sh",
                 "https://authenticator.cursor.sh",
                 "https://api.workos.com",
                 "https://auth.workos.com",
                 "https://workos.com"
-            )
-            ProviderId.GLM -> listOf(
-                "https://z.ai",
-                "https://www.z.ai",
-                "https://chat.z.ai",
-                "https://api.z.ai"
-            )
+            ) + GOOGLE_AUTH_COOKIE_URLS + GITHUB_AUTH_COOKIE_URLS
+            ProviderId.GLM -> GLM_COOKIE_URLS
             ProviderId.OPENCODE -> listOf(
                 "https://opencode.ai",
                 "https://opencode.ai/auth",
-                "https://www.opencode.ai"
-            )
+                "https://www.opencode.ai",
+                "https://auth.opencode.ai"
+            ) + GOOGLE_AUTH_COOKIE_URLS + GITHUB_AUTH_COOKIE_URLS
         }
     }
 
     fun storageOrigins(providerId: ProviderId): List<String> {
         return cookieUrls(providerId)
+    }
+
+    fun browserStorageCleanupUrls(providerId: ProviderId): List<String> {
+        return when (providerId) {
+            ProviderId.GLM -> GLM_BROWSER_STORAGE_CLEANUP_URLS
+            else -> emptyList()
+        }
     }
 
     fun expiringCookieHeaders(cookieHeader: String?, url: String? = null): List<String> {
@@ -146,5 +142,50 @@ object ProviderWebSessionClearPolicy {
         "com.cn",
         "com.tw",
         "co.jp"
+    )
+
+    private val GOOGLE_AUTH_COOKIE_URLS = listOf(
+        "https://accounts.google.com",
+        "https://myaccount.google.com",
+        "https://google.com",
+        "https://www.google.com",
+        "https://oauth2.googleapis.com",
+        "https://accounts.youtube.com",
+        "https://play.google.com"
+    )
+
+    private val GLM_COOKIE_URLS = listOf(
+        "https://z.ai",
+        "https://www.z.ai",
+        GlmProviderUrls.WEB_OAUTH_URL,
+        GlmProviderUrls.WEB_USAGE_URL,
+        "https://z.ai/manage-apikey",
+        "https://z.ai/manage-apikey/coding-plan",
+        "https://z.ai/manage-apikey/coding-plan/personal",
+        "https://z.ai/manage-apikey/subscription",
+        "https://chat.z.ai",
+        "https://api.z.ai",
+        GlmProviderUrls.API_QUOTA_URL,
+        "https://api.z.ai/api/biz/subscription/list",
+        "https://auth.z.ai",
+        "https://login.z.ai",
+        "https://accounts.z.ai",
+        "https://account.z.ai"
+    )
+
+    private val GLM_BROWSER_STORAGE_CLEANUP_URLS = listOf(
+        "https://z.ai",
+        "https://www.z.ai",
+        "https://chat.z.ai",
+        "https://auth.z.ai",
+        "https://login.z.ai",
+        "https://accounts.z.ai",
+        "https://account.z.ai"
+    )
+
+    private val GITHUB_AUTH_COOKIE_URLS = listOf(
+        "https://github.com",
+        "https://www.github.com",
+        "https://api.github.com"
     )
 }

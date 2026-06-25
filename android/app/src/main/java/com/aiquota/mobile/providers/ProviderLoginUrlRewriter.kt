@@ -9,10 +9,11 @@ import java.util.Locale
 
 object ProviderLoginUrlRewriter {
     fun rewriteMainFrameUrl(providerId: ProviderId, url: String): String? {
-        if (providerId != ProviderId.CLAUDE) return null
         val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return null
         if (!uri.scheme.equals("https", ignoreCase = true)) return null
         if (!uri.host.orEmpty().isAccountsGoogleHost()) return null
+        if (providerId == ProviderId.GEMINI) return uri.withQueryValueIfMissing("authuser", "-1")
+        if (providerId != ProviderId.CLAUDE) return null
         if (!uri.looksLikeGoogleOAuthStart()) return null
         if (uri.promptTokens().any { it.equals("select_account", ignoreCase = true) }) return null
 
@@ -38,6 +39,31 @@ object ProviderLoginUrlRewriter {
                 part.substringBefore("=").equals("prompt", ignoreCase = true)
             } + "prompt=${nextPrompt.joinToString(" ").urlEncode()}"
 
+        return buildString {
+            append(scheme)
+            append("://")
+            append(rawAuthority)
+            append(rawPath.orEmpty().ifBlank { "/" })
+            if (queryParts.isNotEmpty()) {
+                append("?")
+                append(queryParts.joinToString("&"))
+            }
+            rawFragment?.let { fragment ->
+                append("#")
+                append(fragment)
+            }
+        }
+    }
+
+    private fun URI.withQueryValueIfMissing(key: String, value: String): String? {
+        val queryParts = rawQuery.orEmpty()
+            .split("&")
+            .filter { it.isNotBlank() }
+        if (queryParts.any { it.substringBefore("=").equals(key, ignoreCase = true) }) return null
+        return withRawQuery(queryParts + "${key.urlEncode()}=${value.urlEncode()}")
+    }
+
+    private fun URI.withRawQuery(queryParts: List<String>): String {
         return buildString {
             append(scheme)
             append("://")

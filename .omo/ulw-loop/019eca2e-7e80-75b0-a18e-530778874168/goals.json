@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "createdAt": "2026-06-21T11:56:59.415Z",
+  "updatedAt": "2026-06-21T11:56:59.415Z",
+  "briefPath": ".omo/ulw-loop/019eca2e-7e80-75b0-a18e-530778874168/brief.md",
+  "goalsPath": ".omo/ulw-loop/019eca2e-7e80-75b0-a18e-530778874168/goals.json",
+  "ledgerPath": ".omo/ulw-loop/019eca2e-7e80-75b0-a18e-530778874168/ledger.jsonl",
+  "codexGoalMode": "aggregate",
+  "goals": [
+    {
+      "id": "G001-ai-usage-for-mobile-provider-refresh",
+      "title": "AI Usage for Mobile에서 세션 장기 유지가 깨진 provider들을 실제 refresh에서 다시 사용량 수집...",
+      "objective": "AI Usage for Mobile에서 세션 장기 유지가 깨진 provider들을 실제 refresh에서 다시 사용량 수집 가능하도록 복구하고, 기존 provider 기능을 보존한다. 현재는 에뮬레이터에서 provider refresh를 실제로 검증해야 하며, 기존 provider 기능을 망가뜨리지 않는 최소 수정만 허용한다.",
+      "status": "pending",
+      "successCriteria": [
+        {
+          "id": "C001",
+          "scenario": "happy path for: AI Usage for Mobile에서 세션 장기 유지가 깨진 provider들을 실제 refresh에서 다시 사용량 수집 가능하도록 복구...",
+          "userModel": "happy",
+          "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+          "essential": true,
+          "capturedEvidence": null,
+          "status": "pending"
+        },
+        {
+          "id": "C002",
+          "scenario": "edge case (boundary/empty/malformed)",
+          "userModel": "edge",
+          "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: AI Usage for Mobile에서 세션 장기 유지가 깨진 provider들을 실제 refresh에서 다시 사용량 수집 가능하도록 복구....",
+          "essential": true,
+          "capturedEvidence": null,
+          "status": "pending"
+        },
+        {
+          "id": "C003",
+          "scenario": "regression: adjacent surface still works",
+          "userModel": "regression",
+          "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: AI Usage for Mobile에서 세션 장기 유지가 깨진 provider들을 실제 refresh에서 다시 사용량 수집 가능하도록 복구....",
+          "essential": false,
+          "capturedEvidence": null,
+          "status": "pending"
+        }
+      ],
+      "attempt": 0,
+      "createdAt": "2026-06-21T11:56:59.415Z",
+      "updatedAt": "2026-06-21T11:56:59.415Z"
+    }
+  ],
+  "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/019eca2e-7e80-75b0-a18e-530778874168/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/019eca2e-7e80-75b0-a18e-530778874168/ledger.jsonl as the audit trail."
+}

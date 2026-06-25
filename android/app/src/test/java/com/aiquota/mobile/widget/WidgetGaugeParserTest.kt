@@ -168,4 +168,29 @@ class WidgetGaugeParserTest {
         assertEquals(listOf("gemini", "claude"), payload.providers.map { it.providerId })
         assertEquals(listOf("gemini", "claude"), payload.gauges.map { it.providerId })
     }
+
+    @Test
+    fun widgetPayloadKeepsProviderGaugeColor() {
+        val snapshotJson = """
+            {
+              "providers": [
+                {
+                  "providerId": "claude",
+                  "displayName": "Claude",
+                  "connectionState": "CONNECTED",
+                  "gaugeColor": "#4f6fa8",
+                  "lines": [
+                    { "label": "5h", "remainingPercent": 0.6, "remainingText": "60% left" }
+                  ]
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val payload = providerWidgetPayload(snapshotJson, providerId = "claude")
+        val gauge = parseUnifiedWidgetPayload(snapshotJson).gauges.single()
+
+        assertEquals("#4F6FA8", payload.gaugeColorHex)
+        assertEquals("#4F6FA8", gauge.gaugeColorHex)
+    }
 }

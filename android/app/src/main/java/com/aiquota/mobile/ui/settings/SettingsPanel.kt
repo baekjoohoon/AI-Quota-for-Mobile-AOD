@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.aiquota.mobile.BuildConfig
 import com.aiquota.mobile.R
 import com.aiquota.mobile.local.AppTheme
 import com.aiquota.mobile.local.ProviderConnectionState
@@ -493,6 +494,11 @@ private fun SupportSettingsSection(
             )
             Text(
                 text = stringResource(R.string.settings_support_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textMuted
+            )
+            Text(
+                text = "버전 : ${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textMuted
             )

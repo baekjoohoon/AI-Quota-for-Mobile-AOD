@@ -68,7 +68,7 @@ object ProviderRefreshPlan {
             .filterNot { it in refreshingProviders }
             .filterNot { it in resetProviders }
             .filter { providerId -> snapshotsByProvider[providerId]?.connectionState != ProviderConnectionState.COLLECTING }
-            .filter { providerId -> snapshotsByProvider[providerId]?.isAutomaticRefreshEligible() != false }
+            .filter { providerId -> snapshotsByProvider[providerId]?.isAutomaticRefreshEligible(now) != false }
             .map(::manualJobFor)
         return resetJobs + normalJobs
     }
@@ -97,7 +97,7 @@ object ProviderRefreshPlan {
     private fun hiddenCollectorUrl(providerId: ProviderId): String {
         return when (providerId) {
             ProviderId.CLAUDE -> "https://claude.ai/"
-            ProviderId.CODEX -> ProviderLoginStrategy.CODEX_CALLBACK_RECOVERY_URL
+            ProviderId.CODEX -> "https://chatgpt.com/"
             ProviderId.GLM -> GlmProviderUrls.WEB_OAUTH_URL
             ProviderId.OPENCODE -> "https://opencode.ai/auth"
             ProviderId.COPILOT -> "https://github.com/settings/copilot/features"
@@ -124,12 +124,17 @@ object ProviderRefreshPlan {
         )
     }
 
-    private fun ProviderUsageSnapshot.isAutomaticRefreshEligible(): Boolean {
+    private fun ProviderUsageSnapshot.isAutomaticRefreshEligible(now: Instant): Boolean {
         if (providerId == ProviderId.GLM && GlmNoSubscriptionPolicy.isNoSubscriptionSnapshot(this)) return false
+        if (providerId == ProviderId.GEMINI) {
+            GoogleUsagePendingRetryPolicy.retryDelayMillis(this, now)?.let { retryDelayMillis ->
+                return retryDelayMillis <= 0L
+            }
+        }
         if (providerId != ProviderId.GEMINI && providerId != ProviderId.ANTIGRAVITY) return true
         if (connectionState != ProviderConnectionState.STALE) return true
         if (lines.isNotEmpty()) return true
-        return GoogleUsagePendingRetryPolicy.retryDelayMillis(this) != null
+        return GoogleUsagePendingRetryPolicy.retryDelayMillis(this, now) == 0L
     }
 
 }

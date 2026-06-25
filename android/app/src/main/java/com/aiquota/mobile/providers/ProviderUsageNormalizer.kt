@@ -67,14 +67,34 @@ object ProviderUsageNormalizer {
                 val identity = glmLimitIdentity(type, item) ?: continue
                 item.toGlmLine(identity.key, identity.label, glmSource, type)?.let(::add)
             }
-        }
+        }.let(::sortGlmLines)
         return snapshot(
             ProviderId.GLM,
-            json.optionalString("plan") ?: data.optionalString("plan") ?: "GLM Coding Plan",
+            glmPlan(json.optionalString("plan") ?: data.optionalString("plan") ?: json.optionalString("productName") ?: data.optionalString("productName")),
             json.optionalString("account") ?: data.optionalString("account"),
             fetchedAt,
             lines
         )
+    }
+
+    private fun glmPlan(value: String?): String? {
+        val trimmed = value?.trim()?.takeIf { it.isNotBlank() && it != "null" } ?: return null
+        val compact = trimmed.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "")
+        return when {
+            compact.contains("lite") -> "Lite"
+            compact.contains("pro") -> "Pro"
+            compact.contains("max") -> "Max"
+            else -> null
+        }
+    }
+
+    private fun sortGlmLines(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {
+        val order = mapOf(
+            "glm:tokens" to 0,
+            "glm:weekly_tokens" to 1,
+            "glm:mcp" to 2
+        )
+        return lines.sortedWith(compareBy({ order[it.key] ?: 100 }, { it.label }))
     }
 
     private data class GlmLimitIdentity(
@@ -89,12 +109,12 @@ object ProviderUsageNormalizer {
                 val number = item.optionalNumber("number")?.toInt()
                 val label = item.optionalString("label")?.lowercase(Locale.US).orEmpty()
                 if (unit == 6 || number == 7 || label.contains("weekly")) {
-                    GlmLimitIdentity("glm:weekly_tokens", "Weekly Token Limit")
+                    GlmLimitIdentity("glm:weekly_tokens", "주간 한도")
                 } else {
-                    GlmLimitIdentity("glm:tokens", "5-Hour Token Limit")
+                    GlmLimitIdentity("glm:tokens", "5시간 한도")
                 }
             }
-            "TIME_LIMIT" -> GlmLimitIdentity("glm:mcp", "MCP Monthly Quota")
+            "TIME_LIMIT" -> GlmLimitIdentity("glm:mcp", "월간 한도")
             else -> null
         }
     }
@@ -246,16 +266,27 @@ object ProviderUsageNormalizer {
     }
 
     private fun opencodePlan(root: JSONObject, data: JSONObject): String? {
-        return root.optionalString("plan")
-            ?: data.optionalString("plan")
-            ?: root.optionalString("productName")
-            ?: data.optionalString("productName")
-            ?: root.optionalString("subscription")
-            ?: data.optionalString("subscription")
-            ?: root.optObject("subscription")?.optionalString("name")
-            ?: data.optObject("subscription")?.optionalString("name")
-            ?: root.optObject("plan")?.optionalString("name")
-            ?: data.optObject("plan")?.optionalString("name")
+        return sequenceOf(
+            root.optionalString("plan"),
+            data.optionalString("plan"),
+            root.optionalString("productName"),
+            data.optionalString("productName"),
+            root.optionalString("subscription"),
+            data.optionalString("subscription"),
+            root.optObject("subscription")?.optionalString("name"),
+            data.optObject("subscription")?.optionalString("name"),
+            root.optObject("plan")?.optionalString("name"),
+            data.optObject("plan")?.optionalString("name")
+        ).mapNotNull(::opencodePlanLabel).firstOrNull()
+    }
+
+    private fun opencodePlanLabel(value: String?): String? {
+        val trimmed = value?.trim()?.takeIf { it.isNotBlank() && it != "null" } ?: return null
+        val compact = trimmed.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "")
+        return when (compact) {
+            "opencodego", "go" -> "Go"
+            else -> trimmed
+        }
     }
 
     private fun opencodeAccount(root: JSONObject, data: JSONObject): String? {

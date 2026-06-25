@@ -18,7 +18,8 @@ data class WidgetProviderGauge(
     val providerId: String,
     val remainingRatio: Float,
     val remainingText: String,
-    val resetText: String?
+    val resetText: String?,
+    val gaugeColorHex: String? = null
 )
 
 data class UnifiedWidgetPayload(
@@ -35,6 +36,7 @@ data class ProviderWidgetPayload(
     val displayName: String,
     val status: String,
     val visible: Boolean,
+    val gaugeColorHex: String? = null,
     val lines: List<ProviderWidgetLine>
 )
 
@@ -74,7 +76,8 @@ fun parseWidgetProviderGauges(snapshotJson: String, now: Instant = Instant.now()
                         providerId = providerId,
                         remainingRatio = line.ratio,
                         remainingText = displayRemainingText(line.remainingText),
-                        resetText = displayResetTextForLocale(line.resetText)
+                        resetText = displayResetTextForLocale(line.resetText),
+                        gaugeColorHex = provider.gaugeColorHex()
                     )
                 )
             }
@@ -210,7 +213,8 @@ private fun JSONObject.toWidgetGauge(providerId: String, now: Instant): WidgetPr
         providerId = providerId,
         remainingRatio = line.ratio,
         remainingText = displayRemainingText(line.remainingText),
-        resetText = displayResetTextForLocale(line.resetText)
+        resetText = displayResetTextForLocale(line.resetText),
+        gaugeColorHex = gaugeColorHex()
     )
 }
 
@@ -221,6 +225,7 @@ private fun JSONObject.toProviderWidgetPayload(providerId: String, now: Instant)
         displayName = normalizedProviderDisplayName(providerId, optionalString(KEY_DISPLAY_NAME)),
         status = optionalString(KEY_CONNECTION_STATE) ?: optionalString(KEY_STATUS) ?: DISCONNECTED_STATUS,
         visible = isVisibleProvider(),
+        gaugeColorHex = gaugeColorHex(),
         lines = buildList {
             for (index in 0 until linesJson.length()) {
                 val line = linesJson.optJSONObject(index) ?: continue
@@ -228,6 +233,10 @@ private fun JSONObject.toProviderWidgetPayload(providerId: String, now: Instant)
             }
         }
     )
+}
+
+private fun JSONObject.gaugeColorHex(): String? {
+    return com.aiquota.mobile.local.ProviderGaugeColor.normalize(optionalString(KEY_GAUGE_COLOR))
 }
 
 private fun JSONObject.toProviderWidgetLine(providerId: String, lineIndex: Int, now: Instant): ProviderWidgetLine {
@@ -342,6 +351,7 @@ private fun disconnectedProviderPayload(providerId: String): ProviderWidgetPaylo
         displayName = defaultProviderDisplayName(providerId),
         status = DISCONNECTED_STATUS,
         visible = true,
+        gaugeColorHex = null,
         lines = emptyList()
     )
 }
@@ -412,6 +422,7 @@ private const val KEY_ENABLED = "enabled"
 private const val KEY_ACTIVE = "active"
 private const val KEY_VISIBLE = "visible"
 private const val KEY_HIDDEN = "hidden"
+private const val KEY_GAUGE_COLOR = "gaugeColor"
 private const val KEY_LINES = "lines"
 private const val KEY_LABEL = "label"
 private const val KEY_LIMIT = "limit"

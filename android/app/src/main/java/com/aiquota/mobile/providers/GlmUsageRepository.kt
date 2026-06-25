@@ -166,7 +166,6 @@ object GlmUsageFetcher {
                 json
                     .put("provider", "glm")
                     .put("account", maskApiKey(apiKey))
-                    .put("plan", "GLM Coding Plan")
                     .toString(),
                 requiresAuth = false,
                 diagnostic = "ok"

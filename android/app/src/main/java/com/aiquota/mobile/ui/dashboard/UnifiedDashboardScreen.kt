@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.aiquota.mobile.R
 import com.aiquota.mobile.local.ProviderConnectionState
+import com.aiquota.mobile.local.ProviderGaugeColor
 import com.aiquota.mobile.local.ProviderId
 import com.aiquota.mobile.local.ProviderPreferencesCodec
 import com.aiquota.mobile.local.ProviderRefreshState
@@ -150,6 +151,7 @@ fun UnifiedDashboardScreen(
     providerOrder: List<ProviderId>,
     hiddenProviders: Set<ProviderId>,
     snapshots: List<ProviderUsageSnapshot>,
+    providerGaugeColors: Map<ProviderId, String> = emptyMap(),
     onProviderSelected: (ProviderId) -> Unit,
     onConnectProvider: (ProviderId) -> Unit,
     onReorderProvider: (ProviderId, Int) -> Unit,
@@ -269,6 +271,7 @@ fun UnifiedDashboardScreen(
                                 previewTargetIndex = previewDragTargetIndex,
                                 cardHeightDp = cardHeightDp,
                                 layoutMetrics = layoutMetrics,
+                                gaugeColorHex = providerGaugeColors[providerId],
                                 modifier = Modifier.fillMaxWidth(),
                                 isPlaceholder = providerId == draggedProvider,
                                 onProviderSelected = onProviderSelected,
@@ -329,6 +332,7 @@ fun UnifiedDashboardScreen(
                                 previewTargetIndex = previewDragTargetIndex,
                                 cardHeightDp = cardHeightDp,
                                 layoutMetrics = layoutMetrics,
+                                gaugeColorHex = providerGaugeColors[providerId],
                                 modifier = cardModifier,
                                 isPlaceholder = providerId == draggedProvider,
                                 onProviderSelected = onProviderSelected,
@@ -361,6 +365,7 @@ fun UnifiedDashboardScreen(
             DashboardDragOverlay(
                 providerId = overlayProvider,
                 snapshot = snapshotsByProvider[overlayProvider] ?: ProviderUsageSnapshot.disconnected(overlayProvider),
+                gaugeColorHex = providerGaugeColors[overlayProvider],
                 bounds = overlayBounds,
                 offsetX = dragOverlayOffsetX,
                 offsetY = dragOverlayOffsetY,
@@ -403,6 +408,7 @@ private fun EmptyDashboardState(layoutMetrics: AppLayoutMetrics) {
 private fun DashboardDragOverlay(
     providerId: ProviderId,
     snapshot: ProviderUsageSnapshot,
+    gaugeColorHex: String?,
     bounds: DashboardCardBounds,
     offsetX: Float,
     offsetY: Float,
@@ -426,6 +432,7 @@ private fun DashboardDragOverlay(
             previewTargetIndex = null,
             cardHeightDp = cardHeightDp,
             layoutMetrics = layoutMetrics,
+            gaugeColorHex = gaugeColorHex,
             modifier = Modifier
                 .width(widthDp)
                 .graphicsLayer {
@@ -458,6 +465,7 @@ private fun ProviderUsageCard(
     previewTargetIndex: Int?,
     cardHeightDp: Int,
     layoutMetrics: AppLayoutMetrics,
+    gaugeColorHex: String?,
     modifier: Modifier,
     isPlaceholder: Boolean = false,
     dragEnabled: Boolean = true,
@@ -776,7 +784,8 @@ private fun ProviderUsageCard(
                                         providerId = providerId,
                                         lineIndex = index,
                                         compact = isCompactDashboardCard,
-                                        gaugeHeight = dashboardGaugeHeight
+                                        gaugeHeight = dashboardGaugeHeight,
+                                        gaugeColorHex = gaugeColorHex
                                     )
                                 }
                             }
@@ -1049,10 +1058,14 @@ private fun UsageLinePreview(
     providerId: ProviderId,
     lineIndex: Int,
     compact: Boolean,
-    gaugeHeight: Dp
+    gaugeHeight: Dp,
+    gaugeColorHex: String?
 ) {
     val colors = AIQuotaTheme.colors
     val locale = java.util.Locale.getDefault()
+    val gaugeColor = remember(gaugeColorHex, colors.progress) {
+        ProviderGaugeColor.toArgbOrNull(gaugeColorHex)?.let(::Color) ?: colors.progress
+    }
     val labelStyle = if (compact) {
         MaterialTheme.typography.bodySmall.copy(lineHeight = 14.sp)
     } else {
@@ -1109,7 +1122,7 @@ private fun UsageLinePreview(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(gaugeHeight),
-                    color = colors.progress,
+                    color = gaugeColor,
                     trackColor = colors.progressTrack
                 )
             }

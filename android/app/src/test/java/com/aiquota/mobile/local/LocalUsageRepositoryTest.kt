@@ -64,19 +64,19 @@ class LocalUsageRepositoryTest {
     }
 
     @Test
-    fun geminiExplicitLoginRequiredDoesNotStayConnectedBecauseOfPreviousUsage() {
+    fun geminiBackgroundRefreshLoginPageKeepsUsagePendingInsteadOfAuthExpired() {
         val source = java.io.File("src/main/java/com/aiquota/mobile/local/LocalUsageRepository.kt").readText()
         val failKeepingPrevious = source.substringAfter("fun failKeepingPrevious")
             .substringBefore("fun markInteractiveAuthRequired")
         val authMessageClassifier = source.substringAfter("private fun String.isGeminiInteractiveAuthRequiredMessage")
-            .substringBefore("private const val GOOGLE_USAGE_PENDING_MESSAGE")
+            .substringBefore("private fun String.isGeminiBackgroundRefreshLoginPageMessage")
 
-        assertEquals(true, failKeepingPrevious.contains("providerId == ProviderId.GEMINI"))
-        assertEquals(true, failKeepingPrevious.contains("message.isGeminiInteractiveAuthRequiredMessage()"))
+        assertEquals(true, failKeepingPrevious.contains("message.isGeminiBackgroundRefreshLoginPageMessage()"))
+        assertEquals(true, failKeepingPrevious.contains("markGoogleUsagePending(providerId, GOOGLE_USAGE_PENDING_MESSAGE)"))
+        assertEquals(true, failKeepingPrevious.indexOf("message.isGeminiBackgroundRefreshLoginPageMessage()") < failKeepingPrevious.indexOf("message.isGeminiInteractiveAuthRequiredMessage()"))
         assertEquals(true, failKeepingPrevious.contains("ProviderUsageSnapshot.interactiveAuthRequiredKeepingPrevious"))
-        assertEquals(true, failKeepingPrevious.indexOf("message.isGeminiInteractiveAuthRequiredMessage()") < failKeepingPrevious.indexOf("message.isRecoverableGoogleUsageFailureMessage()"))
         assertEquals(true, authMessageClassifier.contains("gemini login is required."))
-        assertEquals(true, authMessageClassifier.contains("background refresh reached a provider login page."))
+        assertEquals(false, authMessageClassifier.contains("background refresh reached a provider login page."))
     }
 
     @Test
@@ -204,6 +204,33 @@ class LocalUsageRepositoryTest {
         assertEquals(listOf("Codex Session", "Codex Weekly"), merged.lines.map { it.label })
         assertEquals(0.79f, merged.lines[0].remainingPercent ?: 0f, 0.001f)
         assertEquals(0.40f, merged.lines[1].remainingPercent ?: 0f, 0.001f)
+    }
+
+    @Test
+    fun glmRefreshUsesFreshLineOrderWhenPreviousSnapshotWasStoredMonthlyFirst() {
+        val previous = ProviderUsageSnapshot(
+            providerId = ProviderId.GLM,
+            connectionState = ProviderConnectionState.CONNECTED,
+            lines = listOf(
+                ProviderUsageLine(key = "glm:mcp", label = "월간 한도", remainingPercent = 1.0f),
+                ProviderUsageLine(key = "glm:tokens", label = "5시간 한도", remainingPercent = 0.5f),
+                ProviderUsageLine(key = "glm:weekly_tokens", label = "주간 한도", remainingPercent = 0.8f)
+            )
+        )
+        val fresh = previous.copy(
+            lines = listOf(
+                ProviderUsageLine(key = "glm:tokens", label = "5시간 한도", remainingPercent = 1.0f),
+                ProviderUsageLine(key = "glm:weekly_tokens", label = "주간 한도", remainingPercent = 1.0f),
+                ProviderUsageLine(key = "glm:mcp", label = "월간 한도", remainingPercent = 1.0f)
+            )
+        )
+
+        val merged = mergeFreshSnapshotWithPreviousLines(fresh, previous)
+
+        assertEquals(
+            listOf("5시간 한도", "주간 한도", "월간 한도"),
+            merged.lines.map { it.label }
+        )
     }
 
     @Test
@@ -347,6 +374,24 @@ class LocalUsageRepositoryTest {
         assertEquals(ProviderConnectionState.DISCONNECTED, recovered.connectionState)
         assertEquals(emptyList<ProviderUsageLine>(), recovered.lines)
         assertEquals("Background refresh reached a provider login page.", recovered.message)
+    }
+
+    @Test
+    fun geminiBackgroundRefreshAuthRequiredWithPreviousUsageRecoversToPending() {
+        val snapshot = ProviderUsageSnapshot(
+            providerId = ProviderId.GEMINI,
+            connectionState = ProviderConnectionState.INTERACTIVE_AUTH_REQUIRED,
+            updatedAt = "2026-05-26T05:31:00Z",
+            message = "Background refresh reached a provider login page.",
+            lines = listOf(ProviderUsageLine(label = "5-hour limit", remainingPercent = 0.94f))
+        )
+
+        val recovered = recoverSessionExpiredInteractiveAuthRequired(snapshot)
+
+        assertEquals(ProviderConnectionState.CONNECTED, recovered.connectionState)
+        assertEquals(ProviderRefreshState.IDLE, recovered.refreshState)
+        assertEquals(snapshot.lines, recovered.lines)
+        assertEquals("Provider session reached, but trusted usage payload was not available yet.", recovered.message)
     }
 
     @Test

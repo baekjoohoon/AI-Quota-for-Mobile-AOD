@@ -8,14 +8,20 @@ class ProviderSessionResetter(context: Context) {
 
     fun disconnect(providerId: ProviderId) {
         clearStoredProviderCredentials(providerId)
-        ProviderWebSessionCleaner.clearProviderWebSession(providerId)
+        ProviderWebSessionCleaner.clearProviderWebSession(appContext, providerId)
         notifyProviderSessionReset(providerId)
     }
 
     suspend fun disconnectAndWait(providerId: ProviderId) {
         clearStoredProviderCredentials(providerId)
-        ProviderWebSessionCleaner.clearProviderWebSessionAndWait(providerId)
+        ProviderWebSessionCleaner.clearProviderWebSessionAndWait(appContext, providerId)
         notifyProviderSessionReset(providerId)
+    }
+
+    suspend fun disconnectAllAndWait(providerIds: List<ProviderId>) {
+        providerIds.forEach { providerId ->
+            disconnectAndWait(providerId)
+        }
     }
 
     private fun notifyProviderSessionReset(providerId: ProviderId) {

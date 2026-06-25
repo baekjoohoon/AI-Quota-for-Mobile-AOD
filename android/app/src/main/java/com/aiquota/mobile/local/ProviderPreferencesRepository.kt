@@ -107,6 +107,29 @@ class ProviderPreferencesRepository(context: Context) {
             .apply()
     }
 
+    fun providerGaugeColor(providerId: ProviderId): String? {
+        val key = "$KEY_PROVIDER_GAUGE_COLOR_PREFIX${providerId.storageId}"
+        return ProviderGaugeColor.normalize(preferences.getString(key, null))
+    }
+
+    fun providerGaugeColors(): Map<ProviderId, String> {
+        return ProviderId.defaultOrder().mapNotNull { providerId ->
+            providerGaugeColor(providerId)?.let { color -> providerId to color }
+        }.toMap()
+    }
+
+    fun saveProviderGaugeColor(providerId: ProviderId, color: String?) {
+        val key = "$KEY_PROVIDER_GAUGE_COLOR_PREFIX${providerId.storageId}"
+        val normalized = ProviderGaugeColor.normalize(color)
+        preferences.edit().apply {
+            if (normalized == null) {
+                remove(key)
+            } else {
+                putString(key, normalized)
+            }
+        }.apply()
+    }
+
     companion object {
         private const val PREFERENCES_NAME = "ai_quota_provider_preferences"
         private const val KEY_PROVIDER_ORDER = "provider_order"
@@ -114,5 +137,6 @@ class ProviderPreferencesRepository(context: Context) {
         private const val KEY_PROVIDER_WIDGET_SELECTION_PREFIX = "provider_widget_selection_"
         private const val KEY_DASHBOARD_WIDGET_PROVIDER_ORDER_PREFIX = "dashboard_widget_provider_order_"
         private const val KEY_DASHBOARD_WIDGET_HIDDEN_PROVIDERS_PREFIX = "dashboard_widget_hidden_providers_"
+        private const val KEY_PROVIDER_GAUGE_COLOR_PREFIX = "provider_gauge_color_"
     }
 }

@@ -186,6 +186,10 @@ class ProviderWebCollectorScriptsTest {
                 console.error(JSON.stringify(limits));
                 process.exit(1);
               }
+              if (posted[0].plan !== "Pro") {
+                console.error(JSON.stringify(posted[0]));
+                process.exit(1);
+              }
             })();
         """.trimIndent()
         try {
@@ -193,6 +197,89 @@ class ProviderWebCollectorScriptsTest {
             val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
             val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
             assertTrue("GLM collector did not post trusted quota payload:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun glmCollectorPicksPlanTierFromVisibleMyPlanPage() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected GLM runtime checks", node != null)
+
+        val glm = ProviderWebCollectorScripts.build(ProviderId.GLM, emptyMap(), "")
+        val path = Files.createTempFile("ai-quota-glm-visible-plan-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            const pageText = [
+              "My Plan",
+              "GLM Coding Max-Yearly Plan",
+              "5-Hour Token Limit",
+              "100% remaining"
+            ].join("\n");
+            global.window = global;
+            global.location = {
+              hostname: "z.ai",
+              pathname: "/manage-apikey/coding-plan/personal/my-plan",
+              href: "https://z.ai/manage-apikey/coding-plan/personal/my-plan"
+            };
+            global.document = {
+              title: "My Plan",
+              body: { innerText: pageText },
+              documentElement: { innerText: pageText },
+              scripts: [],
+              querySelectorAll: () => []
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.fetch = async function() {
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => "" }; },
+                text: async () => ""
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn) {
+              timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $glm
+            (async function() {
+              for (let i = 0; i < 8 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              if (!posted[0] || posted[0].plan !== "Max") {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("GLM visible my-plan text did not produce a tier-only plan:\n$output", process.waitFor() == 0)
         } finally {
             Files.deleteIfExists(path)
         }
@@ -362,6 +449,10 @@ class ProviderWebCollectorScriptsTest {
               const credits = payload && payload.data && payload.data.credits;
               if (payload.provider !== "opencode" || payload.source !== "visible-dom") {
                 console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              if (payload.plan !== "Go") {
+                console.error(JSON.stringify(payload));
                 process.exit(1);
               }
               if (!Array.isArray(limits) || limits.length !== 3) {
@@ -1257,7 +1348,9 @@ class ProviderWebCollectorScriptsTest {
         assertFalse(ProviderWebCollectorScripts.shouldAcceptCollectorPayload(ProviderId.CODEX, "https://chatgpt.com/", """{"provider":"claude"}"""))
         assertFalse(ProviderWebCollectorScripts.shouldAcceptCollectorPayload(ProviderId.CODEX, "https://example.com/", """{"provider":"codex"}"""))
         assertTrue(ProviderWebCollectorScripts.shouldAcceptCollectorError(ProviderId.CODEX, "https://chatgpt.com/", """{"provider":"codex","errorKind":"codex_auth_required"}"""))
-        assertFalse(ProviderWebCollectorScripts.shouldAcceptCollectorError(ProviderId.CODEX, "https://chatgpt.com/", """{"provider":"codex","errorKind":"codex_usage_unavailable"}"""))
+        assertTrue(ProviderWebCollectorScripts.shouldAcceptCollectorError(ProviderId.CODEX, "https://chatgpt.com/", """{"provider":"codex","errorKind":"codex_usage_unavailable"}"""))
+        assertFalse(ProviderWebCollectorScripts.shouldAcceptCollectorError(ProviderId.CODEX, "https://chatgpt.com/", """{"provider":"claude","errorKind":"codex_usage_unavailable"}"""))
+        assertFalse(ProviderWebCollectorScripts.shouldAcceptCollectorError(ProviderId.CODEX, "https://chatgpt.com/", """{"provider":"codex","errorKind":"collector_error"}"""))
 
         assertTrue(ProviderWebCollectorScripts.shouldAcceptCollectorError(ProviderId.CLAUDE, "https://claude.ai/new"))
         assertTrue(ProviderWebCollectorScripts.shouldAcceptCollectorError(ProviderId.CLAUDE, "https://claude.ai/login"))
@@ -2293,17 +2386,226 @@ class ProviderWebCollectorScriptsTest {
     }
 
     @Test
-    fun codexPageStateScanUsesNetworkRowsBeforeVisibleDom() {
+    fun codexPageStateScanUsesVisibleDomInsteadOfRetainedRows() {
         val codex = ProviderWebCollectorScripts.build(ProviderId.CODEX, emptyMap(), "")
         val scan = codex.substringAfter("function scanCodexPageState(accountId)")
             .substringBefore("function buildCodexDiagnostics")
 
-        assertTrue(scan.contains("extractCodexUsageFromRows(accountId)"))
-        assertTrue(scan.indexOf("extractCodexUsageFromRows(accountId)") < scan.indexOf("extractCodexVisibleDomUsage(accountId)"))
+        assertTrue(scan.contains("extractCodexVisibleDomUsage(accountId)"))
+        assertFalse(scan.contains("extractCodexUsageFromRows(accountId)"))
         val rowExtractor = codex.substringAfter("function extractCodexUsageFromRows(accountId)")
             .substringBefore("function summarizeCodexRows")
+        assertFalse(codex.contains("function codexStoredStateRows()"))
+        assertFalse(rowExtractor.contains("codexStoredStateRows()"))
         assertTrue(rowExtractor.contains("window.__AIQuotaCodexNetworkRows || []"))
-        assertFalse(rowExtractor.contains("concat(c.rows"))
+        val startup = codex.substringAfter("console.log(\"AIQuotaCodex collector started\")")
+            .substringBefore("function looksLikeCodexAccountId")
+        assertTrue(startup.contains("window.__AIQuotaCodexNetworkRows = window.__AIQuotaCodexNetworkRows || [];"))
+    }
+
+    @Test
+    fun codexCollectorPrefersVisibleDomOverRetainedNetworkRows() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected Codex runtime checks", node != null)
+
+        val codex = ProviderWebCollectorScripts.build(ProviderId.CODEX, emptyMap(), "")
+        val path = Files.createTempFile("ai-quota-codex-stale-network-rows-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            const kr = (...codes) => String.fromCharCode(...codes);
+            const hour = kr(0xC2DC, 0xAC04);
+            const weekly = kr(0xC8FC, 0xAC04);
+            const usage = kr(0xC0AC, 0xC6A9);
+            const limit = kr(0xD55C, 0xB3C4);
+            const remaining = kr(0xB0A8, 0xC74C);
+            const reset = kr(0xCD08, 0xAE30, 0xD654);
+            const pageText = [
+              "Codex",
+              "5" + hour + " " + usage + " " + limit,
+              "73% " + remaining,
+              "오전 10:14 " + reset,
+              weekly + " " + usage + " " + limit,
+              "4% " + remaining,
+              "오전 10:14 " + reset
+            ].join("\n");
+            global.window = global;
+            global.location = { pathname: "/codex/cloud/settings/analytics" };
+            global.__AIQuotaCodexNetworkRows = [JSON.stringify({
+              provider: "codex",
+              usage: {
+                rate_limits: {
+                  primary_window: { remaining_percent: 76, used_percent: 24, reset_after_seconds: 9999 },
+                  secondary_window: { remaining_percent: 5, used_percent: 95, reset_after_seconds: 9999 }
+                }
+              }
+            })];
+            global.document = {
+              title: "Codex",
+              documentElement: { innerText: pageText },
+              scripts: [],
+              querySelector: () => ({})
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.AbortController = class {
+              constructor() { this.signal = {}; }
+              abort() {}
+            };
+            global.fetch = async function() {
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => "" }; },
+                json: async () => ({})
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn, delay) {
+              if (delay <= 1000) timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            Date.now = function() { return new Date(2026, 5, 7, 6, 59, 0, 0).getTime(); };
+            $codex
+            (async function() {
+              for (let i = 0; i < 12 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              if (posted.length === 0) {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              const payload = posted[0];
+              const limits = payload && payload.usage && payload.usage.rate_limits;
+              if (payload.source !== "visible-dom" || !limits) {
+                console.error(JSON.stringify(payload));
+                process.exit(1);
+              }
+              if (limits.primary_window.remaining_percent !== 73 || limits.secondary_window.remaining_percent !== 4) {
+                console.error(JSON.stringify(limits));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("Codex visible DOM should override retained network rows:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun codexCollectorKeepsVisibleDomUsageWhenFiveHourResetTextIsMissing() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected Codex runtime checks", node != null)
+
+        val codex = ProviderWebCollectorScripts.build(ProviderId.CODEX, emptyMap(), "")
+        val path = Files.createTempFile("ai-quota-codex-visible-dom-missing-reset-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            const pageText = [
+              "Codex",
+              "Codex 5 hour usage limit",
+              "97% left",
+              "Codex Weekly usage limit",
+              "4% left",
+              "Resets in 2d 18h"
+            ].join("\n");
+            global.window = global;
+            global.location = { pathname: "/codex/cloud/settings/analytics", href: "https://chatgpt.com/codex/cloud/settings/analytics#usage" };
+            global.document = {
+              title: "Codex",
+              documentElement: { innerText: pageText },
+              scripts: [],
+              querySelector: () => ({})
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.AbortController = class {
+              constructor() { this.signal = {}; }
+              abort() {}
+            };
+            global.fetch = async function() {
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => "" }; },
+                json: async () => ({})
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn, delay) {
+              if (delay <= 1000) timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $codex
+            (async function() {
+              for (let i = 0; i < 12 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              if (posted.length === 0) {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              const limits = posted[0] && posted[0].usage && posted[0].usage.rate_limits;
+              if (!limits || limits.primary_window.remaining_percent !== 97 || limits.primary_window.reset_text) {
+                console.error(JSON.stringify(posted[0]));
+                process.exit(1);
+              }
+              if (limits.secondary_window.remaining_percent !== 4 || !limits.secondary_window.reset_text) {
+                console.error(JSON.stringify(limits));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("Codex visible DOM percent should be collected even when 5h reset text is absent:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
     }
 
     @Test
@@ -2314,6 +2616,8 @@ class ProviderWebCollectorScriptsTest {
 
         assertTrue(probe.indexOf("result.usage = scanCodexPageState(result.accountId)") < probe.indexOf("fetchCodexSubscriptionPlan(result.accountId)"))
         assertTrue(probe.contains("if (!result.plan)"))
+        assertFalse(codex.contains("hasCodexNavigationAuth"))
+        assertFalse(codex.contains("missing_navigation_auth"))
         assertTrue(codex.contains("\" subscription=\" + result.subscriptionStatus"))
         assertTrue(codex.contains("\" plan=\" + !!result.plan"))
     }
@@ -2459,16 +2763,17 @@ class ProviderWebCollectorScriptsTest {
 
         assertTrue(codex.contains("codexUsageDashboardUrls"))
         assertTrue(codex.contains("navigateCodexUsageDashboardIfNeeded"))
-        assertTrue(codex.contains("function hasCodexNavigationAuth(result)"))
-        assertTrue(navigation.contains("if (!hasCodexNavigationAuth(result)) return false"))
+        assertFalse(codex.contains("function hasCodexNavigationAuth(result)"))
+        assertFalse(codex.contains("missing_navigation_auth"))
+        assertTrue(navigation.contains("if (!result || !result.sessionOk || result.usageOk) return false"))
+        assertTrue(navigation.contains("if (isCodexUsageDashboardLocation()) return false"))
         assertTrue(codex.contains("location.assign"))
         assertTrue(codex.contains("var target = codexUsageDashboardUrls[0]"))
         assertFalse(codex.contains("__AIQuotaCodexUsageNavigationAttempts"))
         assertFalse(codex.contains("sessionStorage.setItem(codexUsageNavigationStateKey"))
         assertTrue(codex.contains("https://chatgpt.com/codex/cloud/settings/analytics#usage"))
         assertTrue(codex.contains("https://chatgpt.com/codex/settings/usage"))
-        assertTrue(probe.indexOf("looksLikeChatGptLogin()") < probe.indexOf("navigateCodexUsageDashboardIfNeeded(result)"))
-        assertTrue(probe.indexOf("!hasCodexNavigationAuth(result)") < probe.indexOf("navigateCodexUsageDashboardIfNeeded(result)"))
+        assertTrue(probe.indexOf("navigateCodexUsageDashboardIfNeeded(result)") < probe.indexOf("looksLikeChatGptLogin()"))
     }
 
     @Test
@@ -2976,6 +3281,99 @@ class ProviderWebCollectorScriptsTest {
     }
 
     @Test
+    fun codexCollectorKeepsActiveFiveHourVisibleDomPercentWithoutResetText() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected Codex runtime checks", node != null)
+
+        val codex = ProviderWebCollectorScripts.build(ProviderId.CODEX, emptyMap(), "")
+        val path = Files.createTempFile("ai-quota-codex-active-five-hour-missing-reset-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            const pageText = [
+              "Codex",
+              "Codex 5 hour usage limit",
+              "84% left",
+              "Codex Weekly usage limit",
+              "4% left",
+              "Resets in 2d 18h"
+            ].join("\n");
+            global.window = global;
+            global.location = { pathname: "/codex/cloud/settings/analytics" };
+            global.document = {
+              title: "Codex",
+              documentElement: { innerText: pageText },
+              scripts: [],
+              querySelector: () => ({})
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.AbortController = class {
+              constructor() { this.signal = {}; }
+              abort() {}
+            };
+            global.fetch = async function() {
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => "" }; },
+                json: async () => ({})
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn, delay) {
+              if (delay <= 1000) timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $codex
+            (async function() {
+              for (let i = 0; i < 12 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              if (posted.length === 0) {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              const limits = posted[0] && posted[0].usage && posted[0].usage.rate_limits;
+              if (!limits || limits.primary_window.remaining_percent !== 84 || limits.primary_window.reset_text) {
+                console.error(JSON.stringify(posted[0]));
+                process.exit(1);
+              }
+              if (limits.secondary_window.remaining_percent !== 4 || !limits.secondary_window.reset_text) {
+                console.error(JSON.stringify(limits));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("Codex active 5h visible DOM without reset text should keep trusted percent:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun codexCollectorPrefersVisibleUsageLimitDomOverInternalUsedPercent() {
         val node = nodeCommandOrNull()
         assumeTrue("node is required for injected Codex runtime checks", node != null)
@@ -3151,7 +3549,7 @@ class ProviderWebCollectorScriptsTest {
             const pageText = [
               "Codex",
               "5" + hour + " " + usage + " " + limit,
-              "84% " + remaining,
+              "100% " + remaining,
               "오전 9:15 " + reset,
               weekly + " " + usage + " " + limit,
               "39% " + remaining,

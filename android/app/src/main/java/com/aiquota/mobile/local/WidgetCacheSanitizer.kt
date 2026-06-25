@@ -8,13 +8,14 @@ object WidgetCacheSanitizer {
         snapshots: List<ProviderUsageSnapshot>,
         order: List<ProviderId>,
         hidden: Set<ProviderId>,
-        updatedAt: String
+        updatedAt: String,
+        gaugeColors: Map<ProviderId, String> = emptyMap()
     ): String {
         val byProvider = snapshots.associateBy { it.providerId }
         val providers = JSONArray()
         ProviderPreferencesCodec.visibleProviders(order, hidden).forEach { providerId ->
             val snapshot = byProvider[providerId] ?: ProviderUsageSnapshot.disconnected(providerId)
-            providers.put(snapshot.toDisplayOnlyJson())
+            providers.put(snapshot.toDisplayOnlyJson(gaugeColors[providerId]))
         }
         val root = JSONObject()
             .put(KEY_SCHEMA, SCHEMA)
@@ -33,13 +34,14 @@ object WidgetCacheSanitizer {
         return sanitized.toString()
     }
 
-    private fun ProviderUsageSnapshot.toDisplayOnlyJson(): JSONObject {
+    private fun ProviderUsageSnapshot.toDisplayOnlyJson(gaugeColor: String?): JSONObject {
         return JSONObject()
             .put(KEY_PROVIDER_ID, providerId.storageId)
             .put(KEY_DISPLAY_NAME, providerId.normalizedDisplayName(displayName))
             .put(KEY_CONNECTION_STATE, connectionState.name)
             .put(KEY_REFRESH_STATE, refreshState.name)
             .putNullable(KEY_PLAN_LABEL, planLabel)
+            .putNullable(KEY_GAUGE_COLOR, ProviderGaugeColor.normalize(gaugeColor))
             .put(KEY_UPDATED_AT, updatedAt)
             .putNullable(KEY_MESSAGE, message)
             .put(KEY_VISIBLE, true)
@@ -95,6 +97,7 @@ object WidgetCacheSanitizer {
                 optionalString(KEY_REFRESH_STATE).orEmpty().ifBlank { ProviderRefreshState.IDLE.name }
             )
             .putNullable(KEY_PLAN_LABEL, optionalString(KEY_PLAN_LABEL))
+            .putNullable(KEY_GAUGE_COLOR, ProviderGaugeColor.normalize(optionalString(KEY_GAUGE_COLOR)))
             .put(KEY_UPDATED_AT, optionalString(KEY_UPDATED_AT).orEmpty())
             .putNullable(KEY_MESSAGE, optionalString(KEY_MESSAGE))
             .put(KEY_VISIBLE, if (has(KEY_VISIBLE)) optBoolean(KEY_VISIBLE, true) else true)
@@ -204,6 +207,7 @@ object WidgetCacheSanitizer {
     private const val KEY_CONNECTION_STATE = "connectionState"
     private const val KEY_REFRESH_STATE = "refreshState"
     private const val KEY_PLAN_LABEL = "planLabel"
+    private const val KEY_GAUGE_COLOR = "gaugeColor"
     private const val KEY_UPDATED_AT = "updatedAt"
     private const val KEY_MESSAGE = "message"
     private const val KEY_VISIBLE = "visible"

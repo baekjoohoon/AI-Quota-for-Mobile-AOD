@@ -17,6 +17,10 @@
       android:name=".providers.WebLoginActivity"
       android:exported="false" />
     <activity
+      android:name=".providers.GlmWebLoginActivity"
+      android:exported="false"
+      android:process=":glm_webview" />
+    <activity
       android:name=".providers.GlmApiKeyActivity"
       android:exported="false" />
     <activity
@@ -80,6 +84,10 @@
         android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
         android:value="usage_monitor" />
     </service>
+    <service
+      android:name=".providers.GlmIsolatedWebSessionService"
+      android:exported="false"
+      android:process=":glm_webview" />
     <receiver
       android:name=".widget.WidgetManualRefreshReceiver"
       android:exported="false">

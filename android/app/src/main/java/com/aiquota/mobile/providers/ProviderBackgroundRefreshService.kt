@@ -272,17 +272,22 @@ class ProviderBackgroundRefreshService : Service() {
         UsageSurfaceRefresher.refresh(applicationContext, repository)
         val outcome = when (effectiveJob.mode) {
             ProviderRefreshMode.NATIVE_API -> collectNativeProviderUsage(effectiveJob)
-            ProviderRefreshMode.HIDDEN_WEB_COLLECTOR -> collectWebProviderUsage(effectiveJob)
+            ProviderRefreshMode.HIDDEN_WEB_COLLECTOR -> ProviderWebSessionMaintenanceGate.withMaintenanceLock {
+                collectWebProviderUsage(effectiveJob)
+            }
         }
-        if (effectiveJob.providerId == ProviderId.GEMINI) {
-            Log.d(TAG, "outcome provider=gemini type=${outcome::class.java.simpleName}")
-        }
+        Log.d(TAG, "outcome provider=${effectiveJob.providerId.storageId} type=${outcome::class.java.simpleName}")
         if (repository.readSnapshots().none { it.providerId == effectiveJob.providerId }) {
             destroyProviderWebView(effectiveJob.providerId)
             return
         }
         when (outcome) {
             is ServiceRefreshOutcome.Snapshot -> {
+                Log.d(
+                    TAG,
+                    "saveSnapshot provider=${effectiveJob.providerId.storageId} source=native lineCount=${outcome.snapshot.lines.size} " +
+                        "planPresent=${outcome.snapshot.planLabel != null} accountPresent=${outcome.snapshot.account != null}"
+                )
                 repository.saveSnapshot(outcome.snapshot)
             }
             is ServiceRefreshOutcome.Payload -> {
@@ -292,6 +297,11 @@ class ProviderBackgroundRefreshService : Service() {
                     ProviderPayloadSource.STRUCTURED_SCRIPT
                 )
                 if (snapshot != null) {
+                    Log.d(
+                        TAG,
+                        "saveSnapshot provider=${effectiveJob.providerId.storageId} source=webview lineCount=${snapshot.lines.size} " +
+                            "planPresent=${snapshot.planLabel != null} accountPresent=${snapshot.account != null}"
+                    )
                     repository.saveSnapshot(snapshot)
                 } else if (
                     ProviderRefreshFailureClassifier.requiresInteractiveAuth(
@@ -299,18 +309,34 @@ class ProviderBackgroundRefreshService : Service() {
                         ProviderRefreshFailureKind.NO_TRUSTED_PAYLOAD
                     )
                 ) {
+                    Log.w(
+                        TAG,
+                        "normalizeFailed provider=${effectiveJob.providerId.storageId} authClassified=true summary=${payloadSignal(outcome.rawPayload)}"
+                    )
                     handleRefreshAuthFailure(
                         providerId = effectiveJob.providerId,
                         message = getString(R.string.provider_status_auth_required),
                         automaticRefresh = automaticRefresh
                     )
                 } else if (effectiveJob.providerId == ProviderId.GEMINI || effectiveJob.providerId == ProviderId.ANTIGRAVITY) {
+                    Log.w(
+                        TAG,
+                        "normalizeFailed provider=${effectiveJob.providerId.storageId} googlePending=true summary=${payloadSignal(outcome.rawPayload)}"
+                    )
                     repository.markGoogleUsagePending(effectiveJob.providerId, GoogleUsagePendingRetryPolicy.PENDING_MESSAGE)
                 } else {
+                    Log.w(
+                        TAG,
+                        "normalizeFailed provider=${effectiveJob.providerId.storageId} keptPrevious=true summary=${payloadSignal(outcome.rawPayload)}"
+                    )
                     repository.failKeepingPrevious(effectiveJob.providerId, "Background collector ran. No trusted usage payload found.")
                 }
             }
             is ServiceRefreshOutcome.Failure -> {
+                Log.w(
+                    TAG,
+                    "failure provider=${effectiveJob.providerId.storageId} kind=${outcome.failure.kind} message=${safeLogValue(outcome.failure.message)}"
+                )
                 refreshStateRepository.recordFailure(outcome.failure.kind.name)
                 if (ProviderRefreshFailureClassifier.requiresInteractiveAuth(effectiveJob.providerId, outcome.failure.kind)) {
                     handleRefreshAuthFailure(
@@ -363,6 +389,10 @@ class ProviderBackgroundRefreshService : Service() {
         automaticRefresh: Boolean
     ) {
         destroyProviderWebView(providerId)
+        if (automaticRefresh && providerId == ProviderId.GEMINI) {
+            repository.markGoogleUsagePending(providerId, GoogleUsagePendingRetryPolicy.PENDING_MESSAGE)
+            return
+        }
         if (automaticRefresh) {
             repository.failKeepingPrevious(providerId, message)
             return
@@ -449,6 +479,16 @@ class ProviderBackgroundRefreshService : Service() {
     }
 
     private suspend fun collectWebProviderUsage(job: ProviderRefreshJob): ServiceRefreshOutcome {
+        if (job.providerId == ProviderId.GLM) {
+            return when (val result = GlmIsolatedWebSession.collectUsage(
+                context = applicationContext,
+                startUrl = job.startUrl,
+                timeoutMillis = ProviderRefreshPlan.timeoutMillisFor(job.providerId)
+            )) {
+                is GlmIsolatedUsageResult.Payload -> ServiceRefreshOutcome.Payload(result.rawPayload)
+                is GlmIsolatedUsageResult.Failure -> ServiceRefreshOutcome.Failure(result.failure)
+            }
+        }
         val requestId = ++nextRequestId
         webJobLastUrls[requestId] = job.startUrl
         val result = withTimeoutOrNull(ProviderRefreshPlan.timeoutMillisFor(job.providerId)) {
@@ -545,7 +585,12 @@ class ProviderBackgroundRefreshService : Service() {
         val active = currentWebJobFor(providerId) ?: return
         val cookies = cookiesFor(url)
         if (!ProviderWebCollectorScripts.shouldRunCollector(providerId, url, cookies, pageText)) {
-            Log.d(TAG, "skipInject provider=${providerId.storageId} url=${hostOf(url)}${pathOf(url)}")
+            Log.d(
+                TAG,
+                "skipInject provider=${providerId.storageId} url=${hostOf(url)}${pathOf(url)} " +
+                    "reason=${ProviderWebCollectorScripts.collectorReadinessDiagnostic(providerId, url, cookies, pageText)} " +
+                    "page=${pageSignal(pageText)}"
+            )
             return
         }
         val injectionKey = "${active.requestId}:${providerId.storageId}:${hostOf(url)}:${routeKeyOf(url)}"
@@ -627,9 +672,9 @@ class ProviderBackgroundRefreshService : Service() {
                 view.evaluateJavascript(PAGE_CAPTURE_SCRIPT) { encoded ->
                     if (currentWebJobFor(ProviderId.GEMINI)?.requestId != requestId) return@evaluateJavascript
                     val pageText = decodeJsString(encoded)
-                    if (ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.GEMINI, pageUrl, pageText)) {
-                        val failure = ProviderRefreshFailure.interactiveAuthRequired(LOGIN_PAGE_REACHED_MESSAGE)
-                        Log.d(TAG, "terminalCheck provider=gemini kind=${failure.kind} url=${hostOf(pageUrl)}${pathOf(pageUrl)}")
+                if (ProviderWebCollectorScripts.isRefreshLoginPage(ProviderId.GEMINI, pageUrl, pageText)) {
+                    val failure = ProviderRefreshFailure.interactiveAuthRequired(LOGIN_PAGE_REACHED_MESSAGE)
+                        Log.d(TAG, "terminalCheck provider=gemini kind=${failure.kind} url=${hostOf(pageUrl)}${pathOf(pageUrl)} page=${pageSignal(pageText)}")
                         completeWebJob(requestId, ServiceRefreshOutcome.Failure(failure))
                     }
                 }
@@ -757,6 +802,10 @@ class ProviderBackgroundRefreshService : Service() {
                 if (currentWebJobFor(ownerProviderId)?.requestId != requestId) return@evaluateJavascript
                 val pageText = decodeJsString(encoded)
                 if (ProviderWebCollectorScripts.isRefreshLoginPage(ownerProviderId, pageUrl, pageText)) {
+                    Log.d(
+                        TAG,
+                        "loginPage provider=${ownerProviderId.storageId} phase=resource url=${hostOf(pageUrl)}${pathOf(pageUrl)} page=${pageSignal(pageText)}"
+                    )
                     if (maybeClickGeminiRefreshSignIn(active, view, pageUrl, pageText)) return@evaluateJavascript
                     if (shouldWaitForGeminiRefreshSignInRedirect(active, pageUrl)) return@evaluateJavascript
                     completeWebJob(requestId, ServiceRefreshOutcome.Failure(ProviderRefreshFailure.interactiveAuthRequired(LOGIN_PAGE_REACHED_MESSAGE)))
@@ -787,6 +836,10 @@ class ProviderBackgroundRefreshService : Service() {
                 if (currentWebJobFor(ownerProviderId)?.requestId != requestId) return@evaluateJavascript
                 val pageText = decodeJsString(encoded)
                 if (ProviderWebCollectorScripts.isRefreshLoginPage(ownerProviderId, url, pageText)) {
+                    Log.d(
+                        TAG,
+                        "loginPage provider=${ownerProviderId.storageId} phase=finished url=${hostOf(url)}${pathOf(url)} page=${pageSignal(pageText)}"
+                    )
                     if (maybeClickGeminiRefreshSignIn(active, view, url, pageText)) return@evaluateJavascript
                     if (shouldWaitForGeminiRefreshSignInRedirect(active, url)) return@evaluateJavascript
                     completeWebJob(requestId, ServiceRefreshOutcome.Failure(ProviderRefreshFailure.interactiveAuthRequired(LOGIN_PAGE_REACHED_MESSAGE)))
@@ -847,9 +900,18 @@ class ProviderBackgroundRefreshService : Service() {
                 val active = currentWebJobFor(ownerProviderId) ?: return@post
                 val pageUrl = retainedWebViews[ownerProviderId]?.url.orEmpty().ifBlank { active.job.startUrl }
                 if (!ProviderWebCollectorScripts.shouldAcceptCollectorPayload(ownerProviderId, pageUrl, rawPayload)) {
-                    Log.d(TAG, "dropPayload provider=${ownerProviderId.storageId} reason=untrusted_bridge_page")
+                    Log.d(
+                        TAG,
+                        "dropPayload provider=${ownerProviderId.storageId} reason=untrusted_bridge_page " +
+                            "url=${hostOf(pageUrl)}${pathOf(pageUrl)} summary=${payloadSignal(rawPayload)}"
+                    )
                     return@post
                 }
+                Log.d(
+                    TAG,
+                    "payload provider=${ownerProviderId.storageId} url=${hostOf(pageUrl)}${pathOf(pageUrl)} " +
+                        "summary=${payloadSignal(rawPayload)}"
+                )
                 CookieManager.getInstance().flush()
                 completeWebJob(active.requestId, ServiceRefreshOutcome.Payload(rawPayload))
             }
@@ -866,6 +928,11 @@ class ProviderBackgroundRefreshService : Service() {
                 }
                 val errorKind = ProviderCollectorErrorPolicy.errorKind(rawError)
                 val retryCount = active.collectorRetryCounts[errorKind] ?: 0
+                Log.d(
+                    TAG,
+                    "collectorError provider=${ownerProviderId.storageId} errorKind=$errorKind retry=$retryCount " +
+                        "url=${hostOf(pageUrl)}${pathOf(pageUrl)} summary=${payloadSignal(rawError)}"
+                )
                 if (CodexCollectorRetryPolicy.shouldRetry(ownerProviderId, errorKind, retryCount)) {
                     active.collectorRetryCounts[errorKind] = retryCount + 1
                     collectorInjectionKeys.removeAll {
@@ -975,6 +1042,57 @@ class ProviderBackgroundRefreshService : Service() {
                 uri.rawFragment?.takeIf { it.isNotBlank() }?.let { append("#").append(it) }
             }
         }.getOrDefault(pathOf(url))
+    }
+
+    private fun pageSignal(pageText: String): String {
+        val text = pageText.lowercase()
+        return listOf(
+            "len=${pageText.length}",
+            "signIn=${text.contains("sign in") || text.contains("log in") || text.contains("로그인")}",
+            "usage=${text.contains("usage") || text.contains("사용량")}",
+            "limit=${text.contains("limit") || text.contains("한도")}",
+            "quota=${text.contains("quota")}",
+            "error=${text.contains("error") || text.contains("오류")}"
+        ).joinToString(",")
+    }
+
+    private fun payloadSignal(rawPayload: String): String {
+        val json = runCatching { JSONObject(rawPayload) }.getOrNull()
+            ?: return "invalid_json,len=${rawPayload.length}"
+        val rootKeys = json.keys().asSequence()
+            .filterNot(::isSensitiveLogKey)
+            .take(12)
+            .joinToString("|")
+            .ifBlank { "empty" }
+        val lineCount = json.optJSONArray("lines")?.length()
+            ?: json.optJSONObject("usage")?.optJSONArray("limits")?.length()
+            ?: json.optJSONArray("limits")?.length()
+            ?: 0
+        return listOf(
+            "root=$rootKeys",
+            "provider=${safeLogValue(json.optString("provider"))}",
+            "collectorMode=${safeLogValue(json.optString("collectorMode"))}",
+            "lineCount=$lineCount",
+            "hasUsage=${json.has("usage")}",
+            "hasData=${json.has("data")}",
+            "hasError=${json.has("errorKind") || json.has("error")}"
+        ).joinToString(",")
+    }
+
+    private fun isSensitiveLogKey(key: String): Boolean {
+        return key.contains("token", ignoreCase = true) ||
+            key.contains("cookie", ignoreCase = true) ||
+            key.contains("authorization", ignoreCase = true) ||
+            key.contains("secret", ignoreCase = true)
+    }
+
+    private fun safeLogValue(value: String?): String {
+        return value.orEmpty()
+            .replace(Regex("code=[^\\s&]+"), "code=redacted")
+            .replace(Regex("token=[^\\s&]+"), "token=redacted")
+            .replace(Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), "<email>")
+            .take(180)
+            .ifBlank { "none" }
     }
 
     private fun decodeJsString(value: String?): String {

@@ -1,7 +1,7 @@
 ﻿package com.aiquota.mobile.notification
 
 import com.aiquota.mobile.widget.WidgetProviderGauge
-import com.aiquota.mobile.widget.parseWidgetProviderGauges
+import com.aiquota.mobile.widget.parseUnifiedWidgetPayload
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
@@ -18,9 +18,10 @@ data class UsageNotificationContent(
         UsageNotificationGaugeRow(
             providerId = gauge.providerId,
             remainingRatio = gauge.remainingRatio,
-            compactRemainingText = gauge.remainingText.compactRemainingText(),
+            compactRemainingText = gauge.remainingText.compactGaugeRemainingText(),
             remainingText = gauge.remainingText,
-            resetText = gauge.resetText.orEmpty()
+            resetText = gauge.resetText.orEmpty(),
+            gaugeColorHex = gauge.gaugeColorHex
         )
     }
 }
@@ -30,7 +31,8 @@ data class UsageNotificationGaugeRow(
     val remainingRatio: Float,
     val compactRemainingText: String,
     val remainingText: String,
-    val resetText: String
+    val resetText: String,
+    val gaugeColorHex: String?
 )
 
 fun buildUsageNotificationContent(
@@ -39,7 +41,7 @@ fun buildUsageNotificationContent(
     updateMessage: String? = null
 ): UsageNotificationContent {
     val connectedProviderKeys = connectedNotificationProviderKeys(snapshotJson)
-    val gauges = parseWidgetProviderGauges(snapshotJson, now)
+    val gauges = parseUnifiedWidgetPayload(snapshotJson, now).gauges
         .filter { gauge -> connectedProviderKeys.isEmpty() || gauge.providerId.notificationKey() in connectedProviderKeys }
         .take(MAX_NOTIFICATION_GAUGES)
     val summary = notificationSummary(gauges, snapshotJson)
@@ -166,6 +168,11 @@ private fun String.compactRemainingText(): String {
         .trim()
 }
 
+private fun String.compactGaugeRemainingText(): String {
+    val value = compactRemainingText()
+    return if (value.isBlank()) value else "$value 남음"
+}
+
 private fun compactNotificationLines(summary: String): Pair<String, String> {
     val lines = summary.lines()
     return if (lines.size > 1) {
@@ -199,7 +206,7 @@ private fun compactNotificationLabel(providerId: String, label: String?): String
     }
 }
 
-private const val MAX_NOTIFICATION_GAUGES = 6
+private const val MAX_NOTIFICATION_GAUGES = 8
 private const val NOTIFICATION_SINGLE_LINE_MAX_ITEMS = 3
 private const val NOTIFICATION_SUMMARY_ITEMS_PER_LINE = 3
 private const val KEY_PROVIDERS = "providers"

@@ -96,6 +96,12 @@
     <string name="provider_hidden_snackbar">%1$s 숨김 처리됨. 설정에서 다시 불러올 수 있습니다.</string>
     <string name="provider_updated">%1$s</string>
     <string name="provider_usage_title">사용량</string>
+    <string name="provider_usage_color_button">색상 변경</string>
+    <string name="provider_usage_color_title">게이지 색상</string>
+    <string name="provider_usage_color_input_label">색상 코드 또는 RGB</string>
+    <string name="provider_usage_color_apply">적용</string>
+    <string name="provider_usage_color_reset">기본값</string>
+    <string name="provider_usage_color_invalid">#D1775E 또는 209,119,94 형식으로 입력하세요.</string>
     <string name="provider_no_lines">사용량 항목 없음</string>
     <string name="provider_detail_status">상태: %1$s</string>
     <string name="provider_detail_plan">플랜: %1$s</string>

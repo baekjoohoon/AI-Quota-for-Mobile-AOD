@@ -36,14 +36,14 @@ class ProviderCollectorErrorPolicyTest {
     }
 
     @Test
-    fun geminiLoginRequiredStaysInteractiveAuth() {
+    fun geminiLoginRequiredStaysRecoverableForWebSessionRetry() {
         val failure = ProviderCollectorErrorPolicy.failureFor(
             providerId = ProviderId.GEMINI,
             rawError = """{"provider":"gemini","errorKind":"gemini_login_required"}"""
         )
 
-        assertEquals(ProviderRefreshFailureKind.INTERACTIVE_AUTH_REQUIRED, failure.kind)
-        assertTrue(ProviderRefreshFailureClassifier.requiresInteractiveAuth(ProviderId.GEMINI, failure.kind))
+        assertEquals(ProviderRefreshFailureKind.NO_TRUSTED_PAYLOAD, failure.kind)
+        assertFalse(ProviderRefreshFailureClassifier.requiresInteractiveAuth(ProviderId.GEMINI, failure.kind))
     }
 
     @Test

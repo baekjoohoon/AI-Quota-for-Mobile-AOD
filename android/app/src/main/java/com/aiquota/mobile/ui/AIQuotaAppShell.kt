@@ -112,6 +112,7 @@ import com.aiquota.mobile.support.BugReportRequest
 fun AIQuotaAppShell(
     context: Context,
     initialRoute: AppRoute = AppRoute.Home,
+    routeRequest: AppRoute? = null,
     modifier: Modifier = Modifier
 ) {
     val appContext = remember(context) { context.applicationContext }
@@ -139,6 +140,7 @@ fun AIQuotaAppShell(
     var currentTheme by remember { mutableStateOf(themePreferencesRepository.currentTheme()) }
     var providerOrder by remember { mutableStateOf(providerPreferencesRepository.providerOrder()) }
     var hiddenProviders by remember { mutableStateOf(providerPreferencesRepository.hiddenProviders()) }
+    var providerGaugeColors by remember { mutableStateOf(providerPreferencesRepository.providerGaugeColors()) }
     var snapshots by remember { mutableStateOf(localUsageRepository.readSnapshots()) }
     var busyProvider by remember { mutableStateOf<ProviderId?>(null) }
     var canPostNotifications by remember {
@@ -166,6 +168,12 @@ fun AIQuotaAppShell(
 
     fun refreshSnapshots() {
         snapshots = localUsageRepository.readSnapshots()
+    }
+
+    LaunchedEffect(routeRequest) {
+        routeRequest?.let { requestedRoute ->
+            route = requestedRoute
+        }
     }
 
     fun scheduleTransientStateExpiryRefresh() {
@@ -213,6 +221,12 @@ fun AIQuotaAppShell(
                 duration = SnackbarDuration.Short
             )
         }
+    }
+
+    fun setProviderGaugeColor(providerId: ProviderId, color: String?) {
+        providerPreferencesRepository.saveProviderGaugeColor(providerId, color)
+        providerGaugeColors = providerPreferencesRepository.providerGaugeColors()
+        UsageSurfaceRefresher.refresh(appContext, localUsageRepository)
     }
 
     fun connectProvider(providerId: ProviderId) {
@@ -354,11 +368,9 @@ fun AIQuotaAppShell(
         if (providerIds.isEmpty()) return
         busyProvider = null
         coroutineScope.launch {
-            providerIds.forEach { providerId ->
-                runCatching { connectorRegistry.connectorFor(providerId).disconnect() }
-                providerSessionResetter.disconnectAndWait(providerId)
-                localUsageRepository.removeProviderSnapshot(providerId)
-            }
+            providerIds.forEach { providerId -> runCatching { connectorRegistry.connectorFor(providerId).disconnect() } }
+            providerSessionResetter.disconnectAllAndWait(providerIds)
+            providerIds.forEach(localUsageRepository::removeProviderSnapshot)
             refreshSnapshots()
             UsageSurfaceRefresher.refresh(appContext, localUsageRepository)
         }
@@ -672,6 +684,7 @@ fun AIQuotaAppShell(
                             providerOrder = providerOrder,
                             hiddenProviders = hiddenProviders,
                             snapshots = snapshots,
+                            providerGaugeColors = providerGaugeColors,
                             onProviderSelected = { route = AppRoute.ProviderDetail(it) },
                             onConnectProvider = ::connectProvider,
                             onReorderProvider = ::reorderVisibleProvider,
@@ -689,6 +702,8 @@ fun AIQuotaAppShell(
                                 onConnect = { connectProvider(currentRoute.providerId) },
                                 onDisconnect = { disconnectProvider(currentRoute.providerId) },
                                 onAddWidget = { requestProviderWidget(currentRoute.providerId) },
+                                gaugeColorHex = providerGaugeColors[currentRoute.providerId],
+                                onGaugeColorChange = { color -> setProviderGaugeColor(currentRoute.providerId, color) },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

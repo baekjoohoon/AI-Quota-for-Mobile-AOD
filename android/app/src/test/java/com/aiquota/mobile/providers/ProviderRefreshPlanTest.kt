@@ -47,7 +47,7 @@ class ProviderRefreshPlanTest {
         assertEquals(ProviderRefreshMode.NATIVE_API, jobs.first { it.providerId == ProviderId.ANTIGRAVITY }.mode)
         assertFalse(jobs.any { it.startUrl.contains("/auth/login") || it.startUrl.contains("/login") })
         assertEquals("https://claude.ai/", jobs.first { it.providerId == ProviderId.CLAUDE }.startUrl)
-        assertEquals(ProviderLoginStrategy.CODEX_CALLBACK_RECOVERY_URL, jobs.first { it.providerId == ProviderId.CODEX }.startUrl)
+        assertEquals("https://chatgpt.com/", jobs.first { it.providerId == ProviderId.CODEX }.startUrl)
         assertEquals("https://opencode.ai/auth", jobs.first { it.providerId == ProviderId.OPENCODE }.startUrl)
         assertEquals("https://gemini.google.com/usage", jobs.first { it.providerId == ProviderId.GEMINI }.startUrl)
         assertEquals("https://github.com/settings/copilot/features", jobs.first { it.providerId == ProviderId.COPILOT }.startUrl)
@@ -176,6 +176,7 @@ class ProviderRefreshPlanTest {
             ProviderUsageSnapshot(
                 providerId = ProviderId.GEMINI,
                 connectionState = ProviderConnectionState.UNAVAILABLE,
+                statusUpdatedAt = now.minusSeconds(61).toString(),
                 message = "Provider session reached, but trusted usage payload was not available yet."
             ),
             ProviderUsageSnapshot.disconnected(ProviderId.CLAUDE)
@@ -184,6 +185,25 @@ class ProviderRefreshPlanTest {
         assertEquals(
             listOf(ProviderId.CURSOR, ProviderId.CODEX, ProviderId.GEMINI),
             ProviderRefreshPlan.automaticJobsFor(snapshots, now = now).map { it.providerId }
+        )
+    }
+
+    @Test
+    fun automaticRefreshSkipsRecentGeminiPendingFailureSoOtherProvidersAreNotDelayed() {
+        val now = Instant.parse("2026-06-18T09:55:00Z")
+        val recentGeminiPending = ProviderUsageSnapshot(
+            providerId = ProviderId.GEMINI,
+            connectionState = ProviderConnectionState.UNAVAILABLE,
+            statusUpdatedAt = now.minusSeconds(30).toString(),
+            message = "Provider session reached, but trusted usage payload was not available yet."
+        )
+
+        assertEquals(
+            listOf(ProviderId.CLAUDE),
+            ProviderRefreshPlan.automaticJobsFor(
+                listOf(recentGeminiPending, connected(ProviderId.CLAUDE)),
+                now = now
+            ).map { it.providerId }
         )
     }
 

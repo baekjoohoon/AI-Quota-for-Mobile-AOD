@@ -177,6 +177,10 @@ class LocalUsageRepository(context: Context) {
     }
 
     fun failKeepingPrevious(providerId: ProviderId, message: String) {
+        if (providerId == ProviderId.GEMINI && message.isGeminiBackgroundRefreshLoginPageMessage()) {
+            markGoogleUsagePending(providerId, GOOGLE_USAGE_PENDING_MESSAGE)
+            return
+        }
         if (providerId == ProviderId.GEMINI && message.isGeminiInteractiveAuthRequiredMessage()) {
             saveSnapshot(
                 ProviderUsageSnapshot.interactiveAuthRequiredKeepingPrevious(
@@ -226,7 +230,8 @@ class LocalUsageRepository(context: Context) {
             snapshots = readSnapshots(),
             order = order,
             hidden = hidden,
-            updatedAt = updatedAt
+            updatedAt = updatedAt,
+            gaugeColors = ProviderPreferencesRepository(appContext).providerGaugeColors()
         )
     }
 
@@ -308,9 +313,14 @@ internal fun mergeFreshSnapshotWithPreviousLines(
 
     val incomingByKey = snapshot.lines.associateBy { it.mergeKey() }
     val previousKeys = previous.lines.map { it.mergeKey() }.toSet()
-    val mergedLines = previous.lines.map { line ->
-        incomingByKey[line.mergeKey()] ?: line
-    } + snapshot.lines.filter { it.mergeKey() !in previousKeys }
+    val mergedLines = if (snapshot.providerId == ProviderId.GLM) {
+        val incomingKeys = snapshot.lines.map { it.mergeKey() }.toSet()
+        snapshot.lines + previous.lines.filter { it.mergeKey() !in incomingKeys }
+    } else {
+        previous.lines.map { line ->
+            incomingByKey[line.mergeKey()] ?: line
+        } + snapshot.lines.filter { it.mergeKey() !in previousKeys }
+    }
 
     if (mergedLines == snapshot.lines) return snapshot
     return snapshot.copy(lines = mergedLines)
@@ -411,6 +421,22 @@ private fun normalizeGoogleUsagePendingMessage(snapshot: ProviderUsageSnapshot):
 
 internal fun recoverSessionExpiredInteractiveAuthRequired(snapshot: ProviderUsageSnapshot): ProviderUsageSnapshot {
     if (snapshot.connectionState != ProviderConnectionState.INTERACTIVE_AUTH_REQUIRED) return snapshot
+    if (snapshot.providerId == ProviderId.GEMINI &&
+        snapshot.message.orEmpty().isGeminiBackgroundRefreshLoginPageMessage()
+    ) {
+        val now = Instant.now().toString()
+        return snapshot.copy(
+            connectionState = providerConnectionStateAfterPreviousUsageFailure(
+                providerId = snapshot.providerId,
+                hasPreviousUsage = snapshot.lines.isNotEmpty(),
+                withoutPreviousUsage = ProviderConnectionState.UNAVAILABLE
+            ),
+            refreshState = ProviderRefreshState.IDLE,
+            updatedAt = snapshotUpdatedAtForStatusTransition(snapshot, now),
+            statusUpdatedAt = now,
+            message = GOOGLE_USAGE_PENDING_MESSAGE
+        )
+    }
     return ProviderUsageSnapshot.disconnected(snapshot.providerId).copy(
         updatedAt = snapshot.updatedAt,
         message = snapshot.message ?: "Provider session requires sign-in."
@@ -446,9 +472,12 @@ private fun String.isRecoverableGoogleUsageFailureMessage(): Boolean {
 private fun String.isGeminiInteractiveAuthRequiredMessage(): Boolean {
     val normalized = trim().lowercase()
     return normalized == "gemini login is required." ||
-        normalized == "background refresh reached a provider login page." ||
         normalized == "sign in required" ||
         normalized == "provider session requires sign-in."
+}
+
+private fun String.isGeminiBackgroundRefreshLoginPageMessage(): Boolean {
+    return trim().lowercase() == "background refresh reached a provider login page."
 }
 
 private const val GOOGLE_USAGE_PENDING_MESSAGE =
