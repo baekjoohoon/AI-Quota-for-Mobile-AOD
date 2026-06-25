@@ -535,8 +535,20 @@ class ProviderBackgroundRefreshService : Service() {
                 webViewClient = ServiceCollectorWebViewClient(job.providerId)
             }
         }
+        prepareSharedWebSessionForCollection(webView)
         Log.d(TAG, "load provider=${job.providerId.storageId} start=${hostOf(job.startUrl)}${pathOf(job.startUrl)} request=$requestId")
         webView.loadUrl(job.startUrl)
+    }
+
+    private fun prepareSharedWebSessionForCollection(webView: WebView) {
+        val cookieManager = CookieManager.getInstance()
+        cookieManager.setAcceptCookie(true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            cookieManager.setAcceptThirdPartyCookies(webView, true)
+        }
+        CookieManager.getInstance().flush()
+        webView.onResume()
+        webView.resumeTimers()
     }
 
     private fun destroyProviderWebView(providerId: ProviderId) {

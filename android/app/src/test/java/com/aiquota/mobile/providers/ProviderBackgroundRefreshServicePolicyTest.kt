@@ -36,6 +36,24 @@ class ProviderBackgroundRefreshServicePolicyTest {
     }
 
     @Test
+    fun webCollectorReactivatesSharedWebViewSessionBeforeRefreshLoad() {
+        val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
+        val startWebCollection = service.substringAfter("private fun startWebCollection")
+            .substringBefore("private fun prepareSharedWebSessionForCollection")
+        val sessionPreparation = service.substringAfter("private fun prepareSharedWebSessionForCollection")
+            .substringBefore("private fun destroyProviderWebView")
+
+        assertTrue(startWebCollection.contains("prepareSharedWebSessionForCollection(webView)"))
+        assertTrue(sessionPreparation.contains("cookieManager.setAcceptCookie(true)"))
+        assertTrue(sessionPreparation.contains("cookieManager.setAcceptThirdPartyCookies(webView, true)"))
+        assertTrue(sessionPreparation.contains("CookieManager.getInstance().flush()"))
+        assertTrue(sessionPreparation.contains("webView.onResume()"))
+        assertTrue(sessionPreparation.contains("webView.resumeTimers()"))
+        assertFalse(sessionPreparation.contains("removeAllCookies"))
+        assertFalse(sessionPreparation.contains("deleteAllData"))
+    }
+
+    @Test
     fun liveRefreshHealthWorkerRestartsAndNotifiesWhenHeartbeatIsStale() {
         val worker = File("src/main/java/com/aiquota/mobile/sync/ForegroundRefreshHealthWorker.kt").readText()
         val scheduler = File("src/main/java/com/aiquota/mobile/sync/ForegroundRefreshHealthScheduler.kt").readText()
