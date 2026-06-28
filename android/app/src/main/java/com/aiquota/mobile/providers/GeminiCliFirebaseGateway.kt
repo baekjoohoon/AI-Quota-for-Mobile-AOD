@@ -1,6 +1,7 @@
 package com.aiquota.mobile.providers
 
 import android.content.Context
+import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.tasks.await
@@ -9,6 +10,7 @@ import org.json.JSONObject
 class GeminiCliFirebaseGateway(
     context: Context,
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
+    private val appCheck: FirebaseAppCheck = FirebaseAppCheck.getInstance(),
     private val functions: FirebaseFunctions = FirebaseFunctions.getInstance()
 ) {
     private val appContext = context.applicationContext
@@ -16,9 +18,7 @@ class GeminiCliFirebaseGateway(
     suspend fun startOAuth(): String {
         ensureSignedIn()
         val result = functions
-            .getHttpsCallable("startGeminiCliOAuth")
-            .call(emptyMap<String, Any>())
-            .await()
+            .callWithAppCheckRetry(appCheck, "startGeminiCliOAuth", emptyMap<String, Any>())
         val data = result.getData() as? Map<*, *> ?: error("gemini_cli_oauth_response_invalid")
         return data["authorizationUrl"]?.toString()?.takeIf { it.isNotBlank() }
             ?: error("gemini_cli_oauth_url_missing")
@@ -27,18 +27,18 @@ class GeminiCliFirebaseGateway(
     suspend fun completeOAuth(callbackUrl: String): GeminiCliTokenExchangeResult {
         ensureSignedIn()
         val result = functions
-            .getHttpsCallable("completeGeminiCliOAuth")
-            .call(mapOf("callbackUrl" to callbackUrl))
-            .await()
+            .callWithAppCheckRetry(appCheck, "completeGeminiCliOAuth", mapOf("callbackUrl" to callbackUrl))
         return GeminiCliTokenExchangeResult.from(result.getData())
     }
 
     suspend fun refreshAccessToken(refreshToken: String): GeminiCliTokenExchangeResult {
         ensureSignedIn()
         val result = functions
-            .getHttpsCallable("refreshGeminiCliAccessToken")
-            .call(mapOf("refreshToken" to refreshToken))
-            .await()
+            .callWithAppCheckRetry(
+                appCheck,
+                "refreshGeminiCliAccessToken",
+                mapOf("refreshToken" to refreshToken)
+            )
         return GeminiCliTokenExchangeResult.from(result.getData())
     }
 

@@ -21,7 +21,7 @@ class UsageSurfaceRefresherTest {
         val source = sourceFile("src/main/java/com/aiquota/mobile/providers/UsageSurfaceRefresher.kt")
 
         assertTrue(source.contains("CoroutineScope(SupervisorJob() + Dispatchers.Default)"))
-        assertTrue(source.contains("WIDGET_SURFACE_UPDATE_DEBOUNCE_MS"))
+        assertTrue(source.contains("WIDGET_SURFACE_UPDATE_DEBOUNCE_MS = 2_000L"))
         assertTrue(source.contains("delay(WIDGET_SURFACE_UPDATE_DEBOUNCE_MS)"))
         assertTrue(source.contains("scheduleWidgetSurfaceUpdate(appContext)"))
     }
@@ -30,8 +30,10 @@ class UsageSurfaceRefresherTest {
     fun surfaceRefreshUpdatesPinnedNotificationOnlyDuringLiveMonitoring() {
         val source = sourceFile("src/main/java/com/aiquota/mobile/providers/UsageSurfaceRefresher.kt")
 
+        assertTrue(source.contains("NOTIFICATION_UPDATE_DEBOUNCE_MS = 2_000L"))
         assertTrue(source.contains("ForegroundRefreshController(appContext).liveMonitoringEnabled()"))
-        assertTrue(source.contains("UsageLimitNotificationController.update(appContext, displayJson)"))
+        assertTrue(source.contains("schedulePinnedNotificationUpdate(appContext, displayJson)"))
+        assertTrue(source.contains("UsageLimitNotificationController.update(update.context, update.snapshotJson)"))
     }
 
     @Test
@@ -63,7 +65,7 @@ class UsageSurfaceRefresherTest {
         assertTrue(refreshBody.contains("val widgetDisplayJson = repository.exportDisplayOnlyCache("))
         assertTrue(refreshBody.contains("hidden = emptySet()"))
         assertTrue(refreshBody.contains("cache.writeLocalDisplaySnapshot(widgetDisplayJson, updatedAt)"))
-        assertTrue(refreshBody.contains("UsageLimitNotificationController.update(appContext, displayJson)"))
+        assertTrue(refreshBody.contains("schedulePinnedNotificationUpdate(appContext, displayJson)"))
     }
 
     @Test

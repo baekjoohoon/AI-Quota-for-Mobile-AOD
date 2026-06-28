@@ -39,6 +39,50 @@ class ProviderUsageNormalizerTest {
     }
 
     @Test
+    fun claudeUsedPercentOneMeansOnePercentNotOneHundredPercent() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.CLAUDE,
+            """
+            {
+              "usage": {
+                "weekly": {"used_percent": 1},
+                "opus": {"usedPercent": 1},
+                "sonnet": {"usedPercentage": 1},
+                "cowork": {"used_percentage": 1},
+                "design": {"percent_used": 1}
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.PROVIDER_API
+        )!!
+
+        assertEquals(0.99f, snapshot.lines.first { it.key == "claude:weekly" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.99f, snapshot.lines.first { it.key == "claude:opus" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.99f, snapshot.lines.first { it.key == "claude:sonnet" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.99f, snapshot.lines.first { it.key == "claude:cowork" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.99f, snapshot.lines.first { it.key == "claude:design" }.remainingPercent ?: 0f, 0.001f)
+    }
+
+    @Test
+    fun claudeStructuredWeeklyUtilizationOneMeansOnePercentNotOneHundredPercent() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.CLAUDE,
+            """
+            {
+              "usage": {
+                "session": {"utilization": 0.25},
+                "weekly": {"utilization": 1}
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.STRUCTURED_SCRIPT
+        )!!
+
+        assertEquals(0.75f, snapshot.lines.first { it.key == "claude:session" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.99f, snapshot.lines.first { it.key == "claude:weekly" }.remainingPercent ?: 0f, 0.001f)
+    }
+
+    @Test
     fun claudeUsageApiNormalizesModelAndCoworkBuckets() {
         val snapshot = ProviderUsageNormalizer.normalize(
             ProviderId.CLAUDE,
@@ -58,11 +102,106 @@ class ProviderUsageNormalizerTest {
             ProviderPayloadSource.PROVIDER_API
         )!!
 
-        assertEquals("CLAUDE_MAX", snapshot.plan)
+        assertEquals("Max", snapshot.plan)
         assertEquals(
             listOf("Claude Session", "Claude Weekly", "Claude Opus", "Claude Sonnet", "Claude Cowork", "Claude Design"),
             snapshot.lines.map { it.label }
         )
+    }
+
+    @Test
+    fun claudeUsageApiNormalizesAdditionalAliasAndContainerBuckets() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.CLAUDE,
+            """
+            {
+              "usage": {
+                "fiveHour": {"remainingPercent": 80},
+                "sevenDay": {"remaining_percent": 70},
+                "weekly_opus": {"remainingPercentage": 60},
+                "weekly_sonnet": {"percent_remaining": 50},
+                "cowork_weekly": {"usedPercent": 40},
+                "weekly_design": {"used_percent": 30},
+                "models": {
+                  "claude-haiku-4-5": {
+                    "displayName": "Claude Haiku 4.5",
+                    "remaining_percent": 90,
+                    "resetAt": "2026-06-19T00:00:00Z"
+                  }
+                },
+                "quotaBuckets": [
+                  {
+                    "key": "long_context",
+                    "label": "Long context",
+                    "remainingPercent": 25
+                  }
+                ]
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.PROVIDER_API
+        )!!
+
+        assertEquals(
+            listOf(
+                "Claude Session",
+                "Claude Weekly",
+                "Claude Opus",
+                "Claude Sonnet",
+                "Claude Cowork",
+                "Claude Design",
+                "Claude Haiku 4.5",
+                "Long context"
+            ),
+            snapshot.lines.map { it.label }
+        )
+        assertEquals(0.80f, snapshot.lines.single { it.key == "claude:session" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.60f, snapshot.lines.single { it.key == "claude:opus" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.60f, snapshot.lines.single { it.key == "claude:cowork" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals("2026-06-19T00:00:00Z", snapshot.lines.single { it.label == "Claude Haiku 4.5" }.resetsAt)
+        assertEquals(0.25f, snapshot.lines.single { it.label == "Long context" }.remainingPercent ?: 0f, 0.001f)
+    }
+
+    @Test
+    fun claudeUsageApiNormalizesCurrentRawExtraUsageAndIgnoresNullBuckets() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.CLAUDE,
+            """
+            {
+              "usage": {
+                "five_hour": {"utilization": 0.05, "resets_at": "2026-06-16T13:39:59Z"},
+                "seven_day": {"utilization": 0.0, "resets_at": "2026-06-22T19:59:59Z"},
+                "seven_day_oauth_apps": null,
+                "seven_day_opus": null,
+                "seven_day_sonnet": null,
+                "seven_day_cowork": null,
+                "seven_day_omelette": null,
+                "tangelo": null,
+                "iguana_necktie": null,
+                "omelette_promotional": null,
+                "cinder_cove": null,
+                "extra_usage": {
+                  "is_enabled": true,
+                  "monthly_limit": 100,
+                  "used_credits": 25,
+                  "utilization": null,
+                  "currency": "USD",
+                  "daily": null,
+                  "weekly": null
+                }
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.PROVIDER_API
+        )!!
+
+        assertEquals(
+            listOf("Claude Session", "Claude Weekly", "Extra Usage"),
+            snapshot.lines.map { it.label }
+        )
+        assertEquals(0.95f, snapshot.lines.single { it.key == "claude:session" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(1.0f, snapshot.lines.single { it.key == "claude:weekly" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.75f, snapshot.lines.single { it.key == "claude:extra_usage" }.remainingPercent ?: 0f, 0.001f)
     }
 
     @Test
@@ -80,7 +219,7 @@ class ProviderUsageNormalizerTest {
             ProviderPayloadSource.PROVIDER_API
         )!!
 
-        assertEquals("Claude Max 5x", snapshot.plan)
+        assertEquals("Max 5x", snapshot.plan)
     }
 
     @Test
@@ -95,6 +234,293 @@ class ProviderUsageNormalizerTest {
             }
             """.trimIndent(),
             ProviderPayloadSource.PROVIDER_API
+        )
+
+        assertNull(snapshot)
+    }
+
+    @Test
+    fun glmQuotaLimitResponseNormalizesTokenAndMcpLimits() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.GLM,
+            """
+            {
+              "code": 200,
+              "msg": "success",
+              "success": true,
+              "data": {
+                "limits": [
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "usage": 10000000,
+                    "currentValue": 2500000,
+                    "percentage": 25,
+                    "nextResetTime": 1792537200000
+                  },
+                  {
+                    "type": "TIME_LIMIT",
+                    "usage": 500,
+                    "currentValue": 125,
+                    "percentage": 25
+                  }
+                ]
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.PROVIDER_API
+        )!!
+
+        assertEquals(ProviderId.GLM, snapshot.providerId)
+        assertEquals(ProviderConnectionState.CONNECTED, snapshot.connectionState)
+        assertNull(snapshot.plan)
+        assertEquals(listOf("5시간 한도", "월간 한도"), snapshot.lines.map { it.label })
+        assertEquals(0.75f, snapshot.lines.single { it.key == "glm:tokens" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.75f, snapshot.lines.single { it.key == "glm:mcp" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(2_500_000.0, snapshot.lines.single { it.key == "glm:tokens" }.usedAmount ?: 0.0, 0.001)
+        assertEquals(10_000_000.0, snapshot.lines.single { it.key == "glm:tokens" }.limitAmount ?: 0.0, 0.001)
+        assertEquals("2026-10-20T23:00:00Z", snapshot.lines.single { it.key == "glm:tokens" }.resetsAt)
+    }
+
+    @Test
+    fun glmQuotaLimitResponseKeepsPercentageOnlyTokenLimits() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.GLM,
+            """
+            {
+              "code": 200,
+              "msg": "success",
+              "success": true,
+              "data": {
+                "limits": [
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "unit": 3,
+                    "number": 5,
+                    "percentage": 25,
+                    "nextResetTime": 1792537200000
+                  },
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "unit": 6,
+                    "number": 7,
+                    "percentage": 40
+                  },
+                  {
+                    "type": "TIME_LIMIT",
+                    "usage": 500,
+                    "currentValue": 125,
+                    "percentage": 25
+                  }
+                ]
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.PROVIDER_API
+        )!!
+
+        assertEquals(
+            listOf("5시간 한도", "주간 한도", "월간 한도"),
+            snapshot.lines.map { it.label }
+        )
+        assertEquals(0.75f, snapshot.lines.single { it.key == "glm:tokens" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.60f, snapshot.lines.single { it.key == "glm:weekly_tokens" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals("2026-10-20T23:00:00Z", snapshot.lines.single { it.key == "glm:tokens" }.resetsAt)
+        assertNull(snapshot.lines.single { it.key == "glm:tokens" }.usedAmount)
+        assertNull(snapshot.lines.single { it.key == "glm:tokens" }.limitAmount)
+    }
+
+    @Test
+    fun glmQuotaLimitResponseSortsFiveHourWeeklyMonthlyRegardlessOfPayloadOrder() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.GLM,
+            """
+            {
+              "code": 200,
+              "msg": "success",
+              "success": true,
+              "data": {
+                "limits": [
+                  {
+                    "type": "TIME_LIMIT",
+                    "usage": 500,
+                    "currentValue": 125,
+                    "percentage": 25
+                  },
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "unit": 6,
+                    "number": 7,
+                    "percentage": 40
+                  },
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "unit": 3,
+                    "number": 5,
+                    "percentage": 25
+                  }
+                ]
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.PROVIDER_API
+        )!!
+
+        assertEquals(
+            listOf("5시간 한도", "주간 한도", "월간 한도"),
+            snapshot.lines.map { it.label }
+        )
+    }
+
+    @Test
+    fun glmWebPayloadSeparatesFiveHourAndWeeklyTokenLimits() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.GLM,
+            """
+            {
+              "provider": "glm",
+              "source": "visible-dom",
+              "plan": "GLM Coding Pro",
+              "data": {
+                "limits": [
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "unit": 3,
+                    "number": 5,
+                    "usage": 1000,
+                    "currentValue": 250,
+                    "percentage": 25
+                  },
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "unit": 6,
+                    "number": 7,
+                    "usage": 1000,
+                    "currentValue": 400,
+                    "percentage": 40
+                  }
+                ]
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.STRUCTURED_SCRIPT
+        )!!
+
+        assertEquals("Pro", snapshot.plan)
+        assertEquals(listOf("5시간 한도", "주간 한도"), snapshot.lines.map { it.label })
+        assertEquals(0.75f, snapshot.lines.single { it.key == "glm:tokens" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.60f, snapshot.lines.single { it.key == "glm:weekly_tokens" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals("visible-dom", snapshot.lines.first().sourceLabel)
+    }
+
+    @Test
+    fun glmPlanNormalizesCodingPlanNamesToTierOnly() {
+        val payloads = mapOf(
+            "GLM Coding Lite Plan" to "Lite",
+            "GLM Coding Pro" to "Pro",
+            "GLM Coding Max-Yearly Plan" to "Max"
+        )
+
+        payloads.forEach { (rawPlan, expectedPlan) ->
+            val snapshot = ProviderUsageNormalizer.normalize(
+                ProviderId.GLM,
+                """
+                {
+                  "provider": "glm",
+                  "source": "visible-dom",
+                  "plan": "$rawPlan",
+                  "data": {
+                    "limits": [
+                      {
+                        "type": "TOKENS_LIMIT",
+                        "unit": 3,
+                        "number": 5,
+                        "percentage": 25
+                      }
+                    ]
+                  }
+                }
+                """.trimIndent(),
+                ProviderPayloadSource.STRUCTURED_SCRIPT
+            )!!
+
+            assertEquals(expectedPlan, snapshot.plan)
+        }
+    }
+
+    @Test
+    fun opencodeVisibleDomPayloadNormalizesGoLimitsAndZenCredits() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.OPENCODE,
+            """
+            {
+              "provider": "opencode",
+              "source": "visible-dom",
+              "data": {
+                "plan": "OpenCode Go",
+                "account": "user@example.com",
+                "limits": [
+                  {
+                    "label": "Go 5 hour limit",
+                    "remaining_percent": 75,
+                    "used": 3,
+                    "limit": 12,
+                    "unit": "usd",
+                    "reset_text": "Resets in 2h"
+                  },
+                  {
+                    "label": "Go weekly limit",
+                    "used": 12,
+                    "limit": 30,
+                    "unit": "usd"
+                  },
+                  {
+                    "label": "Go monthly limit",
+                    "remaining": 54,
+                    "limit": 60,
+                    "unit": "usd"
+                  }
+                ],
+                "credits": {
+                  "balance": 4.5
+                }
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.STRUCTURED_SCRIPT
+        )!!
+
+        assertEquals(ProviderId.OPENCODE, snapshot.providerId)
+        assertEquals("Go", snapshot.plan)
+        assertEquals("user@example.com", snapshot.account)
+        assertEquals(
+            listOf("Go 5-Hour Limit", "Go Weekly Limit", "Go Monthly Limit", "Zen Credits"),
+            snapshot.lines.map { it.label }
+        )
+        assertEquals(0.75f, snapshot.lines.single { it.key == "opencode:go_5_hour_limit" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.60f, snapshot.lines.single { it.key == "opencode:go_weekly_limit" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.90f, snapshot.lines.single { it.key == "opencode:go_monthly_limit" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals("Resets in 2h", snapshot.lines.single { it.key == "opencode:go_5_hour_limit" }.resetText)
+        assertEquals("4.5 credits left", snapshot.lines.single { it.key == "opencode:zen_credits" }.remainingText)
+        assertNull(snapshot.lines.single { it.key == "opencode:zen_credits" }.remainingPercent)
+    }
+
+    @Test
+    fun opencodePayloadWithoutTrustedUsageMetricIsRejected() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.OPENCODE,
+            """
+            {
+              "provider": "opencode",
+              "source": "visible-dom",
+              "data": {
+                "plan": "OpenCode Go",
+                "limits": [
+                  {"label": "Go weekly limit"}
+                ]
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.STRUCTURED_SCRIPT
         )
 
         assertNull(snapshot)
@@ -123,6 +549,57 @@ class ProviderUsageNormalizerTest {
         assertEquals("Resets in 5h", snapshot.lines[0].resetText)
         assertEquals(0.50f, snapshot.lines[1].remainingPercent ?: 0f, 0.001f)
         assertEquals(0.97f, snapshot.lines[2].remainingPercent ?: 0f, 0.001f)
+    }
+
+    @Test
+    fun codexPlanFallsBackToSubscriptionApiMetadata() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.CODEX,
+            """
+            {
+              "subscription": {
+                "plan_type": "prolite"
+              },
+              "usage": {
+                "rate_limits": {
+                  "primary_window": {"remaining_percent": 80}
+                }
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.PROVIDER_API
+        )!!
+
+        assertEquals("Pro 5x", snapshot.plan)
+    }
+
+    @Test
+    fun codexPlanFallsBackToSubscriptionListMetadata() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.CODEX,
+            """
+            {
+              "data": [
+                {
+                  "active_subscription": {
+                    "plan": {
+                      "id": "prolite",
+                      "display_name": "ChatGPT Pro Lite"
+                    }
+                  }
+                }
+              ],
+              "usage": {
+                "rate_limits": {
+                  "primary_window": {"remaining_percent": 80}
+                }
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.PROVIDER_API
+        )!!
+
+        assertEquals("Pro 5x", snapshot.plan)
     }
 
     @Test
@@ -247,6 +724,46 @@ class ProviderUsageNormalizerTest {
 
         assertEquals("오전 1:24 초기화", snapshot.lines.single { it.key == "codex:spark_primary_window" }.resetText)
         assertEquals("오후 3:23 초기화", snapshot.lines.single { it.key == "codex:spark_secondary_window" }.resetText)
+    }
+
+    @Test
+    fun codexVisibleDomPayloadDoesNotBorrowWeeklyResetForIdleSessionWindows() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.CODEX,
+            """
+            {
+              "source": "visible-dom",
+              "usage": {
+                "rate_limits": {
+                  "primary_window": {
+                    "label": "Codex Session",
+                    "remaining_percent": 100
+                  },
+                  "secondary_window": {
+                    "label": "Codex Weekly",
+                    "remaining_percent": 90,
+                    "reset_text": "Resets in 6d 2h"
+                  },
+                  "spark_primary_window": {
+                    "label": "GPT-5.3-Codex-Spark 5h",
+                    "remaining_percent": 100
+                  },
+                  "spark_secondary_window": {
+                    "label": "GPT-5.3-Codex-Spark Weekly",
+                    "remaining_percent": 100,
+                    "reset_text": "Resets in 6d 2h"
+                  }
+                }
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.STRUCTURED_SCRIPT
+        )!!
+
+        assertNull(snapshot.lines.single { it.key == "codex:primary_window" }.resetText)
+        assertEquals("Resets in 6d 2h", snapshot.lines.single { it.key == "codex:secondary_window" }.resetText)
+        assertNull(snapshot.lines.single { it.key == "codex:spark_primary_window" }.resetText)
+        assertEquals("Resets in 6d 2h", snapshot.lines.single { it.key == "codex:spark_secondary_window" }.resetText)
     }
 
     @Test
@@ -513,15 +1030,15 @@ class ProviderUsageNormalizerTest {
     }
 
     @Test
-    fun geminiUsagePageCollapsedLimitPayloadIsRejected() {
+    fun geminiUsagePageLimitPayloadNormalizesDomRows() {
         val snapshot = ProviderUsageNormalizer.normalize(
             ProviderId.GEMINI,
             """
             {
-              "account": {"p": "GEMINI_FREE"},
+              "account": {"p": "GEMINI_PRO", "e": "user@example.com"},
               "usage": {
                 "x": [
-                  {"l": "5-hour limit", "u": 0, "t": "오후 5:56에 초기화"},
+                  {"l": "5-hour limit", "u": 0.04, "t": "오후 5:56에 초기화"},
                   {"l": "Weekly limit", "u": 0, "t": "6월 4일 오후 12:56에 초기화"}
                 ]
               }
@@ -530,7 +1047,16 @@ class ProviderUsageNormalizerTest {
             ProviderPayloadSource.STRUCTURED_SCRIPT
         )
 
-        assertNull(snapshot)
+        assertNotNull(snapshot)
+        snapshot!!
+        assertEquals("Pro", snapshot.plan)
+        assertEquals("user@example.com", snapshot.account)
+        assertEquals(listOf("5-hour limit", "Weekly limit"), snapshot.lines.map { it.label })
+        assertEquals(listOf("gemini:5_hour_limit", "gemini:weekly_limit"), snapshot.lines.map { it.key })
+        assertEquals(0.96f, snapshot.lines[0].remainingPercent ?: 0f, 0.001f)
+        assertEquals(1.0f, snapshot.lines[1].remainingPercent ?: 0f, 0.001f)
+        assertEquals("오후 5:56에 초기화", snapshot.lines[0].resetText)
+        assertEquals("6월 4일 오후 12:56에 초기화", snapshot.lines[1].resetText)
     }
 
     @Test
@@ -599,6 +1125,26 @@ class ProviderUsageNormalizerTest {
         assertEquals("2026-05-19T12:00:00Z", snapshot.lines[0].resetsAt)
         assertEquals(0.75f, snapshot.lines[1].remainingPercent ?: 0f, 0.001f)
         assertEquals(0.99f, snapshot.lines[2].remainingPercent ?: 0f, 0.001f)
+    }
+
+    @Test
+    fun geminiCodeAssistRemainingPercentOneMeansOnePercentNotOneHundredPercent() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.GEMINI,
+            """
+            {
+              "plan": "standard-tier",
+              "limits": [
+                {"modelId": "gemini-2.5-pro", "remainingPercent": 1},
+                {"modelId": "gemini-2.5-flash", "remainingPercentage": 1}
+              ]
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.NETWORK_RESPONSE
+        )!!
+
+        assertEquals(0.01f, snapshot.lines.single { it.label == "2.5 pro" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.01f, snapshot.lines.single { it.label == "2.5 flash" }.remainingPercent ?: 0f, 0.001f)
     }
 
     @Test
@@ -1249,6 +1795,32 @@ class ProviderUsageNormalizerTest {
     }
 
     @Test
+    fun cursorPercentFieldsTreatOneAsOnePercentNotOneHundredPercent() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.CURSOR,
+            """
+            {
+              "membershipType": "Pro",
+              "planUsage": {
+                "totalPercentUsed": 1,
+                "autoPercentUsed": 1,
+                "apiPercentUsed": 1,
+                "breakdown": {
+                  "onDemand": 1
+                }
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.PROVIDER_API
+        )!!
+
+        assertEquals(0.99f, snapshot.lines.single { it.label == "Total usage" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.99f, snapshot.lines.single { it.label == "Auto usage" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.99f, snapshot.lines.single { it.label == "API usage" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.99f, snapshot.lines.single { it.label == "On-demand usage" }.remainingPercent ?: 0f, 0.001f)
+    }
+
+    @Test
     fun cursorRequestBucketsNormalizeAsRequests() {
         val snapshot = ProviderUsageNormalizer.normalize(
             ProviderId.CURSOR,
@@ -1417,12 +1989,37 @@ class ProviderUsageNormalizerTest {
             ProviderPayloadSource.STRUCTURED_SCRIPT
         )!!
 
-        assertEquals("Antigravity Plus", snapshot.plan)
+        assertEquals("Plus", snapshot.plan)
         assertEquals("<email>", snapshot.account)
         assertEquals(listOf("Antigravity Session", "Antigravity Weekly"), snapshot.lines.map { it.label })
         assertEquals(0.80f, snapshot.lines[0].remainingPercent ?: 0f, 0.001f)
         assertEquals(0.88f, snapshot.lines[1].remainingPercent ?: 0f, 0.001f)
         assertEquals("2026-06-01T00:00:00Z", snapshot.lines[1].resetsAt)
+    }
+
+    @Test
+    fun antigravityPercentFieldsTreatOneAsOnePercentNotOneHundredPercent() {
+        val snapshot = ProviderUsageNormalizer.normalize(
+            ProviderId.ANTIGRAVITY,
+            """
+            {
+              "usage": {
+                "x": [
+                  {"l": "Antigravity Session", "usedPercent": 1},
+                  {"l": "Antigravity Weekly", "used_percent": 1},
+                  {"l": "Antigravity Remaining", "remainingPercentage": 1},
+                  {"l": "Antigravity Percent Used", "percentUsed": 1}
+                ]
+              }
+            }
+            """.trimIndent(),
+            ProviderPayloadSource.STRUCTURED_SCRIPT
+        )!!
+
+        assertEquals(0.99f, snapshot.lines.single { it.key == "antigravity:session" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.99f, snapshot.lines.single { it.key == "antigravity:weekly" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.01f, snapshot.lines.single { it.key == "antigravity:remaining" }.remainingPercent ?: 0f, 0.001f)
+        assertEquals(0.99f, snapshot.lines.single { it.key == "antigravity:percent_used" }.remainingPercent ?: 0f, 0.001f)
     }
 
     @Test
@@ -1459,7 +2056,7 @@ class ProviderUsageNormalizerTest {
             ProviderPayloadSource.STRUCTURED_SCRIPT
         )!!
 
-        assertEquals("Google AI Pro", snapshot.plan)
+        assertEquals("AI Pro", snapshot.plan)
         assertEquals(listOf("Agent mode", "Autocomplete"), snapshot.lines.map { it.label })
         assertEquals(0.76f, snapshot.lines[0].remainingPercent ?: 0f, 0.001f)
         assertEquals(0.81f, snapshot.lines[1].remainingPercent ?: 0f, 0.001f)

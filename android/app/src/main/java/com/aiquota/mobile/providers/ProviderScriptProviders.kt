@@ -38,6 +38,16 @@ class CodexScriptProvider : ProviderScriptProvider {
     override fun collectorScript(collectorAssets: ProviderCollectorAssets): String = ProviderWebCollectorScripts.codexWebViewState()
 }
 
+class GlmScriptProvider : ProviderScriptProvider {
+    override val metadata: ProviderScriptMetadata = ProviderScriptProviders.metadataFor(ProviderId.GLM)
+    override fun collectorScript(collectorAssets: ProviderCollectorAssets): String = ProviderWebCollectorScripts.glm()
+}
+
+class OpenCodeScriptProvider : ProviderScriptProvider {
+    override val metadata: ProviderScriptMetadata = ProviderScriptProviders.metadataFor(ProviderId.OPENCODE)
+    override fun collectorScript(collectorAssets: ProviderCollectorAssets): String = ProviderWebCollectorScripts.opencode()
+}
+
 class CopilotScriptProvider : ProviderScriptProvider {
     override val metadata: ProviderScriptMetadata = ProviderScriptProviders.metadataFor(ProviderId.COPILOT)
     override fun collectorScript(collectorAssets: ProviderCollectorAssets): String = ProviderWebCollectorScripts.copilot()
@@ -72,6 +82,8 @@ object ProviderScriptProviders {
         return when (providerId) {
             ProviderId.CLAUDE -> ClaudeScriptProvider()
             ProviderId.CODEX -> CodexScriptProvider()
+            ProviderId.GLM -> GlmScriptProvider()
+            ProviderId.OPENCODE -> OpenCodeScriptProvider()
             ProviderId.COPILOT -> CopilotScriptProvider()
             ProviderId.GEMINI -> GeminiScriptProvider()
             ProviderId.ANTIGRAVITY -> AntigravityScriptProvider()
@@ -100,6 +112,8 @@ object ProviderScriptProviders {
             ProviderId.CLAUDE -> "a260503"
             ProviderId.COPILOT -> "b260503"
             ProviderId.CODEX -> "e260503"
+            ProviderId.GLM -> "glm260617-web"
+            ProviderId.OPENCODE -> "opencode260618-web"
             ProviderId.GEMINI -> "d260503"
             ProviderId.ANTIGRAVITY -> "c260503"
             ProviderId.CURSOR -> "cursor-local"

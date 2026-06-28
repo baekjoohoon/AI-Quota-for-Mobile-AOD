@@ -36,7 +36,7 @@ class GeminiCliFirebaseGatewayTest {
 
         assertTrue(build.contains("681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"))
         assertTrue(build.contains("1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"))
-        assertTrue(appShell.contains("GeminiCliLoopbackOAuthActivity.createIntent"))
+        assertFalse(appShell.contains("GeminiCliLoopbackOAuthActivity.createIntent"))
         assertTrue(appShell.contains("AntigravityLoopbackOAuthActivity.createIntent"))
         assertTrue(geminiActivity.contains("WebView"))
         assertTrue(geminiActivity.contains("GeminiCliFirebaseGateway(applicationContext).startOAuth()"))
@@ -54,12 +54,12 @@ class GeminiCliFirebaseGatewayTest {
         assertFalse(antigravityActivity.contains("ServerSocket"))
         assertFalse(antigravityActivity.contains("Intent.ACTION_VIEW"))
         assertFalse(antigravityActivity.contains("fetchUsagePayloadFromLoopbackCallback"))
-        assertTrue(geminiGateway.contains("getHttpsCallable(\"startGeminiCliOAuth\")"))
-        assertTrue(geminiGateway.contains("getHttpsCallable(\"completeGeminiCliOAuth\")"))
-        assertTrue(geminiGateway.contains("getHttpsCallable(\"refreshGeminiCliAccessToken\")"))
-        assertTrue(antigravityGateway.contains("getHttpsCallable(\"startAntigravityOAuth\")"))
-        assertTrue(antigravityGateway.contains("getHttpsCallable(\"completeAntigravityOAuth\")"))
-        assertTrue(antigravityGateway.contains("getHttpsCallable(\"refreshAntigravityAccessToken\")"))
+        assertTrue(geminiGateway.contains("callWithAppCheckRetry(appCheck, \"startGeminiCliOAuth\""))
+        assertTrue(geminiGateway.contains("callWithAppCheckRetry(appCheck, \"completeGeminiCliOAuth\""))
+        assertTrue(geminiGateway.contains("\"refreshGeminiCliAccessToken\""))
+        assertTrue(antigravityGateway.contains("callWithAppCheckRetry(appCheck, \"startAntigravityOAuth\""))
+        assertTrue(antigravityGateway.contains("callWithAppCheckRetry(appCheck, \"completeAntigravityOAuth\""))
+        assertTrue(antigravityGateway.contains("\"refreshAntigravityAccessToken\""))
     }
 
     @Test
@@ -78,8 +78,8 @@ class GeminiCliFirebaseGatewayTest {
         val antigravityDefinition = definitions.substringAfter("providerId = ProviderId.ANTIGRAVITY,")
             .substringBefore("ProviderDefinition(")
 
-        assertTrue(geminiDefinition.contains("authStoreKind = ProviderAuthStoreKind.NATIVE_TOKEN"))
-        assertTrue(geminiDefinition.contains("collectionKind = ProviderCollectionKind.NATIVE_API"))
+        assertTrue(geminiDefinition.contains("authStoreKind = ProviderAuthStoreKind.WEBVIEW_PROFILE"))
+        assertTrue(geminiDefinition.contains("collectionKind = ProviderCollectionKind.WEBVIEW_COLLECTOR"))
         assertTrue(antigravityDefinition.contains("authStoreKind = ProviderAuthStoreKind.NATIVE_TOKEN"))
         assertTrue(antigravityDefinition.contains("collectionKind = ProviderCollectionKind.NATIVE_API"))
         assertTrue(refreshPlan.contains("ProviderCollectionKind.NATIVE_API -> ProviderRefreshMode.NATIVE_API"))
@@ -89,5 +89,16 @@ class GeminiCliFirebaseGatewayTest {
         assertFalse(appShell.contains("AntigravityOAuthRepository(appContext).fetchUsagePayloadFromStoredCredential()"))
         assertTrue(backgroundService.contains("GeminiCliOAuthRepository(applicationContext).fetchUsagePayloadFromStoredCredential()"))
         assertTrue(backgroundService.contains("AntigravityOAuthRepository(applicationContext).fetchUsagePayloadFromStoredCredential()"))
+    }
+
+    @Test
+    fun geminiCliOAuthKeepsUsagePendingWhenQuotaPayloadIsMissing() {
+        val geminiActivity = File("src/main/java/com/aiquota/mobile/providers/GeminiCliLoopbackOAuthActivity.kt").readText()
+        val pendingFallback = geminiActivity.substringAfter("private fun finishGoogleUsagePending")
+            .substringBefore("private fun failKeepingPrevious")
+
+        assertTrue(pendingFallback.contains("markGoogleUsagePending"))
+        assertTrue(pendingFallback.contains("ProviderId.GEMINI"))
+        assertFalse(pendingFallback.contains("ProviderUsageSnapshot.connected"))
     }
 }

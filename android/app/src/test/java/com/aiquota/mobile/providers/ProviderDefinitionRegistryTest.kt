@@ -10,22 +10,40 @@ class ProviderDefinitionRegistryTest {
     @Test
     fun definitionsMatchTheStandaloneLoginHandoff() {
         val definitions = ProviderDefinitionRegistry.all()
+        val definitionsByProvider = definitions.associateBy { it.providerId }
 
         assertEquals(ProviderId.defaultOrder(), definitions.map { it.providerId })
-        assertEquals("https://claude.ai/login", definitions[0].loginStartUrl)
-        assertEquals("https://chatgpt.com/auth/login", definitions[1].loginStartUrl)
-        assertEquals("https://gemini.google.com/usage", definitions[2].loginStartUrl)
-        assertEquals("https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota", definitions[2].preferredUsageEndpoint)
-        assertEquals(ProviderAuthStoreKind.NATIVE_TOKEN, definitions[2].authStoreKind)
-        assertEquals(ProviderCollectionKind.NATIVE_API, definitions[2].collectionKind)
-        assertEquals("https://github.com/settings/copilot/features", definitions[3].loginStartUrl)
-        assertEquals(ProviderAuthStoreKind.WEBVIEW_PROFILE, definitions[3].authStoreKind)
-        assertEquals(ProviderCollectionKind.WEBVIEW_COLLECTOR, definitions[3].collectionKind)
-        assertEquals("https://antigravity.google/", definitions[4].loginStartUrl)
-        assertEquals("https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels", definitions[4].preferredUsageEndpoint)
-        assertEquals(ProviderAuthStoreKind.NATIVE_TOKEN, definitions[4].authStoreKind)
-        assertEquals(ProviderCollectionKind.NATIVE_API, definitions[4].collectionKind)
-        assertEquals("https://cursor.com/dashboard", definitions[5].loginStartUrl)
+        assertEquals("https://claude.ai/login", definitionsByProvider[ProviderId.CLAUDE]?.loginStartUrl)
+        assertEquals("https://chatgpt.com/auth/login", definitionsByProvider[ProviderId.CODEX]?.loginStartUrl)
+        assertEquals("aiquota://provider/glm-api-key", definitionsByProvider[ProviderId.GLM]?.loginStartUrl)
+        assertEquals(
+            "https://api.z.ai/api/monitor/usage/quota/limit",
+            definitionsByProvider[ProviderId.GLM]?.preferredUsageEndpoint
+        )
+        assertEquals(ProviderAuthStoreKind.NATIVE_TOKEN, definitionsByProvider[ProviderId.GLM]?.authStoreKind)
+        assertEquals(ProviderCollectionKind.NATIVE_API, definitionsByProvider[ProviderId.GLM]?.collectionKind)
+        assertEquals("https://opencode.ai/auth", definitionsByProvider[ProviderId.OPENCODE]?.loginStartUrl)
+        assertEquals("https://opencode.ai/auth", definitionsByProvider[ProviderId.OPENCODE]?.preferredUsageEndpoint)
+        assertEquals(ProviderAuthStoreKind.WEBVIEW_PROFILE, definitionsByProvider[ProviderId.OPENCODE]?.authStoreKind)
+        assertEquals(ProviderCollectionKind.WEBVIEW_COLLECTOR, definitionsByProvider[ProviderId.OPENCODE]?.collectionKind)
+        assertEquals("https://gemini.google.com/usage", definitionsByProvider[ProviderId.GEMINI]?.loginStartUrl)
+        assertEquals(
+            "https://gemini.google.com/usage",
+            definitionsByProvider[ProviderId.GEMINI]?.preferredUsageEndpoint
+        )
+        assertEquals(ProviderAuthStoreKind.WEBVIEW_PROFILE, definitionsByProvider[ProviderId.GEMINI]?.authStoreKind)
+        assertEquals(ProviderCollectionKind.WEBVIEW_COLLECTOR, definitionsByProvider[ProviderId.GEMINI]?.collectionKind)
+        assertEquals("https://github.com/settings/copilot/features", definitionsByProvider[ProviderId.COPILOT]?.loginStartUrl)
+        assertEquals(ProviderAuthStoreKind.WEBVIEW_PROFILE, definitionsByProvider[ProviderId.COPILOT]?.authStoreKind)
+        assertEquals(ProviderCollectionKind.WEBVIEW_COLLECTOR, definitionsByProvider[ProviderId.COPILOT]?.collectionKind)
+        assertEquals("https://antigravity.google/", definitionsByProvider[ProviderId.ANTIGRAVITY]?.loginStartUrl)
+        assertEquals(
+            "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
+            definitionsByProvider[ProviderId.ANTIGRAVITY]?.preferredUsageEndpoint
+        )
+        assertEquals(ProviderAuthStoreKind.NATIVE_TOKEN, definitionsByProvider[ProviderId.ANTIGRAVITY]?.authStoreKind)
+        assertEquals(ProviderCollectionKind.NATIVE_API, definitionsByProvider[ProviderId.ANTIGRAVITY]?.collectionKind)
+        assertEquals("https://cursor.com/dashboard", definitionsByProvider[ProviderId.CURSOR]?.loginStartUrl)
     }
 
     @Test
@@ -37,6 +55,15 @@ class ProviderDefinitionRegistryTest {
         assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.CODEX, "https://accounts.google.com/o/oauth2/v2/auth"))
         assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.CODEX, "https://appleid.apple.com/auth/authorize"))
         assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.CODEX, "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b"))
+        assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.GLM, "https://api.z.ai/api/monitor/usage/quota/limit"))
+        assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.GLM, "https://z.ai/manage-apikey/coding-plan/personal/my-plan"))
+        assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.GLM, "https://chat.z.ai/"))
+        assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.GLM, "https://accounts.google.com/o/oauth2/v2/auth"))
+        assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.OPENCODE, "https://opencode.ai/auth"))
+        assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.OPENCODE, "https://auth.opencode.ai/authorize"))
+        assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.OPENCODE, "https://opencode.ai/zen/go/usage"))
+        assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.OPENCODE, "https://accounts.google.com/o/oauth2/v2/auth"))
+        assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.OPENCODE, "https://github.com/login/oauth/authorize"))
         assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.GEMINI, "https://gemini.google.com/app"))
         assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.GEMINI, "https://gemini.google.com/usage"))
         assertTrue(ProviderDefinitionRegistry.isAllowed(ProviderId.GEMINI, "https://myaccount.google.com/signinoptions"))
@@ -54,6 +81,10 @@ class ProviderDefinitionRegistryTest {
         assertFalse(ProviderDefinitionRegistry.isAllowed(ProviderId.CODEX, "http://localhost:1455/auth/callback?code=abc"))
         assertFalse(ProviderDefinitionRegistry.isAllowed(ProviderId.CODEX, "https://cloudfunctions.net/relay"))
         assertFalse(ProviderDefinitionRegistry.isAllowed(ProviderId.CODEX, "https://platform.openai.com/usage"))
+        assertFalse(ProviderDefinitionRegistry.isAllowed(ProviderId.CODEX, "https://admin.openai.com/analytics/codex"))
+        assertFalse(ProviderDefinitionRegistry.isAllowed(ProviderId.GLM, "https://bigmodel.cn/api/monitor/usage/quota/limit"))
+        assertFalse(ProviderDefinitionRegistry.isAllowed(ProviderId.OPENCODE, "https://opencode.ai/docs/go/"))
+        assertFalse(ProviderDefinitionRegistry.isAllowed(ProviderId.OPENCODE, "https://example.com/auth"))
         assertFalse(ProviderDefinitionRegistry.isAllowed(ProviderId.ANTIGRAVITY, "https://firebase.googleapis.com/"))
     }
 
@@ -71,6 +102,9 @@ class ProviderDefinitionRegistryTest {
         assertTrue(ProviderDefinitionRegistry.isLoginNavigationAllowed(ProviderId.GEMINI, "https://play.google.com/log?format=json"))
         assertTrue(ProviderDefinitionRegistry.isLoginNavigationAllowed(ProviderId.CURSOR, "https://accounts.youtube.com/accounts/SetSID?ssdc=1"))
         assertTrue(ProviderDefinitionRegistry.isLoginNavigationAllowed(ProviderId.CURSOR, "https://play.google.com/log?format=json"))
+        assertTrue(ProviderDefinitionRegistry.isLoginNavigationAllowed(ProviderId.OPENCODE, "https://opencode.ai/auth"))
+        assertTrue(ProviderDefinitionRegistry.isLoginNavigationAllowed(ProviderId.OPENCODE, "https://auth.opencode.ai/authorize"))
+        assertTrue(ProviderDefinitionRegistry.isLoginNavigationAllowed(ProviderId.OPENCODE, "https://github.com/login/oauth/authorize"))
 
         assertFalse(ProviderDefinitionRegistry.isLoginNavigationAllowed(ProviderId.CLAUDE, "https://firebase.googleapis.com/relay"))
         assertFalse(ProviderDefinitionRegistry.isLoginNavigationAllowed(ProviderId.GEMINI, "https://cloudfunctions.net/relay"))
@@ -82,6 +116,7 @@ class ProviderDefinitionRegistryTest {
         listOf(
             ProviderId.CLAUDE,
             ProviderId.CODEX,
+            ProviderId.OPENCODE,
             ProviderId.GEMINI,
             ProviderId.ANTIGRAVITY,
             ProviderId.CURSOR
@@ -107,11 +142,21 @@ class ProviderDefinitionRegistryTest {
     fun collectorNavigationAllowlistKeepsHiddenRefreshOnProviderShellsOnly() {
         assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.CLAUDE, "https://claude.ai/"))
         assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.CODEX, "https://chatgpt.com/"))
+        assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.GLM, "https://api.z.ai/api/monitor/usage/quota/limit"))
+        assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.GLM, "https://z.ai/manage-apikey/coding-plan/personal/my-plan"))
+        assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.OPENCODE, "https://opencode.ai/auth"))
+        assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.OPENCODE, "https://auth.opencode.ai/authorize"))
+        assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.OPENCODE, "https://opencode.ai/zen/go/usage"))
         assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.COPILOT, "https://github.com/settings/copilot/features"))
         assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.CURSOR, "https://cursor.com/dashboard"))
+        assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.CURSOR, "https://api.workos.com/user_management/authorize"))
+        assertTrue(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.CURSOR, "https://authenticate.cursor.sh/user_management/authorize"))
 
         assertFalse(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.CLAUDE, "https://accounts.google.com/signin/v2/challenge/pwd"))
         assertFalse(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.CODEX, "https://auth.openai.com/authorize"))
+        assertFalse(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.GLM, "https://example.com/"))
+        assertFalse(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.OPENCODE, "https://github.com/login/oauth/authorize"))
+        assertFalse(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.OPENCODE, "https://opencode.ai/docs/go/"))
         assertFalse(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.COPILOT, "https://github.githubassets.com/assets/login.js"))
         assertFalse(ProviderDefinitionRegistry.isCollectorNavigationAllowed(ProviderId.CURSOR, "https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage"))
     }

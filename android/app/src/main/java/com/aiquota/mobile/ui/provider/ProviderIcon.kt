@@ -17,6 +17,8 @@ fun providerIconRes(providerId: ProviderId): Int {
     return when (providerId) {
         ProviderId.CLAUDE -> R.drawable.ic_provider_claude
         ProviderId.CODEX -> R.drawable.ic_provider_codex
+        ProviderId.GLM -> R.drawable.ic_provider_glm
+        ProviderId.OPENCODE -> R.drawable.ic_provider_opencode
         ProviderId.GEMINI -> R.drawable.ic_provider_gemini
         ProviderId.COPILOT -> R.drawable.ic_provider_copilot
         ProviderId.ANTIGRAVITY -> R.drawable.ic_provider_antigravity
@@ -29,6 +31,8 @@ fun providerIconRes(providerId: String): Int {
     return when (providerId.trim().lowercase()) {
         "claude" -> R.drawable.ic_provider_claude
         "codex" -> R.drawable.ic_provider_codex
+        "glm", "z-ai", "zai", "z.ai" -> R.drawable.ic_provider_glm
+        "opencode", "open-code", "open code" -> R.drawable.ic_provider_opencode
         "openai" -> R.drawable.ic_provider_openai
         "gemini" -> R.drawable.ic_provider_gemini
         "copilot", "github-copilot", "github_copilot" -> R.drawable.ic_provider_copilot
@@ -60,6 +64,8 @@ internal fun providerIconVisualScale(providerId: ProviderId): Float {
     return when (providerId) {
         ProviderId.CLAUDE -> 0.85f
         ProviderId.CODEX -> 0.85f
+        ProviderId.GLM -> 0.86f
+        ProviderId.OPENCODE -> 0.76f
         ProviderId.GEMINI -> 0.92f
         ProviderId.COPILOT -> 0.64f
         ProviderId.ANTIGRAVITY -> 0.78f

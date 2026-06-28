@@ -2,6 +2,10 @@
 
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
 
 fun ProviderUsageLine.effectiveResetText(now: Instant = Instant.now()): String? {
     val text = displayResetText(resetText, resetsAt, now)
@@ -24,6 +28,7 @@ fun displayResetText(resetText: String?, resetsAt: String?, now: Instant = Insta
             return canonicalRelativeResetText(explicit) ?: explicit
         }
         parseInstantLike(explicit)?.let { return resetTextForInstant(it, now) }
+        parseKoreanResetInstant(explicit, now)?.let { return resetTextForInstant(it, now) }
         return explicit
     }
     return resetsAt
@@ -47,6 +52,51 @@ fun resetTextForInstant(resetAt: Instant, now: Instant = Instant.now()): String 
 }
 
 private const val RESET_STARTS_WHEN_MESSAGE_SENT = "Starts when a message is sent"
+
+private data class KoreanResetDate(
+    val date: LocalDate,
+    val explicitYear: Boolean
+)
+
+private fun parseKoreanResetInstant(value: String, now: Instant): Instant? {
+    if (!value.contains("초기화")) return null
+    val zone = ZoneId.systemDefault()
+    val nowDateTime = LocalDateTime.ofInstant(now, zone)
+    val resetTime = parseKoreanResetTime(value) ?: return null
+    val resetDate = parseKoreanResetDate(value, nowDateTime.toLocalDate())
+    var resetDateTime = LocalDateTime.of(resetDate?.date ?: nowDateTime.toLocalDate(), resetTime)
+    if (!resetDateTime.isAfter(nowDateTime)) {
+        resetDateTime = when {
+            resetDate == null -> resetDateTime.plusDays(1)
+            resetDate.explicitYear -> resetDateTime
+            else -> resetDateTime.plusYears(1)
+        }
+    }
+    return resetDateTime.atZone(zone).toInstant()
+}
+
+private fun parseKoreanResetDate(value: String, nowDate: LocalDate): KoreanResetDate? {
+    val match = KoreanMonthDayRegex.find(value) ?: KoreanDottedDateRegex.find(value) ?: return null
+    val yearText = match.groupValues[1].takeIf { it.isNotBlank() }
+    val year = yearText?.toIntOrNull() ?: nowDate.year
+    val month = match.groupValues[2].toIntOrNull() ?: return null
+    val day = match.groupValues[3].toIntOrNull() ?: return null
+    val date = runCatching { LocalDate.of(year, month, day) }.getOrNull() ?: return null
+    return KoreanResetDate(date, explicitYear = yearText != null)
+}
+
+private fun parseKoreanResetTime(value: String): LocalTime? {
+    val match = KoreanTimeRegex.find(value) ?: return null
+    val marker = match.groupValues[1]
+    val rawHour = match.groupValues[2].toIntOrNull() ?: return null
+    val minute = match.groupValues[3].toIntOrNull() ?: return null
+    if (rawHour !in 1..12 || minute !in 0..59) return null
+    val hour = when (marker) {
+        "오전" -> rawHour % 12
+        else -> (rawHour % 12) + 12
+    }
+    return LocalTime.of(hour, minute)
+}
 
 private fun canonicalRelativeResetText(value: String): String? {
     val match = Regex("""^Resets in\s+(.+)$""", RegexOption.IGNORE_CASE).matchEntire(value) ?: return null
@@ -79,3 +129,7 @@ private fun parseInstantLike(value: String): Instant? {
         else -> null
     }
 }
+
+private val KoreanMonthDayRegex = Regex("""(?:(\d{4})\s*[년./-]\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일""")
+private val KoreanDottedDateRegex = Regex("""(?:(\d{4})\s*[년./-]\s*)?(\d{1,2})\s*[./]\s*(\d{1,2})\s*[.]?""")
+private val KoreanTimeRegex = Regex("""(오전|오후)\s*(\d{1,2})\s*[:：]\s*(\d{1,2})""")

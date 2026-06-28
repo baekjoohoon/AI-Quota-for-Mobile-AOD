@@ -32,6 +32,8 @@ object ProviderUsageNormalizer {
         val snapshot = when (providerId) {
             ProviderId.CLAUDE -> normalizeClaude(json, source, fetchedAt)
             ProviderId.CODEX -> normalizeCodex(json, source, fetchedAt)
+            ProviderId.GLM -> normalizeGlm(json, source, fetchedAt)
+            ProviderId.OPENCODE -> normalizeOpenCode(json, source, fetchedAt)
             ProviderId.GEMINI -> normalizeGemini(json, source, fetchedAt)
             ProviderId.COPILOT -> normalizeCopilot(json, source, fetchedAt)
             ProviderId.ANTIGRAVITY -> normalizeAntigravity(json, source, fetchedAt)
@@ -42,15 +44,436 @@ object ProviderUsageNormalizer {
 
     private fun normalizeClaude(json: JSONObject, source: ProviderPayloadSource, fetchedAt: String): ProviderUsageSnapshot? {
         val usage = json.optObject("usage") ?: json
-        val lines = listOfNotNull(
-            (usage.optObject("five_hour") ?: usage.optObject("session"))?.toLine("claude:session", "Claude Session", source),
-            (usage.optObject("seven_day") ?: usage.optObject("weekly"))?.toLine("claude:weekly", "Claude Weekly", source),
-            usage.optObject("opus")?.toLine("claude:opus", "Claude Opus", source),
-            usage.optObject("sonnet")?.toLine("claude:sonnet", "Claude Sonnet", source),
-            usage.optObject("cowork")?.toLine("claude:cowork", "Claude Cowork", source),
-            (usage.optObject("seven_day_omelette") ?: usage.optObject("design"))?.toLine("claude:design", "Claude Design", source)
+        val fixedLines = listOfNotNull(
+            usage.firstClaudeUsageObject(CLAUDE_SESSION_USAGE_KEYS)?.toClaudeLine("claude:session", "Claude Session", source),
+            usage.firstClaudeUsageObject(CLAUDE_WEEKLY_USAGE_KEYS)?.toClaudeLine("claude:weekly", "Claude Weekly", source),
+            usage.firstClaudeUsageObject(CLAUDE_OPUS_USAGE_KEYS)?.toClaudeLine("claude:opus", "Claude Opus", source),
+            usage.firstClaudeUsageObject(CLAUDE_SONNET_USAGE_KEYS)?.toClaudeLine("claude:sonnet", "Claude Sonnet", source),
+            usage.firstClaudeUsageObject(CLAUDE_COWORK_USAGE_KEYS)?.toClaudeLine("claude:cowork", "Claude Cowork", source),
+            usage.firstClaudeUsageObject(CLAUDE_DESIGN_USAGE_KEYS)?.toClaudeLine("claude:design", "Claude Design", source)
         )
+        val lines = fixedLines + claudeAdditionalUsageLines(usage, source, fixedLines.mapTo(mutableSetOf()) { it.key })
         return snapshot(ProviderId.CLAUDE, claudePlan(json), json.optionalString("account"), fetchedAt, lines)
+    }
+
+    private fun normalizeGlm(json: JSONObject, source: ProviderPayloadSource, fetchedAt: String): ProviderUsageSnapshot? {
+        val glmSource = if (json.optionalString("source") == "visible-dom") ProviderPayloadSource.VISIBLE_DOM else source
+        val data = json.optObject("data") ?: json
+        val limits = data.optJSONArray("limits") ?: json.optJSONArray("limits") ?: return null
+        val lines = buildList {
+            for (index in 0 until limits.length()) {
+                val item = limits.optJSONObject(index) ?: continue
+                val type = item.optionalString("type")?.uppercase(Locale.US).orEmpty()
+                val identity = glmLimitIdentity(type, item) ?: continue
+                item.toGlmLine(identity.key, identity.label, glmSource, type)?.let(::add)
+            }
+        }.let(::sortGlmLines)
+        return snapshot(
+            ProviderId.GLM,
+            glmPlan(json.optionalString("plan") ?: data.optionalString("plan") ?: json.optionalString("productName") ?: data.optionalString("productName")),
+            json.optionalString("account") ?: data.optionalString("account"),
+            fetchedAt,
+            lines
+        )
+    }
+
+    private fun glmPlan(value: String?): String? {
+        val trimmed = value?.trim()?.takeIf { it.isNotBlank() && it != "null" } ?: return null
+        val compact = trimmed.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "")
+        return when {
+            compact.contains("lite") -> "Lite"
+            compact.contains("pro") -> "Pro"
+            compact.contains("max") -> "Max"
+            else -> null
+        }
+    }
+
+    private fun sortGlmLines(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {
+        val order = mapOf(
+            "glm:tokens" to 0,
+            "glm:weekly_tokens" to 1,
+            "glm:mcp" to 2
+        )
+        return lines.sortedWith(compareBy({ order[it.key] ?: 100 }, { it.label }))
+    }
+
+    private data class GlmLimitIdentity(
+        val key: String,
+        val label: String
+    )
+
+    private fun glmLimitIdentity(type: String, item: JSONObject): GlmLimitIdentity? {
+        return when (type) {
+            "TOKENS_LIMIT" -> {
+                val unit = item.optionalNumber("unit")?.toInt()
+                val number = item.optionalNumber("number")?.toInt()
+                val label = item.optionalString("label")?.lowercase(Locale.US).orEmpty()
+                if (unit == 6 || number == 7 || label.contains("weekly")) {
+                    GlmLimitIdentity("glm:weekly_tokens", "주간 한도")
+                } else {
+                    GlmLimitIdentity("glm:tokens", "5시간 한도")
+                }
+            }
+            "TIME_LIMIT" -> GlmLimitIdentity("glm:mcp", "월간 한도")
+            else -> null
+        }
+    }
+
+    private fun JSONObject.toGlmLine(
+        key: String,
+        label: String,
+        source: ProviderPayloadSource,
+        type: String
+    ): ProviderUsageLine? {
+        val limit = optionalNumber("usage")
+            ?: optionalNumber("limit")
+            ?: optionalNumber("total")
+        val used = optionalNumber("currentValue")
+            ?: optionalNumber("current_value")
+            ?: optionalNumber("used")
+        if (limit != null && limit <= 0.0) return null
+        val usedPercent = optionalNumber("percentage")
+            ?: if (limit != null && used != null) ((used / limit) * 100.0) else return null
+        val remainingPercent = ((100.0 - usedPercent).coerceIn(0.0, 100.0) / 100.0).toFloat()
+        return ProviderUsageLine(
+            key = key,
+            label = label,
+            remainingPercent = remainingPercent,
+            usedAmount = used,
+            limitAmount = limit,
+            remainingAmount = if (limit != null && used != null) (limit - used).coerceAtLeast(0.0) else null,
+            unit = if (type == "TOKENS_LIMIT") "tokens" else "count",
+            resetsAt = glmResetAt(),
+            sourceLabel = source.label,
+            confidence = source.confidence
+        )
+    }
+
+    private fun JSONObject.glmResetAt(): String? {
+        val value = optionalNumber("nextResetTime") ?: optionalNumber("next_reset_time") ?: return null
+        val timestamp = value.toLong()
+        val millis = if (timestamp < 10_000_000_000L) timestamp * 1000L else timestamp
+        return runCatching { Instant.ofEpochMilli(millis).toString() }.getOrNull()
+    }
+
+    private fun normalizeOpenCode(json: JSONObject, source: ProviderPayloadSource, fetchedAt: String): ProviderUsageSnapshot? {
+        val data = json.optObject("data") ?: json.optObject("usage") ?: json
+        val opencodeSource = if (json.optionalString("source") == "visible-dom" || data.optionalString("source") == "visible-dom") {
+            ProviderPayloadSource.VISIBLE_DOM
+        } else {
+            source
+        }
+        val lines = buildList {
+            addAll(
+                opencodeLimitLines(
+                    data.optJSONArray("limits")
+                        ?: data.optJSONArray("x")
+                        ?: json.optJSONArray("limits")
+                        ?: json.optJSONArray("x"),
+                    opencodeSource
+                )
+            )
+            opencodeCreditsObject(data, json)?.toCreditsLine("opencode:zen_credits", "Zen Credits", opencodeSource)?.let(::add)
+        }.distinctBy { it.key }
+        return snapshot(
+            providerId = ProviderId.OPENCODE,
+            plan = opencodePlan(json, data),
+            account = opencodeAccount(json, data),
+            fetchedAt = fetchedAt,
+            lines = lines
+        )
+    }
+
+    private fun opencodeLimitLines(limits: JSONArray?, source: ProviderPayloadSource): List<ProviderUsageLine> {
+        if (limits == null) return emptyList()
+        return buildList {
+            for (index in 0 until limits.length()) {
+                val item = limits.optJSONObject(index) ?: continue
+                val label = opencodeLimitLabel(
+                    item.optionalString("label")
+                        ?: item.optionalString("name")
+                        ?: item.optionalString("title")
+                        ?: item.optionalString("key")
+                ) ?: continue
+                val key = "opencode:${opencodeLineKey(label)}"
+                item.toOpenCodeLine(key, label, source)?.let(::add)
+            }
+        }
+    }
+
+    private fun JSONObject.toOpenCodeLine(
+        key: String,
+        label: String,
+        source: ProviderPayloadSource
+    ): ProviderUsageLine? {
+        val copy = JSONObject(toString()).put("label", label)
+        val limit = firstOptionalNumber("limit", "total", "limitAmount", "limit_amount")
+        val used = firstOptionalNumber("used", "usage", "usedAmount", "used_amount", "currentValue", "current_value")
+        val remaining = firstOptionalNumber("remaining", "remainingAmount", "remaining_amount", "balance")
+        if (!copy.hasAny("remaining_percent", "remainingPercent", "remainingPercentage", "remaining_percentage", "percent_remaining", "percentRemaining", "remainingFraction", "remaining_fraction", "used_percent", "usedPercent", "usedPercentage", "used_percentage", "percent_used", "totalPercentUsed", "total_percent_used", "utilization", "u") &&
+            limit != null &&
+            limit > 0.0
+        ) {
+            when {
+                remaining != null -> copy.put("remaining_percent", (remaining / limit) * 100.0)
+                used != null -> copy.put("used_percent", (used / limit) * 100.0)
+            }
+        }
+        val line = copy.toLine(
+            key = key,
+            label = label,
+            source = source,
+            preferRemainingPercent = true,
+            preservePayloadLabel = true
+        ) ?: return null
+        return line.copy(
+            label = label,
+            usedAmount = used,
+            limitAmount = limit,
+            remainingAmount = remaining ?: if (limit != null && used != null) (limit - used).coerceAtLeast(0.0) else null,
+            unit = optionalString("unit") ?: optionalString("currency") ?: "usd"
+        )
+    }
+
+    private fun opencodeCreditsObject(data: JSONObject, root: JSONObject): JSONObject? {
+        val candidate = data.optObject("credits")
+            ?: data.optObject("credit")
+            ?: data.optObject("balance")
+            ?: data.optObject("zen")
+            ?: data.optObject("wallet")
+            ?: root.optObject("credits")
+            ?: root.optObject("credit")
+            ?: root.optObject("balance")
+            ?: root.optObject("zen")
+            ?: root.optObject("wallet")
+        if (candidate != null) return candidate
+        val balance = data.firstOptionalNumber(
+            "balance",
+            "creditBalance",
+            "credit_balance",
+            "remainingCredits",
+            "remaining_credits",
+            "credits"
+        ) ?: root.firstOptionalNumber(
+            "balance",
+            "creditBalance",
+            "credit_balance",
+            "remainingCredits",
+            "remaining_credits",
+            "credits"
+        ) ?: return null
+        return JSONObject().put("balance", balance)
+    }
+
+    private fun opencodePlan(root: JSONObject, data: JSONObject): String? {
+        return sequenceOf(
+            root.optionalString("plan"),
+            data.optionalString("plan"),
+            root.optionalString("productName"),
+            data.optionalString("productName"),
+            root.optionalString("subscription"),
+            data.optionalString("subscription"),
+            root.optObject("subscription")?.optionalString("name"),
+            data.optObject("subscription")?.optionalString("name"),
+            root.optObject("plan")?.optionalString("name"),
+            data.optObject("plan")?.optionalString("name")
+        ).mapNotNull(::opencodePlanLabel).firstOrNull()
+    }
+
+    private fun opencodePlanLabel(value: String?): String? {
+        val trimmed = value?.trim()?.takeIf { it.isNotBlank() && it != "null" } ?: return null
+        val compact = trimmed.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "")
+        return when (compact) {
+            "opencodego", "go" -> "Go"
+            else -> trimmed
+        }
+    }
+
+    private fun opencodeAccount(root: JSONObject, data: JSONObject): String? {
+        return root.optionalString("account")
+            ?: data.optionalString("account")
+            ?: root.optionalString("email")
+            ?: data.optionalString("email")
+            ?: root.optObject("user")?.optionalString("email")
+            ?: data.optObject("user")?.optionalString("email")
+            ?: root.optObject("account")?.optionalString("email")
+            ?: data.optObject("account")?.optionalString("email")
+    }
+
+    private fun opencodeLimitLabel(value: String?): String? {
+        val trimmed = value?.trim()?.takeIf { it.isNotBlank() && it != "null" } ?: return null
+        if (trimmed.contains("롤링") && trimmed.contains("사용량")) return "Go 5-Hour Limit"
+        if (trimmed.contains("주간") && trimmed.contains("사용량")) return "Go Weekly Limit"
+        if (trimmed.contains("월간") && trimmed.contains("사용량")) return "Go Monthly Limit"
+        val compact = trimmed.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "")
+        return when {
+            compact.contains("5hour") || compact.contains("5h") -> "Go 5-Hour Limit"
+            compact.contains("rolling") && compact.contains("usage") -> "Go 5-Hour Limit"
+            compact.contains("weekly") || compact.contains("week") -> "Go Weekly Limit"
+            compact.contains("monthly") || compact.contains("month") -> "Go Monthly Limit"
+            compact.contains("credit") || compact.contains("balance") -> "Zen Credits"
+            compact.contains("usage") || compact.contains("limit") || compact.contains("quota") -> opencodeDisplayLabel(trimmed)
+            else -> null
+        }
+    }
+
+    private fun opencodeDisplayLabel(value: String): String {
+        return value
+            .replace(Regex("([a-z])([A-Z])"), "$1 $2")
+            .split(Regex("[^A-Za-z0-9]+"))
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { token ->
+                when (token.lowercase(Locale.US)) {
+                    "go" -> "Go"
+                    "usd" -> "USD"
+                    else -> token.lowercase(Locale.US).replaceFirstChar { it.titlecase(Locale.US) }
+                }
+            }
+            .ifBlank { value.trim() }
+    }
+
+    private fun opencodeLineKey(label: String): String {
+        return label.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "_").trim('_')
+    }
+
+    private val CLAUDE_SESSION_USAGE_KEYS = listOf("five_hour", "fiveHour", "session", "session_limit", "sessionLimit")
+    private val CLAUDE_WEEKLY_USAGE_KEYS = listOf("seven_day", "sevenDay", "weekly", "week", "weekly_limit", "weeklyLimit")
+    private val CLAUDE_OPUS_USAGE_KEYS = listOf("opus", "seven_day_opus", "sevenDayOpus", "weekly_opus", "weeklyOpus", "opus_weekly", "opusWeekly", "claude_opus", "claudeOpus")
+    private val CLAUDE_SONNET_USAGE_KEYS = listOf("sonnet", "seven_day_sonnet", "sevenDaySonnet", "weekly_sonnet", "weeklySonnet", "sonnet_weekly", "sonnetWeekly", "claude_sonnet", "claudeSonnet")
+    private val CLAUDE_COWORK_USAGE_KEYS = listOf("cowork", "seven_day_cowork", "sevenDayCowork", "weekly_cowork", "weeklyCowork", "cowork_weekly", "coworkWeekly", "claude_cowork", "claudeCowork")
+    private val CLAUDE_DESIGN_USAGE_KEYS = listOf("seven_day_omelette", "sevenDayOmelette", "design", "weekly_design", "weeklyDesign", "design_weekly", "designWeekly", "claude_design", "claudeDesign", "omelette")
+    private val CLAUDE_FIXED_USAGE_KEYS = (
+        CLAUDE_SESSION_USAGE_KEYS +
+            CLAUDE_WEEKLY_USAGE_KEYS +
+            CLAUDE_OPUS_USAGE_KEYS +
+            CLAUDE_SONNET_USAGE_KEYS +
+            CLAUDE_COWORK_USAGE_KEYS +
+            CLAUDE_DESIGN_USAGE_KEYS
+        ).toSet()
+    private val CLAUDE_ADDITIONAL_USAGE_CONTAINER_KEYS = setOf(
+        "models",
+        "model_usage",
+        "modelUsage",
+        "model_limits",
+        "modelLimits",
+        "limits",
+        "quotas",
+        "quotaBuckets",
+        "quota_buckets",
+        "buckets",
+        "windows"
+    )
+
+    private fun JSONObject.firstClaudeUsageObject(keys: List<String>): JSONObject? {
+        return keys.firstNotNullOfOrNull { key -> optObject(key) }
+    }
+
+    private fun JSONObject.toClaudeLine(key: String, label: String, source: ProviderPayloadSource): ProviderUsageLine? {
+        return withClaudeUtilizationPercentAlias().toLine(key, label, source, preferRemainingPercent = true)
+    }
+
+    private fun JSONObject.withClaudeUtilizationPercentAlias(): JSONObject {
+        if (hasAny("used_percent", "usedPercent", "usedPercentage", "used_percentage", "percent_used", "totalPercentUsed", "total_percent_used")) {
+            return this
+        }
+        val utilization = optionalNumber("utilization") ?: optionalNumber("u")
+        if (utilization != null) {
+            val usedPercent = if (utilization == 1.0) 1 else percent(utilization)
+            return JSONObject(toString()).put("used_percent", usedPercent)
+        }
+        val usedCredits = optionalNumber("used_credits") ?: optionalNumber("usedCredits")
+        val monthlyLimit = optionalNumber("monthly_limit") ?: optionalNumber("monthlyLimit")
+        if (usedCredits != null && monthlyLimit != null && monthlyLimit > 0.0) {
+            return JSONObject(toString()).put("used_percent", percent(usedCredits / monthlyLimit))
+        }
+        return this
+    }
+
+    private fun claudeAdditionalUsageLines(
+        usage: JSONObject,
+        source: ProviderPayloadSource,
+        existingKeys: MutableSet<String>
+    ): List<ProviderUsageLine> {
+        val lines = mutableListOf<ProviderUsageLine>()
+        fun addLine(rawKey: String?, value: JSONObject) {
+            val label = claudeAdditionalUsageLabel(rawKey, value) ?: return
+            val lineKey = "claude:${claudeAdditionalUsageKey(rawKey ?: label)}"
+            if (lineKey in existingKeys) return
+            val line = value.toClaudeLine(lineKey, label, source) ?: return
+            existingKeys.add(line.key)
+            lines.add(line)
+        }
+
+        val keys = usage.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            if (key in CLAUDE_FIXED_USAGE_KEYS || key in CLAUDE_ADDITIONAL_USAGE_CONTAINER_KEYS) continue
+            usage.optObject(key)?.let { addLine(key, it) }
+        }
+
+        CLAUDE_ADDITIONAL_USAGE_CONTAINER_KEYS.forEach { key ->
+            usage.optObject(key)?.let { container ->
+                val childKeys = container.keys()
+                while (childKeys.hasNext()) {
+                    val childKey = childKeys.next()
+                    container.optObject(childKey)?.let { addLine(childKey, it) }
+                    container.optJSONArray(childKey)?.let { array -> addClaudeAdditionalUsageArrayLines(array, source, existingKeys, lines) }
+                }
+            }
+            usage.optJSONArray(key)?.let { array -> addClaudeAdditionalUsageArrayLines(array, source, existingKeys, lines) }
+        }
+        return lines
+    }
+
+    private fun addClaudeAdditionalUsageArrayLines(
+        array: JSONArray,
+        source: ProviderPayloadSource,
+        existingKeys: MutableSet<String>,
+        lines: MutableList<ProviderUsageLine>
+    ) {
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            val label = claudeAdditionalUsageLabel(null, item) ?: continue
+            val lineKey = "claude:${claudeAdditionalUsageKey(item.optionalScalarString("key") ?: item.optionalScalarString("id") ?: label)}"
+            if (lineKey in existingKeys) continue
+            val line = item.toClaudeLine(lineKey, label, source) ?: continue
+            existingKeys.add(line.key)
+            lines.add(line)
+        }
+    }
+
+    private fun claudeAdditionalUsageLabel(rawKey: String?, json: JSONObject): String? {
+        return listOf("label", "l", "displayName", "display_name", "name", "title", "modelId", "model_id", "model", "feature", "key", "id", "slug")
+            .firstNotNullOfOrNull { key -> json.optionalScalarString(key) }
+            ?.trim()
+            ?.replace(Regex("\\s+"), " ")
+            ?: rawKey?.let(::claudeLabelFromKey)
+    }
+
+    private fun claudeLabelFromKey(value: String): String? {
+        val normalized = value
+            .replace(Regex("([a-z])([A-Z])"), "$1 $2")
+            .replace(Regex("[_-]+"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .takeIf { it.isNotBlank() } ?: return null
+        return normalized.split(" ").joinToString(" ") { word ->
+            when {
+                word.equals("claude", ignoreCase = true) -> "Claude"
+                word.all { it.isDigit() || it == '.' } -> word
+                else -> word.lowercase(Locale.US).replaceFirstChar { it.titlecase(Locale.US) }
+            }
+        }
+    }
+
+    private fun claudeAdditionalUsageKey(value: String): String {
+        return value
+            .replace(Regex("([a-z])([A-Z])"), "$1_$2")
+            .lowercase(Locale.US)
+            .replace(Regex("[^a-z0-9]+"), "_")
+            .trim('_')
+            .replace(Regex("^claude_"), "")
+            .ifBlank { "usage" }
     }
 
     private fun claudePlan(json: JSONObject): String? {
@@ -82,7 +505,21 @@ object ProviderUsageNormalizer {
             "product_name",
             "productName"
         ).firstNotNullOfOrNull { key ->
-            json.optionalScalarString(key)
+            claudePlanLabel(json.optionalScalarString(key))
+        }
+    }
+
+    private fun claudePlanLabel(value: String?): String? {
+        val trimmed = value?.trim()?.takeIf { it.isNotBlank() && it != "null" } ?: return null
+        val compact = trimmed.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "")
+        if (compact == "claudeunknown" || compact == "unknown") return null
+        return when (compact) {
+            "claudefree", "free" -> "Free"
+            "claudepro", "pro" -> "Pro"
+            "claudemax", "max" -> "Max"
+            "claudeteam", "team" -> "Team"
+            "claudeenterprise", "enterprise" -> "Enterprise"
+            else -> trimmed.replace(Regex("^Claude\\s+", RegexOption.IGNORE_CASE), "").trim()
         }
     }
 
@@ -148,7 +585,7 @@ object ProviderUsageNormalizer {
         }
         return snapshot(
             providerId = ProviderId.CODEX,
-            plan = codexPlan(json.optionalString("plan_type") ?: json.optionalString("plan")),
+            plan = codexPlan(json),
             account = json.optionalString("account") ?: json.optionalString("email"),
             fetchedAt = fetchedAt,
             lines = lines
@@ -227,16 +664,21 @@ object ProviderUsageNormalizer {
                     ?: item.optionalString("l")
                     ?: item.optionalString("label")
             ) ?: continue
-            val remaining = item.optionalNumber("remainingFraction")
+            val remainingFraction = item.optionalNumber("remainingFraction")
                 ?: item.optionalNumber("remaining_fraction")
-                ?: item.optionalNumber("remainingPercent")
+            val remainingPercent = item.optionalNumber("remainingPercent")
                 ?: item.optionalNumber("remaining_percent")
-                ?: continue
-            val remainingPercent = (if (remaining > 1.0) remaining / 100.0 else remaining).toFloat().coerceIn(0f, 1f)
+                ?: item.optionalNumber("remainingPercentage")
+                ?: item.optionalNumber("remaining_percentage")
+            val remainingRatio = when {
+                remainingPercent != null -> remainingPercent / 100.0
+                remainingFraction != null -> if (remainingFraction > 1.0) remainingFraction / 100.0 else remainingFraction
+                else -> continue
+            }.toFloat().coerceIn(0f, 1f)
             val line = ProviderUsageLine(
                 key = "gemini:${geminiLineKey(label)}",
                 label = label,
-                remainingPercent = remainingPercent,
+                remainingPercent = remainingRatio,
                 resetsAt = item.optionalString("resetTime") ?: item.optionalString("reset_time") ?: item.optionalString("resetAt") ?: item.optionalString("resetsAt") ?: item.optionalString("resets_at"),
                 resetText = item.optionalString("resetText") ?: item.optionalString("reset_text"),
                 sourceLabel = source.label,
@@ -638,11 +1080,11 @@ object ProviderUsageNormalizer {
         val limit = json.antigravityNumber("limit", "total", "quota", "max", "limitAmount", "maxRequests")
         val used = json.antigravityNumber("used", "usage", "current", "consumed", "usedAmount", "requestUsage")
         val remaining = json.antigravityNumber("remaining", "available", "balance", "remainingAmount")
-        val usedPercent = json.antigravityNumber("used_percent", "usedPercent", "percent_used", "usedPercentage", "utilization")
-        val remainingPercent = json.antigravityNumber("remaining_percent", "remainingPercent", "remainingPercentage", "remaining_fraction", "remainingFraction")
+        val usedPercent = json.antigravityUsedPercent()
+        val remainingPercent = json.antigravityRemainingPercent()
         val remainingFraction = when {
-            usedPercent != null -> (100.0 - percent(usedPercent)) / 100.0
-            remainingPercent != null -> if (remainingPercent > 1.0) remainingPercent / 100.0 else remainingPercent
+            usedPercent != null -> (100.0 - usedPercent) / 100.0
+            remainingPercent != null -> remainingPercent / 100.0
             limit != null && limit > 0.0 && remaining != null -> remaining / limit
             limit != null && limit > 0.0 && used != null -> (limit - used) / limit
             else -> return null
@@ -683,6 +1125,27 @@ object ProviderUsageNormalizer {
         for (key in keys) {
             optionalNumber(key)?.let { return it }
         }
+        return null
+    }
+
+    private fun JSONObject.antigravityUsedPercent(): Int? {
+        optionalNumber("used_percent")?.let { return percentScale(it) }
+        optionalNumber("usedPercent")?.let { return percentScale(it) }
+        optionalNumber("percent_used")?.let { return percentScale(it) }
+        optionalNumber("percentUsed")?.let { return percentScale(it) }
+        optionalNumber("usedPercentage")?.let { return percentScale(it) }
+        optionalNumber("used_percentage")?.let { return percentScale(it) }
+        optionalNumber("utilization")?.let { return percent(it) }
+        return null
+    }
+
+    private fun JSONObject.antigravityRemainingPercent(): Int? {
+        optionalNumber("remaining_percent")?.let { return percentScale(it) }
+        optionalNumber("remainingPercent")?.let { return percentScale(it) }
+        optionalNumber("remainingPercentage")?.let { return percentScale(it) }
+        optionalNumber("remaining_percentage")?.let { return percentScale(it) }
+        optionalNumber("remaining_fraction")?.let { return percent(it) }
+        optionalNumber("remainingFraction")?.let { return percent(it) }
         return null
     }
 
@@ -865,15 +1328,15 @@ object ProviderUsageNormalizer {
         source: ProviderPayloadSource,
         fallbackReset: String?
     ): ProviderUsageLine? {
-        val usedPercent = cursorNumber("usedPercent", "used_percent", "totalPercentUsed", "total_percent_used", "utilization")
+        val usedPercent = cursorUsedPercent()
         val limit = cursorNumber("limit", "monthlyLimit", "totalLimit", "maxRequestUsage", "maxRequests", "requestLimit", "limitAmount", "individualLimit", "onDemandLimit")
-        val remainingPercent = cursorNumber("remainingPercent", "remaining_percent", "remainingFraction", "remaining_fraction")
+        val remainingPercent = cursorRemainingPercent()
         val remaining = cursorNumber("remaining", "totalRemaining", "balance", "individualRemaining", "onDemandRemaining")
         val used = cursorNumber("totalSpend", "totalUsage", "spend", "used", "usage", "individualUsed", "individualUsage", "onDemandUsed", "onDemandUsage")
         val isPercentBased = usedPercent != null || remainingPercent != null
         val remainingFraction = when {
-            usedPercent != null -> (100.0 - percent(usedPercent)) / 100.0
-            remainingPercent != null -> if (remainingPercent > 1.0) remainingPercent / 100.0 else remainingPercent
+            usedPercent != null -> (100.0 - usedPercent) / 100.0
+            remainingPercent != null -> remainingPercent / 100.0
             limit != null && limit > 0.0 && remaining != null -> remaining / limit
             limit != null && limit > 0.0 && used != null -> (limit - used) / limit
             else -> return null
@@ -894,6 +1357,23 @@ object ProviderUsageNormalizer {
             sourceLabel = source.label,
             confidence = source.confidence
         )
+    }
+
+    private fun JSONObject.cursorUsedPercent(): Int? {
+        optionalNumber("usedPercent")?.let { return percentScale(it) }
+        optionalNumber("used_percent")?.let { return percentScale(it) }
+        optionalNumber("totalPercentUsed")?.let { return percentScale(it) }
+        optionalNumber("total_percent_used")?.let { return percentScale(it) }
+        optionalNumber("utilization")?.let { return percent(it) }
+        return null
+    }
+
+    private fun JSONObject.cursorRemainingPercent(): Int? {
+        optionalNumber("remainingPercent")?.let { return percentScale(it) }
+        optionalNumber("remaining_percent")?.let { return percentScale(it) }
+        optionalNumber("remainingFraction")?.let { return percent(it) }
+        optionalNumber("remaining_fraction")?.let { return percent(it) }
+        return null
     }
 
     private fun dedupeCursorLines(lines: List<ProviderUsageLine>): List<ProviderUsageLine> {
@@ -1057,12 +1537,13 @@ object ProviderUsageNormalizer {
     }
 
     private fun JSONObject.usedBasedPercent(): Int? {
-        optionalNumber("used_percent")?.let { return percent(it) }
-        optionalNumber("usedPercent")?.let { return percent(it) }
-        optionalNumber("usedPercentage")?.let { return percent(it) }
-        optionalNumber("used_percentage")?.let { return percent(it) }
-        optionalNumber("percent_used")?.let { return percent(it) }
-        optionalNumber("totalPercentUsed")?.let { return percent(it) }
+        optionalNumber("used_percent")?.let { return percentScale(it) }
+        optionalNumber("usedPercent")?.let { return percentScale(it) }
+        optionalNumber("usedPercentage")?.let { return percentScale(it) }
+        optionalNumber("used_percentage")?.let { return percentScale(it) }
+        optionalNumber("percent_used")?.let { return percentScale(it) }
+        optionalNumber("totalPercentUsed")?.let { return percentScale(it) }
+        optionalNumber("total_percent_used")?.let { return percentScale(it) }
         optionalNumber("utilization")?.let { return percent(it) }
         optionalNumber("u")?.let { return percent(it) }
         return null
@@ -1071,6 +1552,10 @@ object ProviderUsageNormalizer {
     private fun JSONObject.remainingBasedUsedPercent(): Int? {
         optionalNumber("remaining_percent")?.let { return 100 - percentScale(it) }
         optionalNumber("remainingPercent")?.let { return 100 - percentScale(it) }
+        optionalNumber("remainingPercentage")?.let { return 100 - percentScale(it) }
+        optionalNumber("remaining_percentage")?.let { return 100 - percentScale(it) }
+        optionalNumber("percent_remaining")?.let { return 100 - percentScale(it) }
+        optionalNumber("percentRemaining")?.let { return 100 - percentScale(it) }
         optionalNumber("remainingFraction")?.let { return 100 - percent(it) }
         optionalNumber("remaining_fraction")?.let { return 100 - percent(it) }
         return null
@@ -1104,6 +1589,13 @@ object ProviderUsageNormalizer {
     private fun JSONObject.optionalNumber(key: String): Double? {
         if (!has(key) || isNull(key)) return null
         return opt(key)?.toString()?.toDoubleOrNull()
+    }
+
+    private fun JSONObject.firstOptionalNumber(vararg keys: String): Double? {
+        for (key in keys) {
+            optionalNumber(key)?.let { return it }
+        }
+        return null
     }
 
     private fun JSONObject.optionalString(key: String): String? {
@@ -1141,12 +1633,118 @@ object ProviderUsageNormalizer {
         return optJSONObject(key)
     }
 
+    private fun codexPlan(json: JSONObject): String? {
+        codexPlanString(json, allowGenericLabelKeys = false)?.let { return it }
+        val containers = listOf(
+            "data",
+            "items",
+            "result",
+            "value",
+            "subscription",
+            "subscriptions",
+            "chatgpt_subscription",
+            "chatgptSubscription",
+            "active_subscription",
+            "activeSubscription",
+            "current_subscription",
+            "currentSubscription",
+            "current_plan",
+            "currentPlan",
+            "plan",
+            "plan_info",
+            "planInfo",
+            "billing",
+            "entitlement",
+            "entitlements",
+            "account",
+            "accounts",
+            "user",
+            "users",
+            "workspace",
+            "organization",
+            "product",
+            "products"
+        )
+        for (key in containers) {
+            json.optObject(key)?.let { nested ->
+                codexPlanString(nested, allowGenericLabelKeys = true)?.let { return it }
+                codexPlan(nested)?.let { return it }
+            }
+            json.optJSONArray(key)?.let { nested ->
+                codexPlan(nested)?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun codexPlan(array: JSONArray): String? {
+        for (index in 0 until array.length()) {
+            val item = array.opt(index)
+            when (item) {
+                is JSONObject -> codexPlan(item)?.let { return it }
+                is String -> codexPlan(item)?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun codexPlanString(json: JSONObject, allowGenericLabelKeys: Boolean): String? {
+        val keys = listOf(
+            "plan_type",
+            "planType",
+            "subscription_type",
+            "subscriptionType",
+            "subscription_name",
+            "subscriptionName",
+            "chatgpt_plan_type",
+            "chatgptPlanType",
+            "chatgpt_subscription_plan",
+            "chatgptSubscriptionPlan",
+            "plan",
+            "plan_name",
+            "planName",
+            "plan_slug",
+            "planSlug",
+            "subscription_plan",
+            "subscriptionPlan",
+            "account_plan",
+            "accountPlan",
+            "billing_plan",
+            "billingPlan",
+            "tier",
+            "sku",
+            "product_name",
+            "productName"
+        ) + if (allowGenericLabelKeys) listOf("id", "slug", "name", "title", "display_name", "displayName", "label") else emptyList()
+        return keys.firstNotNullOfOrNull { key -> codexPlan(json.optionalScalarString(key)) }
+    }
+
     private fun codexPlan(value: String?): String? {
-        return when (value?.trim()?.lowercase(Locale.US)) {
-            "prolite" -> "Pro 5x"
-            "pro" -> "Pro 20x"
-            null, "" -> null
-            else -> value
+        val trimmed = value?.trim()?.takeIf { it.isNotBlank() && it != "null" } ?: return null
+        val compact = trimmed.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "")
+        return when (compact) {
+            "prolite", "chatgptprolite", "pro5x", "chatgptpro5x" -> "Pro 5x"
+            "pro", "chatgptpro20x", "pro20x" -> "Pro 20x"
+            "chatgptpro" -> "Pro"
+            "plus", "chatgptplus" -> "Plus"
+            "free", "chatgptfree" -> "Free"
+            "team", "chatgptteam" -> "Team"
+            "business", "chatgptbusiness" -> "Business"
+            "enterprise", "chatgptenterprise" -> "Enterprise"
+            "unknown", "none", "null" -> null
+            else -> if (
+                compact.contains("chatgpt") ||
+                compact.contains("codex") ||
+                compact.contains("pro") ||
+                compact.contains("plus") ||
+                compact.contains("team") ||
+                compact.contains("business") ||
+                compact.contains("enterprise")
+            ) {
+                trimmed.replace(Regex("^ChatGPT\\s+", RegexOption.IGNORE_CASE), "").trim()
+            } else {
+                null
+            }
         }
     }
 
@@ -1212,7 +1810,15 @@ object ProviderUsageNormalizer {
         val trimmed = value?.trim()?.takeIf { it.isNotBlank() && it != "null" } ?: return null
         val compact = trimmed.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "")
         if (compact == "antigravityunknown" || compact == "googleaiunknown" || compact == "unknown") return null
-        return antigravityDisplayLabel(trimmed)
+        return antigravityPlanDisplayLabel(trimmed)
+    }
+
+    private fun antigravityPlanDisplayLabel(value: String): String {
+        return antigravityDisplayLabel(value)
+            .replace(Regex("^Antigravity\\s+", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("^Google\\s+AI\\s+", RegexOption.IGNORE_CASE), "AI ")
+            .trim()
+            .ifBlank { value.trim() }
     }
 
     private fun antigravityDisplayLabel(value: String): String {
@@ -1250,6 +1856,10 @@ object ProviderUsageNormalizer {
     private fun geminiLineLabel(value: String?): String? {
         val raw = value?.trim()?.lowercase(Locale.US) ?: return null
         val compact = raw.replace(Regex("[^a-z0-9]+"), "")
+        when (compact) {
+            "5hourlimit", "fivehourlimit" -> return "5-hour limit"
+            "weeklylimit", "7daylimit", "sevendaylimit" -> return "Weekly limit"
+        }
         GEMINI_MODEL_LABELS.firstOrNull { (modelId, label) ->
             raw == modelId || raw == label || compact == compactGeminiLabel(modelId) || compact == compactGeminiLabel(label)
         }?.let { return it.second }

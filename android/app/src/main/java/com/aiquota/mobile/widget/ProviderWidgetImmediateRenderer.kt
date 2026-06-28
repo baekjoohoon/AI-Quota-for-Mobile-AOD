@@ -3,6 +3,7 @@ package com.aiquota.mobile.widget
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.res.ColorStateList
 import android.os.Build
 import android.util.SizeF
 import android.util.TypedValue
@@ -12,6 +13,7 @@ import androidx.compose.ui.graphics.toArgb
 import com.aiquota.mobile.MainActivity
 import com.aiquota.mobile.R
 import com.aiquota.mobile.local.AppTheme
+import com.aiquota.mobile.local.ProviderGaugeColor
 import com.aiquota.mobile.local.ProviderId
 import com.aiquota.mobile.local.ThemePreferencesRepository
 import com.aiquota.mobile.ui.AppRoute
@@ -158,7 +160,7 @@ object ProviderWidgetImmediateRenderer {
                 views.setViewVisibility(ids.containerId, View.GONE)
             } else {
                 views.setViewVisibility(ids.containerId, View.VISIBLE)
-                applyLineRow(views, ids, line, spec, themeColors, index)
+                applyLineRow(views, ids, line, spec, themeColors, index, payload.gaugeColorHex)
             }
         }
     }
@@ -195,7 +197,8 @@ object ProviderWidgetImmediateRenderer {
         line: ProviderWidgetLine,
         spec: ProviderWidgetLayoutSpec,
         themeColors: WidgetThemeColors,
-        rowIndex: Int
+        rowIndex: Int,
+        gaugeColorHex: String?
     ) {
         val textColor = themeColors.caption.toArgb()
         val remainingText = line.remainingText.ifBlank { providerWidgetStatusLabel(line.severity) }
@@ -220,6 +223,7 @@ object ProviderWidgetImmediateRenderer {
         views.setTextViewText(ids.remainingId, remainingText)
         views.setViewVisibility(ids.progressId, View.VISIBLE)
         applyProgressHeight(views, ids.progressId, spec.gaugeHeightDp)
+        applyProgressColor(views, ids.progressId, payloadGaugeColor(line, themeColors, gaugeColorHex))
         views.setProgressBar(
             ids.progressId,
             100,
@@ -238,6 +242,21 @@ object ProviderWidgetImmediateRenderer {
         } else {
             views.setTextViewText(ids.resetId, "")
             views.setViewVisibility(ids.resetId, View.GONE)
+        }
+    }
+
+    private fun payloadGaugeColor(
+        line: ProviderWidgetLine,
+        themeColors: WidgetThemeColors,
+        gaugeColorHex: String?
+    ): Int {
+        return ProviderGaugeColor.toArgbOrNull(gaugeColorHex)
+            ?: themeColors.gaugeColor((line.remainingPercent ?: 0f).coerceIn(0f, 1f)).toArgb()
+    }
+
+    private fun applyProgressColor(views: RemoteViews, progressId: Int, color: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            views.setColorStateList(progressId, "setProgressTintList", ColorStateList.valueOf(color))
         }
     }
 

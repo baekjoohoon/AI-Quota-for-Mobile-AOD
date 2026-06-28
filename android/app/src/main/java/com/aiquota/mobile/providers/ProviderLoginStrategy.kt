@@ -18,6 +18,10 @@ object ProviderLoginStrategy {
                 false
             ProviderId.CODEX ->
                 false
+            ProviderId.GLM ->
+                false
+            ProviderId.OPENCODE ->
+                false
             ProviderId.GEMINI ->
                 false
             ProviderId.COPILOT ->
@@ -92,6 +96,9 @@ object ProviderLoginStrategy {
             host.endsWith("githubassets.com") ||
             host.endsWith("auth.openai.com") ||
             host.endsWith("chatgpt.com") ||
+            host.endsWith("z.ai") ||
+            host.endsWith("api.z.ai") ||
+            host.endsWith("opencode.ai") ||
             host.endsWith("claude.ai") ||
             host.endsWith("antigravity.google") ||
             host.endsWith("cursor.com") ||
@@ -109,6 +116,17 @@ object ProviderLoginStrategy {
         if (host.endsWith("claude.ai")) return false
         if (host == "authenticator.cursor.sh" && (statusCode == 401 || statusCode == 403)) return false
         return host.isNotBlank()
+    }
+
+    fun shouldKeepCodexLoginOpenForHttpError(url: String, statusCode: Int): Boolean {
+        if (statusCode != 403) return false
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase(Locale.US)
+        if (host != "chatgpt.com") return false
+        val path = uri.path.orEmpty().lowercase(Locale.US)
+        return path.startsWith("/auth") ||
+            path.startsWith("/api/auth") ||
+            path.startsWith("/cdn-cgi/challenge-platform")
     }
 
     private val GOOGLE_ACCOUNT_HOST =

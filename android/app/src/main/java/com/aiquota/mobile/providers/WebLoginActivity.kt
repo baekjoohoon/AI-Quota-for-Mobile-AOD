@@ -29,9 +29,10 @@ import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
 import java.nio.charset.StandardCharsets
+import java.util.Locale
 import org.json.JSONObject
 
-class WebLoginActivity : Activity() {
+open class WebLoginActivity : Activity() {
     private lateinit var providerId: ProviderId
     private lateinit var webView: WebView
     private lateinit var rootContainer: FrameLayout
@@ -41,6 +42,12 @@ class WebLoginActivity : Activity() {
     private var firstPageLogged = false
     private var observedCodexAccountId: String? = null
     private var copilotPostLoginRedirected = false
+    private var lastGeminiUsageRedirectKey: String? = null
+    private var lastGeminiUsageRedirectAtMs = 0L
+    private var geminiUsageRedirectAttempts = 0
+    private var geminiSignInClickAttempts = 0
+    private var glmPostLoginRedirected = false
+    private var openCodePostLoginRedirected = false
     @Volatile
     private var oauthCallbackHandled = false
     private val popupViews = mutableSetOf<WebView>()
@@ -199,6 +206,9 @@ class WebLoginActivity : Activity() {
     private inner class LoginWebViewClient : WebViewClient() {
         override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
             if (handleLoginCompleteNavigation(view, url)) return
+            if (maybeRedirectGeminiToUsage(view, url)) return
+            if (maybeRedirectGlmToUsage(view, url)) return
+            if (maybeRedirectOpenCodeToGo(view, url)) return
             injectCollectorIfReady(view, url, "")
         }
 
@@ -217,6 +227,7 @@ class WebLoginActivity : Activity() {
                 return true
             }
             if (handleLoginCompleteNavigation(view, url)) return true
+            if (maybeRedirectGeminiToUsage(view, url)) return true
             val shouldOverride = ProviderLoginWebViewPolicy.shouldOverrideNavigation(providerId, url)
             if (shouldOverride) {
                 Log.w("AIQuotaLogin", "provider=${providerId.storageId} blockedNavigation host=${hostOf(url)}")
@@ -263,8 +274,20 @@ class WebLoginActivity : Activity() {
         override fun onPageFinished(view: WebView, url: String) {
             logFirstPageFinished(url)
             if (handleLoginCompleteNavigation(view, url)) return
+            if (maybeRedirectGeminiToUsage(view, url)) return
+            if (maybeRedirectGlmToUsage(view, url)) return
+            if (maybeRedirectOpenCodeToGo(view, url)) return
             view.evaluateJavascript(PAGE_CAPTURE_SCRIPT) { encoded ->
                 val pageText = decodeJsString(encoded)
+                if (maybeRedirectGeminiToUsage(view, url)) {
+                    return@evaluateJavascript
+                }
+                if (maybeClickGeminiSignIn(view, url, pageText)) {
+                    return@evaluateJavascript
+                }
+                if (maybeRedirectOpenCodeToGo(view, url)) {
+                    return@evaluateJavascript
+                }
                 if (maybeRedirectCopilotToSettings(view, url, pageText)) {
                     return@evaluateJavascript
                 }
@@ -293,6 +316,13 @@ class WebLoginActivity : Activity() {
                 "provider=${providerId.storageId} http status=${errorResponse.statusCode} url=${safeUrlForLog(request.url.toString())}"
             )
             if (request.isForMainFrame && handleLoginCompleteNavigation(view, request.url.toString())) return
+            if (request.isForMainFrame &&
+                providerId == ProviderId.CODEX &&
+                ProviderLoginStrategy.shouldKeepCodexLoginOpenForHttpError(request.url.toString(), errorResponse.statusCode)
+            ) {
+                Log.w("AIQuotaLogin", "provider=${providerId.storageId} keepOpenOnHttp${errorResponse.statusCode}=true")
+                return
+            }
             if (request.isForMainFrame && ProviderLoginStrategy.isBlockingHttpError(request.url.toString(), errorResponse.statusCode)) {
                 failKeepingPrevious("Provider login returned HTTP ${errorResponse.statusCode}.", "main_frame_http_${errorResponse.statusCode}")
             }
@@ -320,6 +350,7 @@ class WebLoginActivity : Activity() {
                     Log.w("AIQuotaCollector", "provider=${providerId.storageId} collectorMode=webview-js ignoredPayload page=${pathOf(pageUrl)}")
                     return@runOnUiThread
                 }
+                saveOpenCodeUsageUrl(pageUrl)
                 Log.i("AIQuotaCollector", "provider=${providerId.storageId} collectorMode=webview-js rawPayloadPresent=${rawPayload.isNotBlank()}")
                 finishSuccessfulLogin(rawPayload)
             }
@@ -329,13 +360,17 @@ class WebLoginActivity : Activity() {
         fun postCollectorError(rawError: String) {
             runOnUiThread {
                 val pageUrl = webView.url.orEmpty()
-                if (!ProviderWebCollectorScripts.shouldAcceptCollectorError(providerId, pageUrl)) {
+                if (!ProviderWebCollectorScripts.shouldAcceptCollectorError(providerId, pageUrl, rawError)) {
                     Log.w("AIQuotaCollector", "provider=${providerId.storageId} collectorMode=webview-js ignoredError page=${pathOf(pageUrl)}")
                     return@runOnUiThread
                 }
                 val errorKind = runCatching { JSONObject(rawError).optString("errorKind", "collector_error") }
                     .getOrDefault("collector_error")
                 Log.w("AIQuotaCollector", "provider=${providerId.storageId} collectorMode=webview-js errorKind=$errorKind keptPreviousSnapshot=true")
+                if (providerId == ProviderId.GLM && errorKind == GlmNoSubscriptionPolicy.ERROR_KIND) {
+                    finishGlmNoSubscription(errorKind)
+                    return@runOnUiThread
+                }
                 if (shouldKeepLoginOpenUntilUsagePayload(errorKind)) {
                     Log.i("AIQuotaCollector", "provider=${providerId.storageId} awaitingUsagePayload=true errorKind=$errorKind")
                     return@runOnUiThread
@@ -393,12 +428,105 @@ class WebLoginActivity : Activity() {
             return result
         }
 
-        private fun isNativeFetchBridgePageAllowed(expectedProviderId: ProviderId): Boolean {
+    private fun isNativeFetchBridgePageAllowed(expectedProviderId: ProviderId): Boolean {
             val pageUrl = webView.url.orEmpty()
             return providerId == expectedProviderId &&
                 ProviderWebCollectorScripts.shouldAcceptCollectorPayload(expectedProviderId, pageUrl)
         }
 
+    }
+
+    private fun maybeRedirectGlmToUsage(view: WebView, url: String): Boolean {
+        if (providerId != ProviderId.GLM || glmPostLoginRedirected) return false
+        val usageUrl = GlmLoginPostRedirects.usageRedirectUrl(providerId, url) ?: return false
+        glmPostLoginRedirected = true
+        collectorInjectionKeys.clear()
+        Log.i("AIQuotaLogin", "provider=glm postLoginRedirect=usage from=${hostOf(url)}${pathOf(url)}")
+        view.loadUrl(usageUrl)
+        return true
+    }
+
+    private fun maybeRedirectGeminiToUsage(view: WebView, url: String): Boolean {
+        if (providerId != ProviderId.GEMINI) return false
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase(Locale.US)
+        maybeResetGeminiUsageRedirectBudget(host)
+        if (GeminiUsagePageRoutes.isUsageUrl(url)) {
+            lastGeminiUsageRedirectKey = null
+            lastGeminiUsageRedirectAtMs = 0L
+            return false
+        }
+        val usageUrl = GeminiUsagePageRoutes.usageUrlFrom(url) ?: return false
+        if (geminiUsageRedirectAttempts >= GEMINI_USAGE_REDIRECT_MAX_ATTEMPTS) return false
+        val path = uri.path.orEmpty()
+        val redirectKey = "$host:$path"
+        val now = SystemClock.elapsedRealtime()
+        if (redirectKey == lastGeminiUsageRedirectKey && now - lastGeminiUsageRedirectAtMs < GEMINI_USAGE_REDIRECT_MIN_INTERVAL_MS) {
+            return false
+        }
+        lastGeminiUsageRedirectKey = redirectKey
+        lastGeminiUsageRedirectAtMs = now
+        geminiUsageRedirectAttempts += 1
+        collectorInjectionKeys.clear()
+        Log.i("AIQuotaLogin", "provider=gemini postLoginRedirect=usage from=${hostOf(url)}${pathOf(url)}")
+        view.stopLoading()
+        view.loadUrl(usageUrl)
+        return true
+    }
+
+    private fun maybeResetGeminiUsageRedirectBudget(host: String) {
+        if (providerId != ProviderId.GEMINI) return
+        if (host != "myaccount.google.com" && !host.startsWith("accounts.google.")) return
+        if (geminiUsageRedirectAttempts == 0 && lastGeminiUsageRedirectKey == null) return
+        geminiUsageRedirectAttempts = 0
+        lastGeminiUsageRedirectKey = null
+        lastGeminiUsageRedirectAtMs = 0L
+        Log.d("AIQuotaLogin", "provider=gemini resetUsageRedirectBudget host=$host")
+    }
+
+    private fun maybeClickGeminiSignIn(view: WebView, url: String, pageText: String): Boolean {
+        if (providerId != ProviderId.GEMINI) return false
+        if (geminiSignInClickAttempts >= GEMINI_SIGN_IN_CLICK_MAX_ATTEMPTS) return false
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase(Locale.US)
+        if (host != "gemini.google.com") return false
+        if (!GeminiUsagePageRoutes.isLoginLandingUrl(url) && !GeminiUsagePageRoutes.isUsageUrl(url)) return false
+        if (!ProviderWebCollectorScripts.isRefreshLoginPage(providerId, url, pageText)) return false
+        geminiSignInClickAttempts += 1
+        collectorInjectionKeys.clear()
+        Log.i("AIQuotaLogin", "provider=gemini clickSignIn=true from=${hostOf(url)}${pathOf(url)}")
+        view.evaluateJavascript(
+            """
+            (function(){
+              var labels = ["로그인", "sign in", "log in"];
+              var elements = Array.prototype.slice.call(document.querySelectorAll("a, button, [role='button']"));
+              for (var i = 0; i < elements.length; i += 1) {
+                var text = String(elements[i].innerText || elements[i].textContent || "").trim().toLowerCase();
+                if (!text) continue;
+                for (var j = 0; j < labels.length; j += 1) {
+                  if (text.indexOf(labels[j]) >= 0) {
+                    elements[i].click();
+                    return true;
+                  }
+                }
+              }
+              return false;
+            })();
+            """.trimIndent(),
+            null
+        )
+        return true
+    }
+
+    private fun maybeRedirectOpenCodeToGo(view: WebView, url: String): Boolean {
+        if (providerId != ProviderId.OPENCODE || openCodePostLoginRedirected) return false
+        val goUsageUrl = OpenCodeUsagePageRoutes.goUsageUrlFrom(url) ?: return false
+        openCodePostLoginRedirected = true
+        collectorInjectionKeys.clear()
+        saveOpenCodeUsageUrl(goUsageUrl)
+        Log.i("AIQuotaLogin", "provider=opencode postLoginRedirect=workspace/go from=${hostOf(url)}${pathOf(url)}")
+        view.loadUrl(goUsageUrl)
+        return true
     }
 
     private fun maybeRedirectCopilotToSettings(view: WebView, url: String, pageText: String): Boolean {
@@ -491,8 +619,10 @@ class WebLoginActivity : Activity() {
         if (finished) return
         val cookies = cookiesFor(url)
         if (!ProviderWebCollectorScripts.shouldRunCollector(providerId, url, cookies, pageText)) return
-        val injectionKey = "${providerId.storageId}:${hostOf(url)}:${pathOf(url)}"
-        if (collectorInjectionKeys.add(injectionKey)) {
+        val injectionKey = "${providerId.storageId}:${hostOf(url)}:${routeKeyOf(url)}"
+        val firstInjectionForPage = collectorInjectionKeys.add(injectionKey)
+        if (!firstInjectionForPage && !ProviderWebCollectorScripts.shouldAllowCollectorReinjection(providerId)) return
+        if (firstInjectionForPage) {
             Log.i("AIQuotaCollector", "provider=${providerId.storageId} collectorMode=webview-js inject host=${hostOf(url)}")
         }
         val script = ProviderWebCollectorScripts.build(
@@ -503,7 +633,7 @@ class WebLoginActivity : Activity() {
             observedAccountId = observedCodexAccountId,
             pageText = pageText,
             pageUrl = url,
-            awaitInteractiveLoginUsage = providerId == ProviderId.CODEX
+            awaitInteractiveLoginUsage = providerId == ProviderId.CODEX || providerId == ProviderId.GEMINI
         )
         view.evaluateJavascript(script, null)
     }
@@ -513,7 +643,11 @@ class WebLoginActivity : Activity() {
             ProviderId.CODEX ->
                 errorKind == "codex_usage_unavailable" || errorKind == "codex_auth_required"
             ProviderId.GEMINI ->
-                errorKind == "gemini_no_trusted_payload" || errorKind == "gemini_collector_error"
+                errorKind == "gemini_no_trusted_payload" ||
+                    errorKind == "gemini_collector_error" ||
+                    errorKind == "gemini_login_required"
+            ProviderId.GLM ->
+                errorKind == "glm_no_trusted_payload"
             else -> false
         }
     }
@@ -546,8 +680,25 @@ class WebLoginActivity : Activity() {
             context = applicationContext,
             providerId = providerId,
             source = source,
-            rawPayload = rawPayload
+            rawPayload = rawPayload,
+            glmWebSessionCookieHeader = captureGlmWebSessionCookieHeader()
         )
+        finish()
+    }
+
+    private fun finishGlmNoSubscription(errorKind: String) {
+        if (finished) return
+        finished = true
+        CookieManager.getInstance().flush()
+        captureGlmWebSessionCookieHeader()
+        val repository = LocalUsageRepository(applicationContext)
+        repository.markConnectedWithoutPlan(
+            providerId = ProviderId.GLM,
+            planLabel = GlmNoSubscriptionPolicy.PLAN_LABEL,
+            message = GlmNoSubscriptionPolicy.MESSAGE
+        )
+        Log.i("AIQuotaLogin", "provider=${providerId.storageId} errorKind=$errorKind connectedWithoutPlan=true")
+        UsageSurfaceRefresher.refresh(applicationContext, repository)
         finish()
     }
 
@@ -562,6 +713,7 @@ class WebLoginActivity : Activity() {
         }
         finished = true
         CookieManager.getInstance().flush()
+        captureGlmWebSessionCookieHeader()
         val repository = LocalUsageRepository(applicationContext)
         repository.markConnectedWithoutUsage(providerId, message)
         Log.w("AIQuotaLogin", "provider=${providerId.storageId} errorKind=$errorKind usageUnavailable=true")
@@ -608,6 +760,27 @@ class WebLoginActivity : Activity() {
         Log.w("AIQuotaLogin", "provider=${providerId.storageId} errorKind=$errorKind keptPreviousSnapshot=true")
         UsageSurfaceRefresher.refresh(applicationContext, repository)
         finish()
+    }
+
+    private fun saveOpenCodeUsageUrl(url: String) {
+        if (providerId != ProviderId.OPENCODE) return
+        ProviderScopedStateRepository(applicationContext).saveOpenCodeUsageUrl(url)
+    }
+
+    private fun captureGlmWebSessionCookieHeader(): String? {
+        if (providerId != ProviderId.GLM) return null
+        val cookieHeader = GoogleWebSessionCodeAssistFetcher.mergeCookieHeaders(
+            GlmProviderUrls.WEB_COOKIE_URLS.map { url ->
+                runCatching { CookieManager.getInstance().getCookie(url) }.getOrNull()
+            }
+        )
+        val cookieCount = GoogleWebSessionCodeAssistFetcher.parseCookieHeader(cookieHeader).size
+        if (cookieCount <= 0) {
+            Log.w("AIQuotaLogin", "provider=glm webSessionCookieCaptured=false cookieCount=0")
+            return null
+        }
+        Log.i("AIQuotaLogin", "provider=glm webSessionCookieCaptured=true cookieCount=$cookieCount")
+        return cookieHeader
     }
 
     private fun shouldKeepGoogleLoginRetryPending(errorKind: String, message: String): Boolean {
@@ -679,6 +852,17 @@ class WebLoginActivity : Activity() {
         return runCatching { URI(url).path.orEmpty() }.getOrDefault("")
     }
 
+    private fun routeKeyOf(url: String): String {
+        return runCatching {
+            val uri = URI(url)
+            buildString {
+                append(uri.path.orEmpty())
+                uri.rawQuery?.takeIf { it.isNotBlank() }?.let { append("?").append(it) }
+                uri.rawFragment?.takeIf { it.isNotBlank() }?.let { append("#").append(it) }
+            }
+        }.getOrDefault(pathOf(url))
+    }
+
     private fun safeUrlForLog(url: String): String {
         return runCatching {
             val uri = URI(url)
@@ -723,6 +907,9 @@ class WebLoginActivity : Activity() {
         private const val EXTRA_START_URL = "startUrl"
         private const val BRIDGE_NAME = "AIQuotaCollectorBridge"
         private const val CURSOR_NATIVE_FETCH_TIMEOUT_MS = 20_000
+        private const val GEMINI_USAGE_REDIRECT_MIN_INTERVAL_MS = 1_500L
+        private const val GEMINI_USAGE_REDIRECT_MAX_ATTEMPTS = 2
+        private const val GEMINI_SIGN_IN_CLICK_MAX_ATTEMPTS = 2
         private const val PAGE_CAPTURE_SCRIPT =
             "(function(){return (document.documentElement.innerText||document.title||'').slice(0,12000);})()"
 
@@ -732,9 +919,15 @@ class WebLoginActivity : Activity() {
         }
 
         fun createIntent(context: Context, providerId: ProviderId, startUrl: String): Intent {
-            return Intent(context, WebLoginActivity::class.java)
+            val activityClass = when (providerId) {
+                ProviderId.GLM -> GlmWebLoginActivity::class.java
+                else -> WebLoginActivity::class.java
+            }
+            return Intent(context, activityClass)
                 .putExtra(EXTRA_PROVIDER_ID, providerId.storageId)
                 .putExtra(EXTRA_START_URL, startUrl)
-            }
         }
     }
+}
+
+class GlmWebLoginActivity : WebLoginActivity()

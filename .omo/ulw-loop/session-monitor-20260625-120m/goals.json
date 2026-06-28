@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "createdAt": "2026-06-25T11:48:07.870Z",
+  "updatedAt": "2026-06-25T12:49:04.500Z",
+  "briefPath": ".omo/ulw-loop/session-monitor-20260625-120m/brief.md",
+  "goalsPath": ".omo/ulw-loop/session-monitor-20260625-120m/goals.json",
+  "ledgerPath": ".omo/ulw-loop/session-monitor-20260625-120m/ledger.jsonl",
+  "codexGoalMode": "aggregate",
+  "goals": [
+    {
+      "id": "G001-120-10-provider-snapshot",
+      "title": "세션 장기 유지 테스트 감시. 총 120분 동안 10분 단위로 provider 세션 유지상태와 snapshot 최신화를 점검...",
+      "objective": "세션 장기 유지 테스트 감시. 총 120분 동안 10분 단위로 provider 세션 유지상태와 snapshot 최신화를 점검한다. 90분 이상 지속되면 각 10분 점검 시 debug APK를 재설치하고 앱을 실행한 뒤 세션 유지상태를 점검한다. 세션이 만료된 provider가 발생하면 즉시 중단하고 원인 분석 및 조치계획을 보고한다. 코드 수정은 하지 않는다.",
+      "status": "failed",
+      "successCriteria": [
+        {
+          "id": "C001",
+          "scenario": "happy path for: 세션 장기 유지 테스트 감시. 총 120분 동안 10분 단위로 provider 세션 유지상태와 snapshot 최신화를 점검한다. 90분...",
+          "userModel": "happy",
+          "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+          "essential": true,
+          "capturedEvidence": "CLI monitor artifact: .omo/ulw-loop/session-monitor-20260625-120m/evidence/session-monitor-corrected-failure.txt; summary: .omo/ulw-loop/session-monitor-20260625-120m/evidence/session-monitor-corrected-summary.jsonl; logcat: .omo/ulw-loop/session-monitor-20260625-120m/evidence/session-monitor-corrected-logcat.txt | cleanup: corrected monitor exited code 2 on failure; no remaining monitor/logcat process observed",
+          "status": "fail",
+          "capturedAt": "2026-06-25T12:48:18.197Z",
+          "notes": "Stopped at cycle 4 / 40min because GLM snapshot became stale. Evidence shows repeated GLM TIMEOUT and Previous collection did not finish, without INTERACTIVE_AUTH_REQUIRED or provider login page signal."
+        },
+        {
+          "id": "C002",
+          "scenario": "edge case (boundary/empty/malformed)",
+          "userModel": "edge",
+          "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: 세션 장기 유지 테스트 감시. 총 120분 동안 10분 단위로 provider 세션 유지상태와 snapshot 최신화를 점검한다. 90분....",
+          "essential": true,
+          "capturedEvidence": null,
+          "status": "pending"
+        },
+        {
+          "id": "C003",
+          "scenario": "regression: adjacent surface still works",
+          "userModel": "regression",
+          "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: 세션 장기 유지 테스트 감시. 총 120분 동안 10분 단위로 provider 세션 유지상태와 snapshot 최신화를 점검한다. 90분....",
+          "essential": false,
+          "capturedEvidence": null,
+          "status": "pending"
+        }
+      ],
+      "attempt": 0,
+      "createdAt": "2026-06-25T11:48:07.870Z",
+      "updatedAt": "2026-06-25T12:49:04.500Z",
+      "failedAt": "2026-06-25T12:49:04.500Z",
+      "failureReason": "Monitoring stopped at cycle 4 / 40min. GLM snapshot stale: updatedAt=2026-06-25T12:25:09.925030Z, ageMin=19.46 at 2026-06-25T21:44:38+09:00. Logs show repeated GLM TIMEOUT after last GLM saveSnapshot, no explicit auth/login-page evidence. Artifacts: .omo/ulw-loop/session-monitor-20260625-120m/evidence/session-monitor-corrected-failure.txt, session-monitor-corrected-summary.jsonl, session-monitor-corrected-logcat.txt"
+    }
+  ],
+  "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/session-monitor-20260625-120m/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/session-monitor-20260625-120m/ledger.jsonl as the audit trail."
+}

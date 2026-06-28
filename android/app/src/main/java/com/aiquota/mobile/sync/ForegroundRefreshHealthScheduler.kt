@@ -13,6 +13,7 @@ object ForegroundRefreshHealthScheduler {
     private const val WORK_NAME = "ai_quota_live_refresh_health"
     private const val ONE_TIME_WORK_NAME = "ai_quota_live_refresh_health_now"
     private const val CHECK_INTERVAL_MINUTES = 15L
+    private const val STARTUP_CHECK_DELAY_MINUTES = 1L
 
     fun schedule(context: Context) {
         val appContext = context.applicationContext
@@ -21,16 +22,18 @@ object ForegroundRefreshHealthScheduler {
             CHECK_INTERVAL_MINUTES,
             TimeUnit.MINUTES
         ).build()
-        val oneTimeWork = OneTimeWorkRequestBuilder<ForegroundRefreshHealthWorker>().build()
+        val oneTimeWork = OneTimeWorkRequestBuilder<ForegroundRefreshHealthWorker>()
+            .setInitialDelay(STARTUP_CHECK_DELAY_MINUTES, TimeUnit.MINUTES)
+            .build()
 
         workManager.enqueueUniquePeriodicWork(
             WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
+            ExistingPeriodicWorkPolicy.KEEP,
             periodicWork
         )
         workManager.enqueueUniqueWork(
             ONE_TIME_WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             oneTimeWork
         )
     }

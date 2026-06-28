@@ -160,4 +160,38 @@ class ProviderLoginStrategyTest {
         assertFalse(ProviderLoginStrategy.isBlockingHttpError("https://accounts.google.com/o/oauth2/v2/auth", 302))
     }
 
+    @Test
+    fun codexAuthChallengeHttp403KeepsLoginOpen() {
+        assertTrue(
+            ProviderLoginStrategy.shouldKeepCodexLoginOpenForHttpError(
+                "https://chatgpt.com/auth/error?error=Configuration",
+                403
+            )
+        )
+        assertTrue(
+            ProviderLoginStrategy.shouldKeepCodexLoginOpenForHttpError(
+                "https://chatgpt.com/api/auth/providers",
+                403
+            )
+        )
+        assertTrue(
+            ProviderLoginStrategy.shouldKeepCodexLoginOpenForHttpError(
+                "https://chatgpt.com/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1",
+                403
+            )
+        )
+        assertFalse(
+            ProviderLoginStrategy.shouldKeepCodexLoginOpenForHttpError(
+                "https://chatgpt.com/backend-api/me",
+                403
+            )
+        )
+        assertFalse(
+            ProviderLoginStrategy.shouldKeepCodexLoginOpenForHttpError(
+                "https://accounts.google.com/o/oauth2/v2/auth",
+                403
+            )
+        )
+    }
+
 }

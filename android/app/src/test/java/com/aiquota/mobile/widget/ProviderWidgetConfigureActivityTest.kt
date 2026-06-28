@@ -85,9 +85,9 @@ class ProviderWidgetConfigureActivityTest {
                 finishBlock.indexOf("ProviderWidgetConfigureRefreshRequester.schedule(applicationContext, appWidgetId, providerId)") &&
                 requesterSource.contains("PROVIDER_WIDGET_CONFIGURE_REFRESH_DELAY_MS = 5_000L") &&
                 requesterSource.contains("delay(PROVIDER_WIDGET_CONFIGURE_REFRESH_DELAY_MS)") &&
-                requesterSource.contains("ProviderBackgroundRefreshService.ACTION_REFRESH") &&
-                requesterSource.contains("WidgetRefreshActions.EXTRA_PROVIDER_ID") &&
-                requesterSource.contains("providerId.storageId")
+                requesterSource.contains("ProviderBackgroundRefreshService.createRefreshIntent") &&
+                requesterSource.contains("providerId = providerId") &&
+                requesterSource.contains("appWidgetId = appWidgetId")
         )
     }
 
@@ -100,8 +100,7 @@ class ProviderWidgetConfigureActivityTest {
             "Delayed configure refresh must not call UsageSurfaceRefresher.refresh because ProviderUsageGlanceWidget.updateAll can redraw the new widget with fallback Claude before the Glance id mapping is stable.",
             !scheduleBlock.contains("UsageSurfaceRefresher.refresh") &&
                 scheduleBlock.contains("ProviderWidgetImmediateRenderer.render(appContext, appWidgetId, providerId)") &&
-                scheduleBlock.contains("ProviderBackgroundRefreshService.ACTION_REFRESH") &&
-                scheduleBlock.contains("WidgetRefreshActions.EXTRA_PROVIDER_ID")
+                scheduleBlock.contains("ProviderBackgroundRefreshService.createRefreshIntent")
         )
     }
 
@@ -205,7 +204,7 @@ class ProviderWidgetConfigureActivityTest {
 
     @Test
     fun providerWidgetConfigurationCentersContentVerticallyWhenViewportHasExtraSpace() {
-        val activitySource = File("src/main/java/com/aiquota/mobile/widget/ProviderWidgetConfigureActivity.kt").readText()
+        val activitySource = File("src/main/java/com/aiquota/mobile/widget/ProviderWidgetConfigureActivity.kt").readNormalizedText()
         val rootBlock = activitySource.substringAfter("val root = LinearLayout(this).apply").substringBefore("root.addView(")
         val scrollBlock = activitySource.substringAfter("ScrollView(this).apply").substringAfter("addView(")
 
@@ -220,3 +219,5 @@ class ProviderWidgetConfigureActivityTest {
         )
     }
 }
+
+private fun File.readNormalizedText(): String = readText().replace("\r\n", "\n")

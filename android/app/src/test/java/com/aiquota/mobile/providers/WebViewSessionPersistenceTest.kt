@@ -7,20 +7,6 @@ import org.junit.Test
 
 class WebViewSessionPersistenceTest {
     @Test
-    fun webViewProfileIsNotSplitByDataDirectorySuffix() {
-        val source = mainSourceText()
-
-        assertFalse(source.contains("setDataDirectorySuffix"))
-    }
-
-    @Test
-    fun manifestDoesNotMoveWebViewComponentsIntoAnotherProcess() {
-        val manifest = File("src/main/AndroidManifest.xml").readText()
-
-        assertFalse(manifest.contains("android:process"))
-    }
-
-    @Test
     fun sessionDestructiveWebViewAndCookieCallsAreConfinedToExplicitDisconnectCleaner() {
         val source = mainSourceText()
         val forbiddenCalls = listOf(

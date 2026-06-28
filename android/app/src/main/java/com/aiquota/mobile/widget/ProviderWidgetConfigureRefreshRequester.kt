@@ -2,7 +2,6 @@
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
-import android.content.Intent
 import androidx.core.content.ContextCompat
 import com.aiquota.mobile.local.ProviderId
 import com.aiquota.mobile.providers.ProviderBackgroundRefreshService
@@ -26,10 +25,11 @@ object ProviderWidgetConfigureRefreshRequester {
             runCatching {
                 ContextCompat.startForegroundService(
                     appContext,
-                    Intent(appContext, ProviderBackgroundRefreshService::class.java)
-                        .setAction(ProviderBackgroundRefreshService.ACTION_REFRESH)
-                        .putExtra(WidgetRefreshActions.EXTRA_APP_WIDGET_ID, appWidgetId)
-                        .putExtra(WidgetRefreshActions.EXTRA_PROVIDER_ID, providerId.storageId)
+                    ProviderBackgroundRefreshService.createRefreshIntent(
+                        context = appContext,
+                        providerId = providerId,
+                        appWidgetId = appWidgetId
+                    )
                 )
             }.onFailure {
                 WidgetRefreshFeedback.clearWidgetRefresh(appContext, appWidgetId)

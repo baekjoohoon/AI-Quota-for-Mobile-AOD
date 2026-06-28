@@ -408,17 +408,16 @@ class WidgetGaugeLayoutTest {
     }
 
     @Test
-    fun providerWidgetShrinksOnlyLongLabelInsideTwoByOneColumns() {
+    fun providerWidgetKeepsShortenedSparkLabelReadableInsideTwoByOneColumns() {
         val spec = providerWidgetLayoutSpec(cellWidth = 2, cellHeight = 1)
         val textSpec = providerWidgetLineTextStyleSpec(
             spec = spec,
-            label = "GPT-5.3-Spark 5시간",
+            label = "GPT-5.3-Spark 5H",
             remainingText = "100% 남음"
         )
 
-        assertTrue(textSpec.labelTextSizeSp < spec.lineTextSizeSp)
+        assertEquals(spec.lineTextSizeSp.toFloat(), textSpec.labelTextSizeSp)
         assertEquals(spec.lineTextSizeSp.toFloat(), textSpec.remainingTextSizeSp)
-        assertTrue(textSpec.labelTextSizeSp >= 10.0f)
     }
 
     @Test

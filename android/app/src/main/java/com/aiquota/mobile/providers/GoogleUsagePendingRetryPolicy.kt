@@ -16,15 +16,37 @@ object GoogleUsagePendingRetryPolicy {
         if (snapshot.providerId != ProviderId.GEMINI && snapshot.providerId != ProviderId.ANTIGRAVITY) {
             return null
         }
-        if (snapshot.connectionState != ProviderConnectionState.STALE ||
-            snapshot.refreshState == ProviderRefreshState.REFRESHING
-        ) {
+        if (!snapshot.isPendingRetryState() || snapshot.refreshState == ProviderRefreshState.REFRESHING) {
             return null
         }
-        if (snapshot.lines.isEmpty()) return null
-        if (snapshot.message != PENDING_MESSAGE && snapshot.message != LEGACY_PENDING_MESSAGE) return null
-        val updatedAt = runCatching { Instant.parse(snapshot.updatedAt) }.getOrNull() ?: return 0L
-        val elapsedMillis = Duration.between(updatedAt, now).toMillis().coerceAtLeast(0L)
+        if (snapshot.lines.isEmpty() && snapshot.providerId != ProviderId.GEMINI) return null
+        if (!snapshot.message.orEmpty().isPendingRetryMessage()) return null
+        val statusUpdatedAt = runCatching { Instant.parse(snapshot.statusUpdatedAt) }
+            .getOrElse { runCatching { Instant.parse(snapshot.updatedAt) }.getOrNull() }
+            ?: return 0L
+        val elapsedMillis = Duration.between(statusUpdatedAt, now).toMillis().coerceAtLeast(0L)
         return (RETRY_DELAY_MILLIS - elapsedMillis).coerceAtLeast(0L)
+    }
+
+    private fun ProviderUsageSnapshot.isPendingRetryState(): Boolean {
+        return when (providerId) {
+            ProviderId.GEMINI ->
+                connectionState == ProviderConnectionState.CONNECTED ||
+                    connectionState == ProviderConnectionState.STALE ||
+                    connectionState == ProviderConnectionState.UNAVAILABLE
+            ProviderId.ANTIGRAVITY ->
+                connectionState == ProviderConnectionState.STALE
+            else -> false
+        }
+    }
+
+    private fun String.isPendingRetryMessage(): Boolean {
+        val normalized = trim().lowercase()
+        if (normalized == PENDING_MESSAGE.lowercase()) return true
+        if (normalized == LEGACY_PENDING_MESSAGE.lowercase()) return true
+        return normalized.contains("usage payload was not available") ||
+            normalized.contains("trusted usage payload") ||
+            normalized.contains("background refresh reached a provider login page") ||
+            normalized.contains("gemini login is required")
     }
 }

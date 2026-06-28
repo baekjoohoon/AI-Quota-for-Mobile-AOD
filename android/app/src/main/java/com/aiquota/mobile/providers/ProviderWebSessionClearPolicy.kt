@@ -6,7 +6,6 @@ import java.net.URI
 
 object ProviderWebSessionClearPolicy {
     fun shouldClearBeforeLogin(providerId: ProviderId, connectionState: ProviderConnectionState?): Boolean {
-        if (providerId == ProviderId.CODEX) return connectionState != ProviderConnectionState.CONNECTED
         if (connectionState != ProviderConnectionState.INTERACTIVE_AUTH_REQUIRED) return false
         return providerId == ProviderId.CURSOR
     }
@@ -17,10 +16,7 @@ object ProviderWebSessionClearPolicy {
 
     fun cookieUrls(providerId: ProviderId): List<String> {
         return when (providerId) {
-            ProviderId.CLAUDE -> listOf(
-                "https://claude.ai",
-                "https://accounts.google.com"
-            )
+            ProviderId.CLAUDE -> listOf("https://claude.ai") + GOOGLE_AUTH_COOKIE_URLS
             ProviderId.CODEX -> listOf(
                 "https://chatgpt.com",
                 "https://chatgpt.com/auth/login",
@@ -35,40 +31,44 @@ object ProviderWebSessionClearPolicy {
                 "https://chat.openai.com",
                 "https://auth.openai.com",
                 "https://auth.openai.com/authorize",
-                "https://auth.openai.com/u/login",
-                "https://accounts.google.com"
-            )
-            ProviderId.GEMINI -> listOf(
-                "https://gemini.google.com",
-                "https://accounts.google.com",
-                "https://oauth2.googleapis.com"
-            )
-            ProviderId.COPILOT -> listOf(
-                "https://github.com"
-            )
+                "https://auth.openai.com/u/login"
+            ) + GOOGLE_AUTH_COOKIE_URLS + listOf("https://appleid.apple.com")
+            ProviderId.GEMINI -> listOf("https://gemini.google.com") + GOOGLE_AUTH_COOKIE_URLS
+            ProviderId.COPILOT -> GITHUB_AUTH_COOKIE_URLS
             ProviderId.ANTIGRAVITY -> listOf(
                 "https://antigravity.google",
-                "https://www.antigravity.google",
-                "https://accounts.google.com",
-                "https://oauth2.googleapis.com"
-            )
+                "https://www.antigravity.google"
+            ) + GOOGLE_AUTH_COOKIE_URLS
             ProviderId.CURSOR -> listOf(
                 "https://cursor.com",
                 "https://www.cursor.com",
+                "https://cursor.sh",
                 "https://api2.cursor.sh",
                 "https://authenticate.cursor.sh",
                 "https://authenticator.cursor.sh",
                 "https://api.workos.com",
                 "https://auth.workos.com",
-                "https://workos.com",
-                "https://github.com",
-                "https://accounts.google.com"
-            )
+                "https://workos.com"
+            ) + GOOGLE_AUTH_COOKIE_URLS + GITHUB_AUTH_COOKIE_URLS
+            ProviderId.GLM -> GLM_COOKIE_URLS
+            ProviderId.OPENCODE -> listOf(
+                "https://opencode.ai",
+                "https://opencode.ai/auth",
+                "https://www.opencode.ai",
+                "https://auth.opencode.ai"
+            ) + GOOGLE_AUTH_COOKIE_URLS + GITHUB_AUTH_COOKIE_URLS
         }
     }
 
     fun storageOrigins(providerId: ProviderId): List<String> {
         return cookieUrls(providerId)
+    }
+
+    fun browserStorageCleanupUrls(providerId: ProviderId): List<String> {
+        return when (providerId) {
+            ProviderId.GLM -> GLM_BROWSER_STORAGE_CLEANUP_URLS
+            else -> emptyList()
+        }
     }
 
     fun expiringCookieHeaders(cookieHeader: String?, url: String? = null): List<String> {
@@ -112,11 +112,15 @@ object ProviderWebSessionClearPolicy {
         val host = runCatching { URI(url.orEmpty()).host.orEmpty().lowercase() }.getOrDefault("")
         if (host.isBlank() || host == "localhost" || host == "127.0.0.1") return emptyList()
         val domains = mutableListOf(host, ".$host")
-        parentCookieDomain(host)?.let { parent ->
+        parentCookieDomain(host)?.takeUnless { isSharedGoogleIdentityParent(host, it) }?.let { parent ->
             domains += parent
             domains += ".$parent"
         }
         return domains.distinct()
+    }
+
+    private fun isSharedGoogleIdentityParent(host: String, parent: String): Boolean {
+        return parent == "google.com" && host != parent
     }
 
     private fun parentCookieDomain(host: String): String? {
@@ -138,5 +142,50 @@ object ProviderWebSessionClearPolicy {
         "com.cn",
         "com.tw",
         "co.jp"
+    )
+
+    private val GOOGLE_AUTH_COOKIE_URLS = listOf(
+        "https://accounts.google.com",
+        "https://myaccount.google.com",
+        "https://google.com",
+        "https://www.google.com",
+        "https://oauth2.googleapis.com",
+        "https://accounts.youtube.com",
+        "https://play.google.com"
+    )
+
+    private val GLM_COOKIE_URLS = listOf(
+        "https://z.ai",
+        "https://www.z.ai",
+        GlmProviderUrls.WEB_OAUTH_URL,
+        GlmProviderUrls.WEB_USAGE_URL,
+        "https://z.ai/manage-apikey",
+        "https://z.ai/manage-apikey/coding-plan",
+        "https://z.ai/manage-apikey/coding-plan/personal",
+        "https://z.ai/manage-apikey/subscription",
+        "https://chat.z.ai",
+        "https://api.z.ai",
+        GlmProviderUrls.API_QUOTA_URL,
+        "https://api.z.ai/api/biz/subscription/list",
+        "https://auth.z.ai",
+        "https://login.z.ai",
+        "https://accounts.z.ai",
+        "https://account.z.ai"
+    )
+
+    private val GLM_BROWSER_STORAGE_CLEANUP_URLS = listOf(
+        "https://z.ai",
+        "https://www.z.ai",
+        "https://chat.z.ai",
+        "https://auth.z.ai",
+        "https://login.z.ai",
+        "https://accounts.z.ai",
+        "https://account.z.ai"
+    )
+
+    private val GITHUB_AUTH_COOKIE_URLS = listOf(
+        "https://github.com",
+        "https://www.github.com",
+        "https://api.github.com"
     )
 }

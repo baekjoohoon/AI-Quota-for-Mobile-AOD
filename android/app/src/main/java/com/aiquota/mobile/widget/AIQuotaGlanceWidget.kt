@@ -3,6 +3,7 @@
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,6 +43,7 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.aiquota.mobile.MainActivity
 import com.aiquota.mobile.R
+import com.aiquota.mobile.local.ProviderGaugeColor
 import com.aiquota.mobile.local.ProviderPreferencesRepository
 import com.aiquota.mobile.ui.AppRoute
 import com.aiquota.mobile.ui.provider.providerIconRes as sharedProviderIconRes
@@ -306,7 +308,8 @@ private fun UnifiedProviderRow(
             width = layoutSpec.gaugeWidthDp.dp,
             height = layoutSpec.gaugeHeightDp.dp,
             radius = layoutSpec.gaugeRadiusDp.dp,
-            themeColors = themeColors
+            themeColors = themeColors,
+            gaugeColorHex = provider.gaugeColorHex
         )
         if (layoutSpec.rowContentVerticalInsetDp > 0) {
             Spacer(modifier = GlanceModifier.height(layoutSpec.rowContentVerticalInsetDp.dp))
@@ -341,7 +344,8 @@ private fun CompactGauge(gauge: WidgetProviderGauge, layoutSpec: WidgetGaugeLayo
             width = layoutSpec.gaugeWidthDp.dp,
             height = layoutSpec.gaugeHeightDp.dp,
             radius = layoutSpec.gaugeRadiusDp.dp,
-            themeColors = themeColors
+            themeColors = themeColors,
+            gaugeColorHex = gauge.gaugeColorHex
         )
     }
 }
@@ -365,7 +369,8 @@ private fun IconGauge(gauge: WidgetProviderGauge, layoutSpec: WidgetGaugeLayoutS
                 width = layoutSpec.gaugeWidthDp.dp,
                 height = layoutSpec.gaugeHeightDp.dp,
                 radius = layoutSpec.gaugeRadiusDp.dp,
-                themeColors = themeColors
+                themeColors = themeColors,
+                gaugeColorHex = gauge.gaugeColorHex
             )
             Spacer(modifier = GlanceModifier.height(2.dp))
             Row(
@@ -388,8 +393,15 @@ private fun IconGauge(gauge: WidgetProviderGauge, layoutSpec: WidgetGaugeLayoutS
 }
 
 @Composable
-private fun GaugeBar(ratio: Float, width: Dp, height: Dp, radius: Dp, themeColors: WidgetThemeColors) {
-    val activeColor = themeColors.gaugeColor(ratio)
+private fun GaugeBar(
+    ratio: Float,
+    width: Dp,
+    height: Dp,
+    radius: Dp,
+    themeColors: WidgetThemeColors,
+    gaugeColorHex: String? = null
+) {
+    val activeColor = ProviderGaugeColor.toArgbOrNull(gaugeColorHex)?.let(::Color) ?: themeColors.gaugeColor(ratio)
     LinearProgressIndicator(
         progress = ratio.coerceIn(0f, 1f),
         modifier = GlanceModifier

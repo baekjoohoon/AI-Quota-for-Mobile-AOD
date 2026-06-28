@@ -1,0 +1,8 @@
+﻿06-26 10:28:36.239 I/adbd    (  542): adbd service requested 'exec:run-as 'com.aiquota.mobile' 'cat' 'shared_prefs/usage_data_claude.xml''
+06-26 10:28:36.367 I/adbd    (  542): adbd service requested 'exec:run-as 'com.aiquota.mobile' 'cat' 'shared_prefs/usage_data_codex.xml''
+06-26 10:28:36.423 I/adbd    (  542): adbd service requested 'exec:run-as 'com.aiquota.mobile' 'cat' 'shared_prefs/usage_data_glm.xml''
+06-26 10:28:36.487 I/adbd    (  542): adbd service requested 'exec:run-as 'com.aiquota.mobile' 'cat' 'shared_prefs/usage_data_opencode.xml''
+06-26 10:28:36.539 I/adbd    (  542): adbd service requested 'exec:run-as 'com.aiquota.mobile' 'cat' 'shared_prefs/usage_data_gemini.xml''
+06-26 10:28:36.591 I/adbd    (  542): adbd service requested 'exec:run-as 'com.aiquota.mobile' 'cat' 'shared_prefs/usage_data_copilot.xml''
+06-26 10:28:36.641 I/adbd    (  542): adbd service requested 'exec:run-as 'com.aiquota.mobile' 'cat' 'shared_prefs/usage_data_antigravity.xml''
+06-26 10:28:36.695 I/adbd    (  542): adbd service requested 'exec:run-as 'com.aiquota.mobile' 'cat' 'shared_prefs/usage_data_cursor.xml''

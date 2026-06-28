@@ -23,13 +23,20 @@ object ProviderRefreshPlan {
     const val AUTO_REFRESH_INTERVAL_MILLIS = 60_000L
     const val MIN_AUTO_REFRESH_DELAY_MILLIS = 5_000L
     const val PROVIDER_REFRESH_TIMEOUT_MILLIS = 10_000L
+    const val CODEX_REFRESH_TIMEOUT_MILLIS = 60_000L
+    const val GLM_WEB_REFRESH_TIMEOUT_MILLIS = 20_000L
+    const val OPENCODE_REFRESH_TIMEOUT_MILLIS = 20_000L
+    const val GEMINI_WEB_REFRESH_TIMEOUT_MILLIS = 45_000L
     const val GOOGLE_REFRESH_TIMEOUT_MILLIS = 75_000L
     const val RESET_REFRESH_QOS = 1
     const val NORMAL_REFRESH_QOS = 5
 
     fun timeoutMillisFor(providerId: ProviderId): Long {
         return when (providerId) {
-            ProviderId.GEMINI,
+            ProviderId.CODEX -> CODEX_REFRESH_TIMEOUT_MILLIS
+            ProviderId.OPENCODE -> OPENCODE_REFRESH_TIMEOUT_MILLIS
+            ProviderId.GLM -> GLM_WEB_REFRESH_TIMEOUT_MILLIS
+            ProviderId.GEMINI -> GEMINI_WEB_REFRESH_TIMEOUT_MILLIS
             ProviderId.ANTIGRAVITY -> GOOGLE_REFRESH_TIMEOUT_MILLIS
             else -> PROVIDER_REFRESH_TIMEOUT_MILLIS
         }
@@ -62,7 +69,7 @@ object ProviderRefreshPlan {
             .filterNot { it in refreshingProviders }
             .filterNot { it in resetProviders }
             .filter { providerId -> snapshotsByProvider[providerId]?.connectionState != ProviderConnectionState.COLLECTING }
-            .filter { providerId -> snapshotsByProvider[providerId]?.isAutomaticRefreshEligible() != false }
+            .filter { providerId -> snapshotsByProvider[providerId]?.isAutomaticRefreshEligible(now) != false }
             .map(::manualJobFor)
         return resetJobs + normalJobs
     }
@@ -92,6 +99,8 @@ object ProviderRefreshPlan {
         return when (providerId) {
             ProviderId.CLAUDE -> "https://claude.ai/"
             ProviderId.CODEX -> "https://chatgpt.com/"
+            ProviderId.GLM -> GlmProviderUrls.WEB_OAUTH_URL
+            ProviderId.OPENCODE -> "https://opencode.ai/auth"
             ProviderId.COPILOT -> "https://github.com/settings/copilot/features"
             ProviderId.ANTIGRAVITY -> "https://antigravity.google/"
             ProviderId.CURSOR -> "https://cursor.com/dashboard"
@@ -116,11 +125,17 @@ object ProviderRefreshPlan {
         )
     }
 
-    private fun ProviderUsageSnapshot.isAutomaticRefreshEligible(): Boolean {
+    private fun ProviderUsageSnapshot.isAutomaticRefreshEligible(now: Instant): Boolean {
+        if (providerId == ProviderId.GLM && GlmNoSubscriptionPolicy.isNoSubscriptionSnapshot(this)) return false
+        if (providerId == ProviderId.GEMINI) {
+            GoogleUsagePendingRetryPolicy.retryDelayMillis(this, now)?.let { retryDelayMillis ->
+                return retryDelayMillis <= 0L
+            }
+        }
         if (providerId != ProviderId.GEMINI && providerId != ProviderId.ANTIGRAVITY) return true
         if (connectionState != ProviderConnectionState.STALE) return true
         if (lines.isNotEmpty()) return true
-        return GoogleUsagePendingRetryPolicy.retryDelayMillis(this) != null
+        return GoogleUsagePendingRetryPolicy.retryDelayMillis(this, now) == 0L
     }
 
 }

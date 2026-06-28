@@ -64,6 +64,52 @@ class BugReportEmailComposerTest {
     }
 
     @Test
+    fun bugReportDiagnosticsRedactTokenCookieAuthorizationBearerOauthCodeAndEmail() {
+        val email = BugReportEmailComposer.compose(
+            request = BugReportRequest(
+                category = BugReportCategory.LOGIN,
+                providerId = ProviderId.COPILOT,
+                description = "Login callback exposed sensitive diagnostics.",
+                includeDiagnostics = true
+            ),
+            diagnostics = BugReportDiagnostics(
+                appVersionName = "1.0.0",
+                versionCode = 15,
+                buildType = "release",
+                androidRelease = "15",
+                sdkInt = 35,
+                manufacturer = "Google",
+                model = "Pixel 6a",
+                localeTag = "ko-KR",
+                liveMonitoringEnabled = false,
+                canPostNotifications = true,
+                notificationEnabled = false,
+                liveRefreshState = "STOPPED",
+                snapshots = listOf(
+                    ProviderUsageSnapshot(
+                        providerId = ProviderId.COPILOT,
+                        connectionState = ProviderConnectionState.ERROR,
+                        refreshState = ProviderRefreshState.IDLE,
+                        planLabel = "Pro",
+                        account = "private-user@example.com",
+                        message = "authorization: Bearer ghp_secret access_token=abc refresh_token=def id_token=ghi code=oauth-secret cookie sid=123",
+                        lines = emptyList()
+                    )
+                )
+            )
+        )
+
+        assertTrue(email.body.contains("Copilot: ERROR / IDLE / plan=Pro / lines=0"))
+        assertFalse(email.body.contains("private-user@example.com"))
+        assertFalse(email.body.contains("ghp_secret"))
+        assertFalse(email.body.contains("abc"))
+        assertFalse(email.body.contains("def"))
+        assertFalse(email.body.contains("ghi"))
+        assertFalse(email.body.contains("oauth-secret"))
+        assertFalse(email.body.contains("sid=123"))
+    }
+
+    @Test
     fun bugReportEmailCanOmitDiagnostics() {
         val email = BugReportEmailComposer.compose(
             request = BugReportRequest(

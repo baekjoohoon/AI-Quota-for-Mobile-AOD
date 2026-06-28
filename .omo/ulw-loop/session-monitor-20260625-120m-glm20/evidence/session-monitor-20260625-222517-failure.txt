@@ -1,0 +1,9 @@
+﻿reason=apk_reinstall_failed: APK not found: app/build/outputs/apk/debug/app-debug.apk
+elapsedMinutes=90
+failureAt=2026-06-25T23:55:24.4866202+09:00
+summaryPath=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260625-120m-glm20\evidence\session-monitor-20260625-222517.jsonl
+logPath=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260625-120m-glm20\evidence\session-monitor-20260625-222517.log
+logcatPath=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260625-120m-glm20\evidence\session-monitor-20260625-222517-logcat.txt
+
+rows:
+

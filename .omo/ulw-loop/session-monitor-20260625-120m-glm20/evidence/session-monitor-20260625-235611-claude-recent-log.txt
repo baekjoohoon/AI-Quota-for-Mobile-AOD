@@ -1,0 +1,2 @@
+﻿06-25 15:56:18.049 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_claude.xml'
+06-25 16:06:29.075 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_claude.xml'

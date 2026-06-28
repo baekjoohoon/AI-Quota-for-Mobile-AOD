@@ -83,7 +83,7 @@ class AntigravityOAuthRepositoryTest {
         )
 
         assertNotNull(snapshot)
-        assertEquals("Google AI Pro", snapshot!!.plan)
+        assertEquals("AI Pro", snapshot!!.plan)
         assertEquals(listOf("Gemini 3 Pro", "Claude Opus 4.5"), snapshot.lines.map { it.label })
         assertEquals(0.83f, snapshot.lines[0].remainingPercent ?: 0f, 0.001f)
         assertEquals("2026-06-01T00:00:00Z", snapshot.lines[0].resetsAt)

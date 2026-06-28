@@ -1,7 +1,6 @@
 ﻿package com.aiquota.mobile.sync
 
 import android.content.Context
-import android.content.Intent
 import androidx.core.content.ContextCompat
 import com.aiquota.mobile.providers.ProviderBackgroundRefreshService
 
@@ -57,9 +56,9 @@ class ForegroundRefreshController {
     }
 
     fun startPreciseRefresh() {
-        healthScheduler.schedule()
         if (preciseRefreshRequested) return
         preciseRefreshRequested = true
+        healthScheduler.schedule()
         serviceStarter.start(ProviderBackgroundRefreshService.ACTION_START)
     }
 
@@ -88,12 +87,12 @@ class ForegroundRefreshController {
         private val context: Context
     ) : ServiceStarter {
         override fun start(action: String) {
-            val intent = Intent(context, ProviderBackgroundRefreshService::class.java)
-                .setAction(action)
-            if (action == ProviderBackgroundRefreshService.ACTION_START) {
-                ContextCompat.startForegroundService(context, intent)
-            } else {
-                context.startService(intent)
+            ProviderBackgroundRefreshService.createControlIntents(context, action).forEach { intent ->
+                if (action == ProviderBackgroundRefreshService.ACTION_START) {
+                    ContextCompat.startForegroundService(context, intent)
+                } else {
+                    context.startService(intent)
+                }
             }
         }
     }

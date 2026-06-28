@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import com.aiquota.mobile.MainActivity
 import com.aiquota.mobile.R
 import com.aiquota.mobile.local.AppTheme
+import com.aiquota.mobile.local.ProviderGaugeColor
 import com.aiquota.mobile.local.ProviderPreferencesRepository
 import com.aiquota.mobile.local.ThemePreferencesRepository
 import com.aiquota.mobile.ui.provider.providerIconRes as sharedProviderIconRes
@@ -277,7 +278,8 @@ class AIQuotaCircularWidgetProvider : AppWidgetProvider() {
                 strokeWidth = CIRCULAR_RING_STROKE_WIDTH_PX
             }
             val activePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = themeColors.gaugeColor(ratio).toArgb()
+                color = ProviderGaugeColor.toArgbOrNull(gauge.gaugeColorHex)
+                    ?: themeColors.gaugeColor(ratio).toArgb()
                 style = Paint.Style.STROKE
                 strokeCap = Paint.Cap.ROUND
                 strokeWidth = CIRCULAR_RING_STROKE_WIDTH_PX

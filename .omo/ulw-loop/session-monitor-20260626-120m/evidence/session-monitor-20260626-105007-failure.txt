@@ -1,0 +1,18 @@
+﻿reason=apk_reinstall_failed: APK reinstall failed: adb.exe : android/app/build/outputs/apk/debug/app-debug.apk: 1 file pushed, 0 skipped. 51.0 MB/s (21346094 bytes in 0.4
+00s)
+At D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260626-120m\evidence\run-session-monitor.ps1:28 
+char:17
++         return (& adb @AdbArgs 2>&1 | Out-String)
++                 ~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (android/app/bui...ytes in 0.400s):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+elapsedMinutes=90
+failureAt=2026-06-26T12:27:42.2564914+09:00
+summaryPath=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260626-120m\evidence\session-monitor-20260626-105007.jsonl
+logPath=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260626-120m\evidence\session-monitor-20260626-105007.log
+logcatPath=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260626-120m\evidence\session-monitor-20260626-105007-logcat.txt
+
+rows:
+

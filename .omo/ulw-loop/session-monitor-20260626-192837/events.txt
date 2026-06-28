@@ -1,0 +1,1 @@
+﻿2026-06-26T19:28:37.1627084+09:00 monitor_start session=session-monitor-20260626-192837 apk=D:\Vibe Project\AI Usage for Mobile\android\app\build\outputs\apk\debug\app-debug.apk

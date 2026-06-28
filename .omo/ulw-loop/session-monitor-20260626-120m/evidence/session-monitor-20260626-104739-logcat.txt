@@ -1,0 +1,416 @@
+﻿--------- beginning of main
+06-26 01:47:38.669 I/chromium( 7242): [INFO:CONSOLE:366] "AIQuotaCopilot features_dom seen=true complete=false completion=true chat=false plan=true reset=false", source:  (366)
+06-26 01:47:38.789 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_claude.xml'
+06-26 01:47:38.947 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_codex.xml'
+06-26 01:47:39.011 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_glm.xml'
+06-26 01:47:39.071 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_opencode.xml'
+06-26 01:47:39.128 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_gemini.xml'
+06-26 01:47:39.180 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_copilot.xml'
+06-26 01:47:39.237 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_cursor.xml'
+06-26 01:47:39.297 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_antigravity.xml'
+06-26 01:47:39.407 I/chromium( 7242): [INFO:CONSOLE:366] "AIQuotaCopilot features_dom seen=true complete=true completion=true chat=true plan=true reset=false", source:  (366)
+06-26 01:47:39.446 D/AIQuotaBgRefreshService( 7242): reinject provider=copilot url=github.com/settings/copilot/features
+06-26 01:47:39.464 D/AIQuotaBgRefreshService( 7242): reinject provider=copilot url=github.com/settings/copilot/features
+06-26 01:47:39.556 I/chromium( 7242): [INFO:CONSOLE:0] "The resource https://gemini.gstatic.com/_/mss/boq-bard-web/_/js/k=boq-bard-web.BardChatUi.ko.UnXKLzzQnqw.2018.O/ck=boq-bard-web.BardChatUi.hwEk6EKTeTg.L.B1.O/am=AQBIPADz2xRbeGCAAiy8BNAAAACAEA/d=1/exm=_b/excm=_b/ed=1/br=1/wt=2/ujg=1/rs=AL3bBk1Ez9WnY_itCsEMEsvnP34X8HkLlA/ee=DGWCxb:CgYiQ;EmZ2Bf:zr1jrb;NJ1rfe:yGfSdd;Pjplud:PoEs9b;QGR0gd:Mlhmy;ScI3Yc:e7Hzgb;UYRIEb:HzTAQc;YIZmRd:A1yn5d;cEt90b:ws9Tlc;dIoSBb:SpsfSb;dowIGb:ebZ3mb;eBAeSb:zbML3c;iFQyKf:vfuNJf;oGtAuc:sOXFj;qQEoOc:KUM7Z;qddgKe:xQtZb;wNp4Gc:k56rsf;wR5FRb:siKnQd;yxTchf:KUM7Z/dti=1/m=LQaXg,ziINQc?wli=BardChatUi.e1l0rjMvEww.libheifWasm.O%3A%3BBardChatUi.hUmHsSz-fFM.loadWasmSipCoca.O%3A%3B was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.", source: https://gemini.google.com/usage (0)
+--------- beginning of system
+06-26 01:47:39.916 I/AdbWifiNetworkMonitor(  677): Wi-Fi network available
+06-26 01:47:39.916 I/AdbWifiNetworkMonitor(  677): Received the same Wi-Fi SSID. Ignoring.
+06-26 01:47:39.920 I/HalDevMgr(  677): bestIfaceCreationProposal is null, requestIface=STA, existingIface=[name=wlan0 type=STA]
+06-26 01:47:39.924 D/WM-WorkConstraintsTrack( 4608): NetworkRequestConstraintController onCapabilitiesChanged callback
+06-26 01:47:39.925 I/NullBinder( 4609): NullBinder for android.net.action.RECOMMEND_NETWORKS triggering remote TransactionTooLargeException due to Service without Chimera impl, calling uid: 1000, calling pid: 0
+06-26 01:47:39.925 W/libbinder.Binder( 4609): Large reply transaction of 1056768 bytes, interface descriptor , function: UNKNOWN_FUNCTION_NAME, code: 1, flags: 17
+06-26 01:47:39.927 I/BugleRcsEngine( 5144): handleMessage processing message:[NOTIFY_UPTIME_IGNORE_STATE_CHANGED] with [non-null]:RcsEngineImpl reference [CONTEXT log_prefix="RcsEngineImpl[DUAL_REG]:[f7fe7842-03fc]>Handler" thread_id=61 ]
+06-26 01:47:39.928 W/libbinder.IPCThreadState(  677): Sending oneway calls to frozen process.
+06-26 01:47:39.928 W/libbinder.IPCThreadState(  677): Sending oneway calls to frozen process.
+06-26 01:47:39.928 W/libbinder.IPCThreadState(  677): Sending oneway calls to frozen process.
+06-26 01:47:39.929 I/BugleRcsEngine( 5144): Connected state: [1], networkType: [WIFI] [CONTEXT thread_id=60 ]
+06-26 01:47:39.930 I/BugleRcsEngine( 5144): No RCS Configuration was found in Bugle for simID: redacted-pii:sim_id[chars:20,last3:897] [CONTEXT log_prefix="ProvisioningEngineDataRetriever" thread_id=61 ]
+06-26 01:47:39.931 D/ConnectivityService(  677): NetReassign [no changes] [c 0] [a 1] [i 0]
+06-26 01:47:39.931 I/NearbyMediums( 4609): Wifi changed new SSID: "AndroidWifi"
+06-26 01:47:39.931 I/NearbyMediums( 4609): WifiLanConnectivityInfo is not changed, skip notify.
+06-26 01:47:40.428 I/NearbySharing( 4609): Network state changed: NetworkState(isRestricted=false, isOnline=true, isCongested=false, isMetered=false, isWifiConnected=true)
+06-26 01:47:41.628 D/AIQuotaBgRefreshService( 7242): payload provider=copilot url=github.com/settings/copilot/features summary=root=provider|collectorMode|plan|quotas|account,provider=copilot,collectorMode=webview-features-page,lineCount=0,hasUsage=false,hasData=false,hasError=false
+06-26 01:47:41.636 D/AIQuotaBgRefreshService( 7242): outcome provider=copilot type=Payload
+06-26 01:47:41.639 D/AIQuotaBgRefreshService( 7242): saveSnapshot provider=copilot source=webview lineCount=2 planPresent=true accountPresent=false
+06-26 01:47:41.716 I/.aiquota.mobile( 7242): Background young concurrent mark compact GC freed 8704KB AllocSpace bytes, 93(4272KB) LOS objects, 43% free, 15MB/27MB, paused 1.256ms,9.835ms total 28.800ms
+06-26 01:47:41.774 W/skia    (  522): AGTM parsing failed flags.readFromStream(s) at 159
+06-26 01:47:41.875 W/skia    (  522): AGTM parsing failed flags.readFromStream(s) at 159
+06-26 01:47:42.926 I/AdbWifiNetworkMonitor(  677): Wi-Fi network available
+06-26 01:47:42.926 I/AdbWifiNetworkMonitor(  677): Received the same Wi-Fi SSID. Ignoring.
+06-26 01:47:42.928 D/WM-WorkConstraintsTrack( 4608): NetworkRequestConstraintController onCapabilitiesChanged callback
+06-26 01:47:42.929 I/HalDevMgr(  677): bestIfaceCreationProposal is null, requestIface=STA, existingIface=[name=wlan0 type=STA]
+06-26 01:47:42.930 I/BugleRcsEngine( 5144): Connected state: [1], networkType: [WIFI] [CONTEXT thread_id=60 ]
+06-26 01:47:42.931 I/BugleRcsEngine( 5144): handleMessage processing message:[NOTIFY_UPTIME_IGNORE_STATE_CHANGED] with [non-null]:RcsEngineImpl reference [CONTEXT log_prefix="RcsEngineImpl[DUAL_REG]:[f7fe7842-03fc]>Handler" thread_id=61 ]
+06-26 01:47:42.931 W/libbinder.IPCThreadState(  677): Sending oneway calls to frozen process.
+06-26 01:47:42.932 W/libbinder.IPCThreadState(  677): Sending oneway calls to frozen process.
+06-26 01:47:42.932 W/libbinder.IPCThreadState(  677): Sending oneway calls to frozen process.
+06-26 01:47:42.932 I/NullBinder( 4609): NullBinder for android.net.action.RECOMMEND_NETWORKS triggering remote TransactionTooLargeException due to Service without Chimera impl, calling uid: 1000, calling pid: 0
+06-26 01:47:42.933 D/ConnectivityService(  677): NetReassign [no changes] [c 0] [a 1] [i 1]
+06-26 01:47:42.933 W/libbinder.Binder( 4609): Large reply transaction of 1056768 bytes, interface descriptor , function: UNKNOWN_FUNCTION_NAME, code: 1, flags: 17
+06-26 01:47:42.934 I/NearbyMediums( 4609): Wifi changed new SSID: "AndroidWifi"
+06-26 01:47:42.934 I/NearbyMediums( 4609): WifiLanConnectivityInfo is not changed, skip notify.
+06-26 01:47:42.935 I/BugleRcsEngine( 5144): No RCS Configuration was found in Bugle for simID: redacted-pii:sim_id[chars:20,last3:897] [CONTEXT log_prefix="ProvisioningEngineDataRetriever" thread_id=61 ]
+06-26 01:47:43.136 I/AIQuotaAntigravity( 7242): collection antigravityOAuthUsage loadCodeAssist status=200
+06-26 01:47:43.432 I/NearbySharing( 4609): Network state changed: NetworkState(isRestricted=false, isOnline=true, isCongested=false, isMetered=false, isWifiConnected=true)
+06-26 01:47:43.533 I/AIQuotaAntigravity( 7242): collection antigravityIdentityUsage fetchAvailableModels status=200 projectPresent=true modelQuotaCount=18
+06-26 01:47:43.545 D/AIQuotaBgRefreshService( 7242): outcome provider=antigravity type=Snapshot
+06-26 01:47:43.548 D/AIQuotaBgRefreshService( 7242): saveSnapshot provider=antigravity source=native lineCount=14 planPresent=true accountPresent=false
+06-26 01:47:43.623 I/.aiquota.mobile( 7242): Background young concurrent mark compact GC freed 8688KB AllocSpace bytes, 84(3904KB) LOS objects, 43% free, 15MB/27MB, paused 1.315ms,11.565ms total 32.537ms
+06-26 01:47:43.688 D/AIQuotaBgRefreshService( 7242): load provider=cursor start=cursor.com/ warmUp=true request=41
+06-26 01:47:43.694 W/ProcessStats(  677): Tracking association SourceState{3ea0080 com.aiquota.mobile/10233 BTop #5740} whose proc state 2 is better than process ProcessState{da3737b com.google.android.gms/10203 pkg=com.google.android.gms} proc state 14 (18 skipped)
+06-26 01:47:43.704 D/AppWidgetServiceImpl(  677): Trying to notify widget update for package com.aiquota.mobile with widget id: 22
+06-26 01:47:43.709 W/skia    (  522): AGTM parsing failed flags.readFromStream(s) at 159
+06-26 01:47:43.710 D/AppWidgetServiceImpl(  677): Trying to notify widget update for package com.aiquota.mobile with widget id: 24
+06-26 01:47:43.713 D/AppWidgetServiceImpl(  677): Trying to notify widget update for package com.aiquota.mobile with widget id: 20
+06-26 01:47:43.714 D/AppWidgetServiceImpl(  677): Trying to notify widget update for package com.aiquota.mobile with widget id: 21
+06-26 01:47:43.750 D/AppWidgetServiceImpl(  677): Trying to notify widget update for package com.aiquota.mobile with widget id: 17
+06-26 01:47:43.810 W/skia    (  522): AGTM parsing failed flags.readFromStream(s) at 159
+06-26 01:47:43.889 W/AiAiEcho( 5173): LyftNotificationParser Ridesharing ETA not enabled
+06-26 01:47:43.889 I/AiAiEcho( 5173): SmartspaceNotificationPredictor no parser can handle this notification or notification is invalid
+06-26 01:47:45.396 E/ashmem  ( 8315): readlink(/proc/self/fd/165) failed: Operation not permitted
+06-26 01:47:45.464 I/wpa_supplicant(  922): wlan0: CTRL-EVENT-BEACON-LOSS 
+06-26 01:47:45.596 D/AIQuotaBgRefreshService( 7242): pageFinished provider=cursor url=cursor.com/agents
+06-26 01:47:45.596 D/AIQuotaBgRefreshService( 7242): warmUpComplete provider=cursor from=cursor.com/agents to=cursor.com/dashboard
+06-26 01:47:45.621 D/AIQuotaBgRefreshService( 7242): pageFinished provider=cursor url=cursor.com/agents
+06-26 01:47:45.633 D/AIQuotaBgRefreshService( 7242): skipInject provider=cursor url=cursor.com/agents reason=host=cursor.com path=/agents page=len=165,signIn=false,usage=true,limit=true,quota=false,error=false
+06-26 01:47:45.740 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:dumpsys package com.google.android.gms'
+06-26 01:47:45.837 D/AppWidgetServiceImpl(  677): Trying to notify widget update for package com.aiquota.mobile with widget id: 22
+06-26 01:47:45.852 D/AppWidgetServiceImpl(  677): Trying to notify widget update for package com.aiquota.mobile with widget id: 24
+06-26 01:47:45.854 D/AppWidgetServiceImpl(  677): Trying to notify widget update for package com.aiquota.mobile with widget id: 20
+06-26 01:47:45.858 D/AppWidgetServiceImpl(  677): Trying to notify widget update for package com.aiquota.mobile with widget id: 21
+06-26 01:47:45.859 I/artd    ( 2861): GetBestInfo: odex next to the dex file (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/oat/x86_64/base.odex) is kOatUpToDate with filter 'speed-profile' executable 'false'
+06-26 01:47:45.860 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_AdsDynamite_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:45.861 I/artd    ( 2861): GetBestInfo: odex next to the dex file (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/oat/x86_64/split_CronetDynamite_installtime.odex) is kOatUpToDate with filter 'speed-profile' executable 'false'
+06-26 01:47:45.862 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_DynamiteLoader_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:45.863 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_DynamiteModulesA_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:45.864 D/AppWidgetServiceImpl(  677): Trying to notify widget update for package com.aiquota.mobile with widget id: 17
+06-26 01:47:45.864 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_DynamiteModulesC_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:45.865 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_GoogleCertificates_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:45.866 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_MapsDynamite_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:45.867 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_MeasurementDynamite_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:45.868 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000e/dl-IdentityCredentialsPlatform.optional_262031100800.apk has no usable artifacts
+06-26 01:47:45.869 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000001/CronetDynamite.apk has no usable artifacts
+06-26 01:47:45.870 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000013/dl-TfliteDynamiteDynamite.integ_252130102100800.apk has no usable artifacts
+06-26 01:47:45.870 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000002/DynamiteLoader.apk has no usable artifacts
+06-26 01:47:45.872 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000c/dl-IdentityCredentialsPlatform.optional_261136100800.apk has no usable artifacts
+06-26 01:47:45.872 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000005/GoogleCertificates.apk has no usable artifacts
+06-26 01:47:45.873 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000a/dl-TfliteDynamiteDynamite.integ_260580502100800.apk has no usable artifacts
+06-26 01:47:45.874 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000016/dl-PlayCloudSearch.optional_262031100000.apk has no usable artifacts
+06-26 01:47:45.875 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000014/dl-MlkitOcrCommon.optional_262031100800.apk has no usable artifacts
+06-26 01:47:45.876 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000008/dl-VisionOcr.optional_261136100000.apk has no usable artifacts
+06-26 01:47:45.877 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000010/dl-Appsearch.optional_262031100800.apk has no usable artifacts
+06-26 01:47:45.878 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000b/dl-Appsearch.optional_261136100800.apk has no usable artifacts
+06-26 01:47:45.879 I/artd    ( 2861): GetBestInfo: vdex next to the dex file (/data/user/0/com.google.android.gms/app_dg_cache/9BCBC14EE674B00B958D4B0C5B4BD883630AA39E/oat/x86_64/the.vdex) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:45.880 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000009/dl-MlkitOcrCommon.optional_261136100800.apk has no usable artifacts
+06-26 01:47:45.881 I/artd    ( 2861): GetBestInfo: /data/user/0/com.google.android.gms/app_dg_cache/22DA9D7AD8ED7504E0CAC64C41ECDBD7068924E0/the.apk has no usable artifacts
+06-26 01:47:45.882 I/artd    ( 2861): GetBestInfo: vdex next to the dex file (/data/user/0/com.google.android.gms/app_dg_cache/FEE57AEA14526BE59FD8AB1365237E7B7A5CE7CB/oat/x86_64/the.vdex) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:45.883 I/artd    ( 2861): GetBestInfo: vdex next to the dex file (/data/user/0/com.google.android.gms/app_dg_cache/1C62BDE86218FBAA50DF06C4A79F5C3FE74B69EC/oat/x86_64/the.vdex) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:45.884 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000f/dl-VisionOcr.optional_262031100000.apk has no usable artifacts
+06-26 01:47:45.885 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000015/dl-MlkitBarcodeUi.optional_262031100800.apk has no usable artifacts
+06-26 01:47:45.887 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000007/MeasurementDynamite.apk has no usable artifacts
+06-26 01:47:45.936 I/HalDevMgr(  677): bestIfaceCreationProposal is null, requestIface=STA, existingIface=[name=wlan0 type=STA]
+06-26 01:47:45.976 W/AiAiEcho( 5173): LyftNotificationParser Ridesharing ETA not enabled
+06-26 01:47:45.976 I/AiAiEcho( 5173): SmartspaceNotificationPredictor no parser can handle this notification or notification is invalid
+06-26 01:47:46.115 D/AIQuotaBgRefreshService( 7242): inject provider=cursor url=cursor.com/dashboard
+06-26 01:47:46.433 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.444 E/ashmem  ( 8315): readlink(/proc/self/fd/239) failed: Operation not permitted
+06-26 01:47:46.576 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.585 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.587 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.589 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.596 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.611 E/ashmem  ( 8315): readlink(/proc/self/fd/155) failed: Operation not permitted
+06-26 01:47:46.707 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.710 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.711 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.712 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.712 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.713 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.727 E/ashmem  ( 8315): readlink(/proc/self/fd/155) failed: Operation not permitted
+06-26 01:47:46.728 E/ashmem  ( 8315): readlink(/proc/self/fd/155) failed: Operation not permitted
+06-26 01:47:46.732 E/ashmem  ( 8315): readlink(/proc/self/fd/155) failed: Operation not permitted
+06-26 01:47:46.735 E/ashmem  ( 8315): readlink(/proc/self/fd/162) failed: Operation not permitted
+06-26 01:47:46.741 E/ashmem  ( 8315): readlink(/proc/self/fd/166) failed: Operation not permitted
+06-26 01:47:46.744 E/ashmem  ( 8315): readlink(/proc/self/fd/165) failed: Operation not permitted
+06-26 01:47:46.753 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.755 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.755 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.757 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.766 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.767 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.800 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.805 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.811 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.814 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.824 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.827 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.841 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.846 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.890 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.909 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:46.947 D/AIQuotaBgRefreshService( 7242): pageFinished provider=cursor url=cursor.com/dashboard
+06-26 01:47:46.968 D/AIQuotaBgRefreshService( 7242): reinject provider=cursor url=cursor.com/dashboard
+06-26 01:47:46.971 D/AIQuotaBgRefreshService( 7242): pageFinished provider=cursor url=cursor.com/dashboard
+06-26 01:47:46.982 D/AIQuotaBgRefreshService( 7242): reinject provider=cursor url=cursor.com/dashboard
+06-26 01:47:47.057 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:47.061 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:47.063 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:47.067 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:47.071 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:47.073 E/ashmem  ( 8315): readlink(/proc/self/fd/151) failed: Operation not permitted
+06-26 01:47:47.377 D/AIQuotaBgRefreshService( 7242): reinject provider=cursor url=cursor.com/dashboard
+06-26 01:47:47.382 D/AIQuotaBgRefreshService( 7242): reinject provider=cursor url=cursor.com/dashboard
+06-26 01:47:47.510 I/chromium( 7242): [INFO:CONSOLE:0] "The resource https://gemini.gstatic.com/_/mss/boq-bard-web/_/js/k=boq-bard-web.BardChatUi.ko.UnXKLzzQnqw.2018.O/ck=boq-bard-web.BardChatUi.hwEk6EKTeTg.L.B1.O/am=AQBIPADz2xRbeGCAAiy8BNAAAACAEA/d=1/exm=_b/excm=_b/ed=1/br=1/wt=2/ujg=1/rs=AL3bBk1Ez9WnY_itCsEMEsvnP34X8HkLlA/ee=DGWCxb:CgYiQ;EmZ2Bf:zr1jrb;NJ1rfe:yGfSdd;Pjplud:PoEs9b;QGR0gd:Mlhmy;ScI3Yc:e7Hzgb;UYRIEb:HzTAQc;YIZmRd:A1yn5d;cEt90b:ws9Tlc;dIoSBb:SpsfSb;dowIGb:ebZ3mb;eBAeSb:zbML3c;iFQyKf:vfuNJf;oGtAuc:sOXFj;qQEoOc:KUM7Z;qddgKe:xQtZb;wNp4Gc:k56rsf;wR5FRb:siKnQd;yxTchf:KUM7Z/dti=1/m=LQaXg,ziINQc?wli=BardChatUi.e1l0rjMvEww.libheifWasm.O%3A%3BBardChatUi.hUmHsSz-fFM.loadWasmSipCoca.O%3A%3B was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.", source: https://gemini.google.com/usage (0)
+06-26 01:47:47.635 D/SatelliteController( 1075): isInCarrierRoamingNbIotNtn: satellite is disabled
+06-26 01:47:47.635 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: Checking connect type from PLMN config for subId: 1
+06-26 01:47:47.635 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:47:47.635 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:47:47.635 D/SatelliteController( 1075): isSatelliteAttachSupportedViaConfigupdater: return null (satelliteConfig is null)
+06-26 01:47:47.635 D/SatelliteController( 1075): getSatellitePerPlmnConfiguration: invalid subId or not supported via carrier.
+06-26 01:47:47.635 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: config: null
+06-26 01:47:47.635 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:47:47.635 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:47:47.635 D/SatelliteController( 1075): getCarrierRoamingNtnConnectTypeViaConfigUpdater: return null (satelliteConfig is null)
+06-26 01:47:47.635 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: Falling back to global carrier config connect type: 0
+06-26 01:47:47.635 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:47:47.635 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:47:47.635 D/SatelliteController( 1075): isSatelliteAttachSupportedViaConfigupdater: return null (satelliteConfig is null)
+06-26 01:47:47.636 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: Checking connect type from PLMN config for subId: 1
+06-26 01:47:47.636 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:47:47.636 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:47:47.636 D/SatelliteController( 1075): isSatelliteAttachSupportedViaConfigupdater: return null (satelliteConfig is null)
+06-26 01:47:47.636 D/SatelliteController( 1075): getSatellitePerPlmnConfiguration: invalid subId or not supported via carrier.
+06-26 01:47:47.636 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: config: null
+06-26 01:47:47.636 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:47:47.636 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:47:47.636 D/SatelliteController( 1075): getCarrierRoamingNtnConnectTypeViaConfigUpdater: return null (satelliteConfig is null)
+06-26 01:47:47.636 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: Falling back to global carrier config connect type: 0
+06-26 01:47:47.637 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:47:47.637 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:47:47.637 D/SatelliteController( 1075): isSatelliteAttachSupportedViaConfigupdater: return null (satelliteConfig is null)
+06-26 01:47:47.658 W/skia    (  522): AGTM parsing failed flags.readFromStream(s) at 159
+06-26 01:47:47.685 D/AIQuotaBgRefreshService( 7242): reinject provider=cursor url=cursor.com/dashboard
+06-26 01:47:47.864 D/AIQuotaBgRefreshService( 7242): reinject provider=cursor url=cursor.com/dashboard
+06-26 01:47:47.932 D/AIQuotaBgRefreshService( 7242): reinject provider=cursor url=cursor.com/dashboard
+06-26 01:47:48.749 I/.aiquota.mobile( 7242): Background young concurrent mark compact GC freed 8403KB AllocSpace bytes, 58(2480KB) LOS objects, 43% free, 15MB/27MB, paused 705us,10.009ms total 20.147ms
+06-26 01:47:48.940 I/HalDevMgr(  677): bestIfaceCreationProposal is null, requestIface=STA, existingIface=[name=wlan0 type=STA]
+06-26 01:47:50.805 D/AIQuotaBgRefreshService( 7242): reinject provider=cursor url=cursor.com/dashboard
+06-26 01:47:50.808 D/AIQuotaBgRefreshService( 7242): reinject provider=cursor url=cursor.com/dashboard
+06-26 01:47:50.810 D/AIQuotaBgRefreshService( 7242): reinject provider=cursor url=cursor.com/dashboard
+06-26 01:47:50.812 D/AIQuotaBgRefreshService( 7242): reinject provider=cursor url=cursor.com/dashboard
+06-26 01:47:50.816 D/AIQuotaBgRefreshService( 7242): reinject provider=cursor url=cursor.com/dashboard
+06-26 01:47:50.825 D/AIQuotaBgRefreshService( 7242): payload provider=cursor url=cursor.com/dashboard summary=root=provider|membershipType|email|billingCycleStart|billingCycleEnd|individualUsage|planUsage|requestUsage|collectorMode,provider=cursor,collectorMode=webview-js,lineCount=0,hasUsage=false,hasData=false,hasError=false
+06-26 01:47:50.825 D/AIQuotaBgRefreshService( 7242): outcome provider=cursor type=Payload
+06-26 01:47:50.829 D/AIQuotaBgRefreshService( 7242): saveSnapshot provider=cursor source=webview lineCount=3 planPresent=true accountPresent=true
+06-26 01:47:50.907 W/skia    (  522): AGTM parsing failed flags.readFromStream(s) at 159
+06-26 01:47:51.009 W/skia    (  522): AGTM parsing failed flags.readFromStream(s) at 159
+06-26 01:47:51.946 I/AdbWifiNetworkMonitor(  677): Wi-Fi network available
+06-26 01:47:51.946 I/AdbWifiNetworkMonitor(  677): Received the same Wi-Fi SSID. Ignoring.
+06-26 01:47:51.949 I/HalDevMgr(  677): bestIfaceCreationProposal is null, requestIface=STA, existingIface=[name=wlan0 type=STA]
+06-26 01:47:51.949 D/WM-WorkConstraintsTrack( 4608): NetworkRequestConstraintController onCapabilitiesChanged callback
+06-26 01:47:51.951 I/BugleRcsEngine( 5144): Connected state: [1], networkType: [WIFI] [CONTEXT thread_id=60 ]
+06-26 01:47:51.952 I/BugleRcsEngine( 5144): handleMessage processing message:[NOTIFY_UPTIME_IGNORE_STATE_CHANGED] with [non-null]:RcsEngineImpl reference [CONTEXT log_prefix="RcsEngineImpl[DUAL_REG]:[f7fe7842-03fc]>Handler" thread_id=61 ]
+06-26 01:47:51.952 W/libbinder.IPCThreadState(  677): Sending oneway calls to frozen process.
+06-26 01:47:51.952 W/libbinder.IPCThreadState(  677): Sending oneway calls to frozen process.
+06-26 01:47:51.953 W/libbinder.IPCThreadState(  677): Sending oneway calls to frozen process.
+06-26 01:47:51.953 I/NullBinder( 4609): NullBinder for android.net.action.RECOMMEND_NETWORKS triggering remote TransactionTooLargeException due to Service without Chimera impl, calling uid: 1000, calling pid: 0
+06-26 01:47:51.953 W/libbinder.Binder( 4609): Large reply transaction of 1056768 bytes, interface descriptor , function: UNKNOWN_FUNCTION_NAME, code: 1, flags: 17
+06-26 01:47:51.955 I/NearbyMediums( 4609): Wifi changed new SSID: "AndroidWifi"
+06-26 01:47:51.955 I/NearbyMediums( 4609): WifiLanConnectivityInfo is not changed, skip notify.
+06-26 01:47:51.955 D/ConnectivityService(  677): NetReassign [no changes] [c 0] [a 1] [i 1]
+06-26 01:47:51.957 I/BugleRcsEngine( 5144): No RCS Configuration was found in Bugle for simID: redacted-pii:sim_id[chars:20,last3:897] [CONTEXT log_prefix="ProvisioningEngineDataRetriever" thread_id=61 ]
+06-26 01:47:52.453 I/NearbySharing( 4609): Network state changed: NetworkState(isRestricted=false, isOnline=true, isCongested=false, isMetered=false, isWifiConnected=true)
+06-26 01:47:52.880 D/AppWidgetServiceImpl(  677): Trying to notify widget update for package com.aiquota.mobile with widget id: 22
+06-26 01:47:52.885 D/AppWidgetServiceImpl(  677): Trying to notify widget update for package com.aiquota.mobile with widget id: 24
+06-26 01:47:52.886 D/AppWidgetServiceImpl(  677): Trying to notify widget update for package com.aiquota.mobile with widget id: 20
+06-26 01:47:52.887 D/AppWidgetServiceImpl(  677): Trying to notify widget update for package com.aiquota.mobile with widget id: 21
+06-26 01:47:52.896 D/AppWidgetServiceImpl(  677): Trying to notify widget update for package com.aiquota.mobile with widget id: 17
+06-26 01:47:52.928 I/system_server(  677): Background young concurrent mark compact GC freed 18MB AllocSpace bytes, 7(224KB) LOS objects, 31% free, 42MB/62MB, paused 1.054ms,21.875ms total 33.723ms
+06-26 01:47:53.065 E/Nl80211Native(  677): getChannelsMhzForBand: Wiphy index not recorded for band 8
+06-26 01:47:53.065 E/Nl80211Native(  677): getChannelsMhzForBand: Wiphy index not recorded for band 16
+06-26 01:47:53.065 D/Nl80211Native(  677): Ignoring unsupported scan type 2
+06-26 01:47:53.065 I/Nl80211Proxy(  677): Sending Nl80211 message: GenericNetlinkMsg{ nlHeader{StructNlMsgHdr{ nlmsg_len{56}, nlmsg_type{30()}, nlmsg_flags{5(NLM_F_REQUEST|NLM_F_ACK)}, nlmsg_seq{72}, nlmsg_pid{0} }}, genNlHeader{StructGenNlMsgHdr{ command{33}, version{1}, reserved{0} }}, attributes{[StructNlAttr{ nla_len{8}, nla_type{-32723}, nla_value{04000000}, }, StructNlAttr{ nla_len{8}, nla_type{3}, nla_value{10000000}, }, StructNlAttr{ nla_len{12}, nla_type{-32724}, nla_value{080000008F090000}, }, StructNlAttr{ nla_len{8}, nla_type{158}, nla_value{00000000}, }]} }
+06-26 01:47:53.065 I/Nl80211Proxy(  677): Received NLMSG_ERROR with error 0 for message GenericNetlinkMsg{ nlHeader{StructNlMsgHdr{ nlmsg_len{56}, nlmsg_type{30()}, nlmsg_flags{5(NLM_F_REQUEST|NLM_F_ACK)}, nlmsg_seq{72}, nlmsg_pid{0} }}, genNlHeader{StructGenNlMsgHdr{ command{33}, version{1}, reserved{0} }}, attributes{[StructNlAttr{ nla_len{8}, nla_type{-32723}, nla_value{04000000}, }, StructNlAttr{ nla_len{8}, nla_type{3}, nla_value{10000000}, }, StructNlAttr{ nla_len{12}, nla_type{-32724}, nla_value{080000008F090000}, }, StructNlAttr{ nla_len{8}, nla_type{158}, nla_value{00000000}, }]} }
+06-26 01:47:53.075 W/AiAiEcho( 5173): LyftNotificationParser Ridesharing ETA not enabled
+06-26 01:47:53.075 I/AiAiEcho( 5173): SmartspaceNotificationPredictor no parser can handle this notification or notification is invalid
+06-26 01:47:53.116 D/WifiNative(  677): Scan result ready event
+06-26 01:47:53.117 I/Nl80211Proxy(  677): Sending Nl80211 message: GenericNetlinkMsg{ nlHeader{StructNlMsgHdr{ nlmsg_len{20}, nlmsg_type{30()}, nlmsg_flags{769(NLM_F_REQUEST|NLM_F_DUMP)}, nlmsg_seq{73}, nlmsg_pid{0} }}, genNlHeader{StructGenNlMsgHdr{ command{5}, version{1}, reserved{0} }}, attributes{[]} }
+06-26 01:47:53.117 I/Nl80211Proxy(  677): Received NLMSG_DONE for message GenericNetlinkMsg{ nlHeader{StructNlMsgHdr{ nlmsg_len{20}, nlmsg_type{30()}, nlmsg_flags{769(NLM_F_REQUEST|NLM_F_DUMP)}, nlmsg_seq{73}, nlmsg_pid{0} }}, genNlHeader{StructGenNlMsgHdr{ command{5}, version{1}, reserved{0} }}, attributes{[]} }
+06-26 01:47:53.117 W/Nl80211Utils(  677): Malformed NEW_INTERFACE response: missing attributes
+06-26 01:47:53.117 I/Nl80211Proxy(  677): Sending Nl80211 message: GenericNetlinkMsg{ nlHeader{StructNlMsgHdr{ nlmsg_len{28}, nlmsg_type{30()}, nlmsg_flags{769(NLM_F_REQUEST|NLM_F_DUMP)}, nlmsg_seq{74}, nlmsg_pid{0} }}, genNlHeader{StructGenNlMsgHdr{ command{32}, version{1}, reserved{0} }}, attributes{[StructNlAttr{ nla_len{8}, nla_type{3}, nla_value{10000000}, }]} }
+06-26 01:47:53.117 I/Nl80211Proxy(  677): Received NLMSG_DONE for message GenericNetlinkMsg{ nlHeader{StructNlMsgHdr{ nlmsg_len{28}, nlmsg_type{30()}, nlmsg_flags{769(NLM_F_REQUEST|NLM_F_DUMP)}, nlmsg_seq{74}, nlmsg_pid{0} }}, genNlHeader{StructGenNlMsgHdr{ command{32}, version{1}, reserved{0} }}, attributes{[StructNlAttr{ nla_len{8}, nla_type{3}, nla_value{10000000}, }]} }
+06-26 01:47:53.118 I/WifiScanner( 4609): onFullResults
+06-26 01:47:53.118 I/WifiScanner( 4609): onFullResults
+06-26 01:47:53.120 I/HalDevMgr(  677): bestIfaceCreationProposal is null, requestIface=STA, existingIface=[name=wlan0 type=STA]
+06-26 01:47:53.576 I/keystore2(  327): system/security/keystore2/watchdog/src/lib.rs:371 - Watchdog thread idle -> terminating. Have a great day.
+06-26 01:47:54.953 I/AdbWifiNetworkMonitor(  677): Wi-Fi network available
+06-26 01:47:54.953 I/AdbWifiNetworkMonitor(  677): Received the same Wi-Fi SSID. Ignoring.
+06-26 01:47:54.955 I/HalDevMgr(  677): bestIfaceCreationProposal is null, requestIface=STA, existingIface=[name=wlan0 type=STA]
+06-26 01:47:54.958 I/NullBinder( 4609): NullBinder for android.net.action.RECOMMEND_NETWORKS triggering remote TransactionTooLargeException due to Service without Chimera impl, calling uid: 1000, calling pid: 0
+06-26 01:47:54.958 W/libbinder.Binder( 4609): Large reply transaction of 1056768 bytes, interface descriptor , function: UNKNOWN_FUNCTION_NAME, code: 1, flags: 17
+06-26 01:47:54.958 D/WM-WorkConstraintsTrack( 4608): NetworkRequestConstraintController onCapabilitiesChanged callback
+06-26 01:47:54.958 W/libbinder.IPCThreadState(  677): Sending oneway calls to frozen process.
+06-26 01:47:54.960 W/libbinder.IPCThreadState(  677): Sending oneway calls to frozen process.
+06-26 01:47:54.960 W/libbinder.IPCThreadState(  677): Sending oneway calls to frozen process.
+06-26 01:47:54.960 I/BugleRcsEngine( 5144): handleMessage processing message:[NOTIFY_UPTIME_IGNORE_STATE_CHANGED] with [non-null]:RcsEngineImpl reference [CONTEXT log_prefix="RcsEngineImpl[DUAL_REG]:[f7fe7842-03fc]>Handler" thread_id=61 ]
+06-26 01:47:54.961 I/BugleRcsEngine( 5144): Connected state: [1], networkType: [WIFI] [CONTEXT thread_id=60 ]
+06-26 01:47:54.963 D/ConnectivityService(  677): NetReassign [no changes] [c 1] [a 1] [i 1]
+06-26 01:47:54.963 I/NearbyMediums( 4609): Wifi changed new SSID: "AndroidWifi"
+06-26 01:47:54.963 I/NearbyMediums( 4609): WifiLanConnectivityInfo is not changed, skip notify.
+06-26 01:47:54.963 D/IpClient/wlan0( 1037): interfaceLinkStateChanged: ifindex 16 up
+06-26 01:47:54.965 I/BugleRcsEngine( 5144): No RCS Configuration was found in Bugle for simID: redacted-pii:sim_id[chars:20,last3:897] [CONTEXT log_prefix="ProvisioningEngineDataRetriever" thread_id=61 ]
+06-26 01:47:54.970 D/IpClient/wlan0( 1037): interfaceLinkStateChanged: ifindex 16 up
+06-26 01:47:55.460 I/NearbySharing( 4609): Network state changed: NetworkState(isRestricted=false, isOnline=true, isCongested=false, isMetered=false, isWifiConnected=true)
+06-26 01:47:55.734 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:dumpsys package com.google.android.gms'
+06-26 01:47:55.819 I/artd    ( 2861): GetBestInfo: odex next to the dex file (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/oat/x86_64/base.odex) is kOatUpToDate with filter 'speed-profile' executable 'false'
+06-26 01:47:55.821 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_AdsDynamite_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:55.822 I/artd    ( 2861): GetBestInfo: odex next to the dex file (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/oat/x86_64/split_CronetDynamite_installtime.odex) is kOatUpToDate with filter 'speed-profile' executable 'false'
+06-26 01:47:55.823 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_DynamiteLoader_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:55.824 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_DynamiteModulesA_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:55.825 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_DynamiteModulesC_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:55.826 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_GoogleCertificates_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:55.827 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_MapsDynamite_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:55.828 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_MeasurementDynamite_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:55.829 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000e/dl-IdentityCredentialsPlatform.optional_262031100800.apk has no usable artifacts
+06-26 01:47:55.829 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000001/CronetDynamite.apk has no usable artifacts
+06-26 01:47:55.830 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000013/dl-TfliteDynamiteDynamite.integ_252130102100800.apk has no usable artifacts
+06-26 01:47:55.830 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000002/DynamiteLoader.apk has no usable artifacts
+06-26 01:47:55.832 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000c/dl-IdentityCredentialsPlatform.optional_261136100800.apk has no usable artifacts
+06-26 01:47:55.832 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000005/GoogleCertificates.apk has no usable artifacts
+06-26 01:47:55.833 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000a/dl-TfliteDynamiteDynamite.integ_260580502100800.apk has no usable artifacts
+06-26 01:47:55.834 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000016/dl-PlayCloudSearch.optional_262031100000.apk has no usable artifacts
+06-26 01:47:55.835 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000014/dl-MlkitOcrCommon.optional_262031100800.apk has no usable artifacts
+06-26 01:47:55.836 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000008/dl-VisionOcr.optional_261136100000.apk has no usable artifacts
+06-26 01:47:55.837 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000010/dl-Appsearch.optional_262031100800.apk has no usable artifacts
+06-26 01:47:55.838 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000b/dl-Appsearch.optional_261136100800.apk has no usable artifacts
+06-26 01:47:55.839 I/artd    ( 2861): GetBestInfo: vdex next to the dex file (/data/user/0/com.google.android.gms/app_dg_cache/9BCBC14EE674B00B958D4B0C5B4BD883630AA39E/oat/x86_64/the.vdex) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:55.840 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000009/dl-MlkitOcrCommon.optional_261136100800.apk has no usable artifacts
+06-26 01:47:55.841 I/artd    ( 2861): GetBestInfo: /data/user/0/com.google.android.gms/app_dg_cache/22DA9D7AD8ED7504E0CAC64C41ECDBD7068924E0/the.apk has no usable artifacts
+06-26 01:47:55.842 I/artd    ( 2861): GetBestInfo: vdex next to the dex file (/data/user/0/com.google.android.gms/app_dg_cache/FEE57AEA14526BE59FD8AB1365237E7B7A5CE7CB/oat/x86_64/the.vdex) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:55.843 I/artd    ( 2861): GetBestInfo: vdex next to the dex file (/data/user/0/com.google.android.gms/app_dg_cache/1C62BDE86218FBAA50DF06C4A79F5C3FE74B69EC/oat/x86_64/the.vdex) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:47:55.844 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000f/dl-VisionOcr.optional_262031100000.apk has no usable artifacts
+06-26 01:47:55.845 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000015/dl-MlkitBarcodeUi.optional_262031100800.apk has no usable artifacts
+06-26 01:47:55.846 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000007/MeasurementDynamite.apk has no usable artifacts
+06-26 01:47:57.635 D/SatelliteController( 1075): isInCarrierRoamingNbIotNtn: satellite is disabled
+06-26 01:47:57.635 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: Checking connect type from PLMN config for subId: 1
+06-26 01:47:57.635 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:47:57.635 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:47:57.635 D/SatelliteController( 1075): isSatelliteAttachSupportedViaConfigupdater: return null (satelliteConfig is null)
+06-26 01:47:57.636 D/SatelliteController( 1075): getSatellitePerPlmnConfiguration: invalid subId or not supported via carrier.
+06-26 01:47:57.636 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: config: null
+06-26 01:47:57.636 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:47:57.636 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:47:57.636 D/SatelliteController( 1075): getCarrierRoamingNtnConnectTypeViaConfigUpdater: return null (satelliteConfig is null)
+06-26 01:47:57.636 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: Falling back to global carrier config connect type: 0
+06-26 01:47:57.636 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:47:57.636 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:47:57.636 D/SatelliteController( 1075): isSatelliteAttachSupportedViaConfigupdater: return null (satelliteConfig is null)
+06-26 01:47:57.636 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: Checking connect type from PLMN config for subId: 1
+06-26 01:47:57.637 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:47:57.637 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:47:57.637 D/SatelliteController( 1075): isSatelliteAttachSupportedViaConfigupdater: return null (satelliteConfig is null)
+06-26 01:47:57.637 D/SatelliteController( 1075): getSatellitePerPlmnConfiguration: invalid subId or not supported via carrier.
+06-26 01:47:57.637 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: config: null
+06-26 01:47:57.637 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:47:57.637 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:47:57.637 D/SatelliteController( 1075): getCarrierRoamingNtnConnectTypeViaConfigUpdater: return null (satelliteConfig is null)
+06-26 01:47:57.638 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: Falling back to global carrier config connect type: 0
+06-26 01:47:57.638 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:47:57.638 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:47:57.638 D/SatelliteController( 1075): isSatelliteAttachSupportedViaConfigupdater: return null (satelliteConfig is null)
+06-26 01:47:57.962 I/HalDevMgr(  677): bestIfaceCreationProposal is null, requestIface=STA, existingIface=[name=wlan0 type=STA]
+06-26 01:48:00.059 W/skia    (  522): AGTM parsing failed flags.readFromStream(s) at 159
+06-26 01:48:00.622 D/BoundBrokerSvc( 4408): onUnbind: Intent { act=com.google.android.gms.safebrowsing.SafeBrowsingService.START dat=chimera-action:/... xflg=0x4 cmp=com.google.android.gms/.chimera.GmsBoundBrokerService }
+06-26 01:48:00.967 I/HalDevMgr(  677): bestIfaceCreationProposal is null, requestIface=STA, existingIface=[name=wlan0 type=STA]
+06-26 01:48:00.974 D/IpClient/wlan0( 1037): interfaceLinkStateChanged: ifindex 16 up
+06-26 01:48:00.982 D/IpClient/wlan0( 1037): interfaceLinkStateChanged: ifindex 16 up
+06-26 01:48:01.335 I/wpa_supplicant(  922): wlan0: CTRL-EVENT-BEACON-LOSS 
+06-26 01:48:01.688 I/WM-WorkerWrapper( 7242): Worker result SUCCESS for Work [ id=8e220648-56cd-4f50-88a9-f9893ed8c106, tags={ androidx.glance.session.SessionWorker } ]
+06-26 01:48:03.973 I/AdbWifiNetworkMonitor(  677): Wi-Fi network available
+06-26 01:48:03.973 I/AdbWifiNetworkMonitor(  677): Received the same Wi-Fi SSID. Ignoring.
+06-26 01:48:03.975 I/HalDevMgr(  677): bestIfaceCreationProposal is null, requestIface=STA, existingIface=[name=wlan0 type=STA]
+06-26 01:48:03.976 D/WM-WorkConstraintsTrack( 4608): NetworkRequestConstraintController onCapabilitiesChanged callback
+06-26 01:48:03.978 I/NullBinder( 4609): NullBinder for android.net.action.RECOMMEND_NETWORKS triggering remote TransactionTooLargeException due to Service without Chimera impl, calling uid: 1000, calling pid: 0
+06-26 01:48:03.978 W/libbinder.Binder( 4609): Large reply transaction of 1056768 bytes, interface descriptor , function: UNKNOWN_FUNCTION_NAME, code: 1, flags: 17
+06-26 01:48:03.978 W/libbinder.IPCThreadState(  677): Sending oneway calls to frozen process.
+06-26 01:48:03.979 W/libbinder.IPCThreadState(  677): Sending oneway calls to frozen process.
+06-26 01:48:03.979 W/libbinder.IPCThreadState(  677): Sending oneway calls to frozen process.
+06-26 01:48:03.979 I/BugleRcsEngine( 5144): handleMessage processing message:[NOTIFY_UPTIME_IGNORE_STATE_CHANGED] with [non-null]:RcsEngineImpl reference [CONTEXT log_prefix="RcsEngineImpl[DUAL_REG]:[f7fe7842-03fc]>Handler" thread_id=61 ]
+06-26 01:48:03.980 I/BugleRcsEngine( 5144): Connected state: [1], networkType: [WIFI] [CONTEXT thread_id=60 ]
+06-26 01:48:03.981 D/ConnectivityService(  677): NetReassign [no changes] [c 0] [a 1] [i 0]
+06-26 01:48:03.982 I/NearbyMediums( 4609): Wifi changed new SSID: "AndroidWifi"
+06-26 01:48:03.982 I/NearbyMediums( 4609): WifiLanConnectivityInfo is not changed, skip notify.
+06-26 01:48:03.982 I/BugleRcsEngine( 5144): No RCS Configuration was found in Bugle for simID: redacted-pii:sim_id[chars:20,last3:897] [CONTEXT log_prefix="ProvisioningEngineDataRetriever" thread_id=61 ]
+06-26 01:48:04.480 I/NearbySharing( 4609): Network state changed: NetworkState(isRestricted=false, isOnline=true, isCongested=false, isMetered=false, isWifiConnected=true)
+06-26 01:48:05.735 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:dumpsys package com.google.android.gms'
+06-26 01:48:05.827 I/artd    ( 2861): GetBestInfo: odex next to the dex file (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/oat/x86_64/base.odex) is kOatUpToDate with filter 'speed-profile' executable 'false'
+06-26 01:48:05.829 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_AdsDynamite_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:48:05.830 I/artd    ( 2861): GetBestInfo: odex next to the dex file (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/oat/x86_64/split_CronetDynamite_installtime.odex) is kOatUpToDate with filter 'speed-profile' executable 'false'
+06-26 01:48:05.831 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_DynamiteLoader_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:48:05.832 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_DynamiteModulesA_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:48:05.833 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_DynamiteModulesC_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:48:05.834 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_GoogleCertificates_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:48:05.836 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_MapsDynamite_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:48:05.837 I/artd    ( 2861): GetBestInfo: dm (/data/app/~~pUpe9D-hsv0lOCLmNQJGyA==/com.google.android.gms-a0e_AySruvvgbDhYG8Z6yQ==/split_MeasurementDynamite_installtime.dm) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:48:05.838 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000e/dl-IdentityCredentialsPlatform.optional_262031100800.apk has no usable artifacts
+06-26 01:48:05.839 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000001/CronetDynamite.apk has no usable artifacts
+06-26 01:48:05.840 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000013/dl-TfliteDynamiteDynamite.integ_252130102100800.apk has no usable artifacts
+06-26 01:48:05.840 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000002/DynamiteLoader.apk has no usable artifacts
+06-26 01:48:05.841 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000c/dl-IdentityCredentialsPlatform.optional_261136100800.apk has no usable artifacts
+06-26 01:48:05.842 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000005/GoogleCertificates.apk has no usable artifacts
+06-26 01:48:05.843 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000a/dl-TfliteDynamiteDynamite.integ_260580502100800.apk has no usable artifacts
+06-26 01:48:05.844 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000016/dl-PlayCloudSearch.optional_262031100000.apk has no usable artifacts
+06-26 01:48:05.845 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000014/dl-MlkitOcrCommon.optional_262031100800.apk has no usable artifacts
+06-26 01:48:05.847 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000008/dl-VisionOcr.optional_261136100000.apk has no usable artifacts
+06-26 01:48:05.848 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000010/dl-Appsearch.optional_262031100800.apk has no usable artifacts
+06-26 01:48:05.849 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000b/dl-Appsearch.optional_261136100800.apk has no usable artifacts
+06-26 01:48:05.851 I/artd    ( 2861): GetBestInfo: vdex next to the dex file (/data/user/0/com.google.android.gms/app_dg_cache/9BCBC14EE674B00B958D4B0C5B4BD883630AA39E/oat/x86_64/the.vdex) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:48:05.852 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000009/dl-MlkitOcrCommon.optional_261136100800.apk has no usable artifacts
+06-26 01:48:05.853 I/artd    ( 2861): GetBestInfo: /data/user/0/com.google.android.gms/app_dg_cache/22DA9D7AD8ED7504E0CAC64C41ECDBD7068924E0/the.apk has no usable artifacts
+06-26 01:48:05.854 I/artd    ( 2861): GetBestInfo: vdex next to the dex file (/data/user/0/com.google.android.gms/app_dg_cache/FEE57AEA14526BE59FD8AB1365237E7B7A5CE7CB/oat/x86_64/the.vdex) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:48:05.857 I/artd    ( 2861): GetBestInfo: vdex next to the dex file (/data/user/0/com.google.android.gms/app_dg_cache/1C62BDE86218FBAA50DF06C4A79F5C3FE74B69EC/oat/x86_64/the.vdex) is kOatUpToDate with filter 'verify' executable 'false'
+06-26 01:48:05.858 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000f/dl-VisionOcr.optional_262031100000.apk has no usable artifacts
+06-26 01:48:05.859 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000015/dl-MlkitBarcodeUi.optional_262031100800.apk has no usable artifacts
+06-26 01:48:05.860 I/artd    ( 2861): GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000007/MeasurementDynamite.apk has no usable artifacts
+06-26 01:48:06.982 I/HalDevMgr(  677): bestIfaceCreationProposal is null, requestIface=STA, existingIface=[name=wlan0 type=STA]
+06-26 01:48:07.635 D/SatelliteController( 1075): isInCarrierRoamingNbIotNtn: satellite is disabled
+06-26 01:48:07.635 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: Checking connect type from PLMN config for subId: 1
+06-26 01:48:07.635 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:48:07.635 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:48:07.635 D/SatelliteController( 1075): isSatelliteAttachSupportedViaConfigupdater: return null (satelliteConfig is null)
+06-26 01:48:07.635 D/SatelliteController( 1075): getSatellitePerPlmnConfiguration: invalid subId or not supported via carrier.
+06-26 01:48:07.635 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: config: null
+06-26 01:48:07.635 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:48:07.635 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:48:07.635 D/SatelliteController( 1075): getCarrierRoamingNtnConnectTypeViaConfigUpdater: return null (satelliteConfig is null)
+06-26 01:48:07.636 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: Falling back to global carrier config connect type: 0
+06-26 01:48:07.636 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:48:07.636 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:48:07.636 D/SatelliteController( 1075): isSatelliteAttachSupportedViaConfigupdater: return null (satelliteConfig is null)
+06-26 01:48:07.636 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: Checking connect type from PLMN config for subId: 1
+06-26 01:48:07.636 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:48:07.636 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:48:07.637 D/SatelliteController( 1075): isSatelliteAttachSupportedViaConfigupdater: return null (satelliteConfig is null)
+06-26 01:48:07.637 D/SatelliteController( 1075): getSatellitePerPlmnConfiguration: invalid subId or not supported via carrier.
+06-26 01:48:07.637 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: config: null
+06-26 01:48:07.637 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:48:07.637 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:48:07.637 D/SatelliteController( 1075): getCarrierRoamingNtnConnectTypeViaConfigUpdater: return null (satelliteConfig is null)
+06-26 01:48:07.637 D/SatelliteController( 1075): getCarrierRoamingNtnConnectType: Falling back to global carrier config connect type: 0
+06-26 01:48:07.637 D/TelephonyConfigUpdateInstallReceiver( 1075): getConfigParser: domain=satellite
+06-26 01:48:07.638 V/SatelliteController( 1075): satelliteConfigParser is not ready
+06-26 01:48:07.638 D/SatelliteController( 1075): isSatelliteAttachSupportedViaConfigupdater: return null (satelliteConfig is null)
+06-26 01:48:07.658 W/skia    (  522): AGTM parsing failed flags.readFromStream(s) at 159
+06-26 01:48:08.149 I/chromium( 7242): [INFO:CONSOLE:0] "The resource https://gemini.gstatic.com/_/mss/boq-bard-web/_/js/k=boq-bard-web.BardChatUi.ko.UnXKLzzQnqw.2018.O/ck=boq-bard-web.BardChatUi.hwEk6EKTeTg.L.B1.O/am=AQBIPADz2xRbeGCAAiy8BNAAAACAEA/d=1/exm=_b/excm=_b/ed=1/br=1/wt=2/ujg=1/rs=AL3bBk1Ez9WnY_itCsEMEsvnP34X8HkLlA/ee=DGWCxb:CgYiQ;EmZ2Bf:zr1jrb;NJ1rfe:yGfSdd;Pjplud:PoEs9b;QGR0gd:Mlhmy;ScI3Yc:e7Hzgb;UYRIEb:HzTAQc;YIZmRd:A1yn5d;cEt90b:ws9Tlc;dIoSBb:SpsfSb;dowIGb:ebZ3mb;eBAeSb:zbML3c;iFQyKf:vfuNJf;oGtAuc:sOXFj;qQEoOc:KUM7Z;qddgKe:xQtZb;wNp4Gc:k56rsf;wR5FRb:siKnQd;yxTchf:KUM7Z/dti=1/m=LQaXg,ziINQc?wli=BardChatUi.e1l0rjMvEww.libheifWasm.O%3A%3BBardChatUi.hUmHsSz-fFM.loadWasmSipCoca.O%3A%3B was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.", source: https://gemini.google.com/usage (0)
+06-26 01:48:09.403 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_claude.xml'
+06-26 01:48:09.446 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_codex.xml'
+06-26 01:48:09.489 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_glm.xml'
+06-26 01:48:09.527 I/wpa_supplicant(  922): wlan0: CTRL-EVENT-BEACON-LOSS 
+06-26 01:48:09.532 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_opencode.xml'
+06-26 01:48:09.575 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_gemini.xml'
+06-26 01:48:09.616 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_copilot.xml'
+06-26 01:48:09.657 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_cursor.xml'
+06-26 01:48:09.697 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_antigravity.xml'
+06-26 01:48:09.780 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb:export ANDROID_LOG_TAGS=''; exec logcat '-d' '-v' 'time' '-t' '2500''
+06-26 01:48:09.831 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb:export ANDROID_LOG_TAGS=''; exec logcat '-d' '-v' 'time''
+

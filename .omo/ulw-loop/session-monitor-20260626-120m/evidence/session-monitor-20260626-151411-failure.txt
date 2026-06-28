@@ -1,0 +1,120 @@
+﻿reason=snapshot_read_failed provider=glm error=adb.exe : cat: shared_prefs/usage_data_glm.xml: No such file or directory
+At D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260626-1
+20m\evidence\run-session-monitor.ps1:28 char:17
++         return (& adb @AdbArgs 2>&1 | Out-String)
++                 ~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (cat: shared_pre...le or directory 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+elapsedMinutes=40
+failureAt=2026-06-26T15:56:34.7980115+09:00
+summaryPath=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260626-120m\evidence\session-monitor-20260626-151411.jsonl
+logPath=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260626-120m\evidence\session-monitor-20260626-151411.log
+logcatPath=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260626-120m\evidence\session-monitor-20260626-151411-logcat.txt
+
+rows:
+[
+    {
+        "provider":  "claude",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  null,
+        "updatedAt":  "2026-06-26T06:41:58.310353Z",
+        "statusUpdatedAt":  "2026-06-26T06:54:50.264303Z",
+        "ageMinutes":  14.45,
+        "statusAgeMinutes":  1.58,
+        "message":  "Background refresh timed out.",
+        "lineCount":  3,
+        "signature":  "claude:session:88% left::2026-06-26T09:30:00.125219+00:00|claude:weekly:82% left::2026-06-29T20:00:00.125239+00:00|claude:extra_usage:100% left::"
+    },
+    {
+        "provider":  "codex",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "Pro 20x",
+        "updatedAt":  "2026-06-26T06:55:19.780201Z",
+        "statusUpdatedAt":  "2026-06-26T06:55:19.780201Z",
+        "ageMinutes":  1.12,
+        "statusAgeMinutes":  1.12,
+        "message":  null,
+        "lineCount":  5,
+        "signature":  "codex:primary_window:96% left:Resets in 4h 21m:|codex:secondary_window:62% left:Resets in 3d 0h:|codex:spark_primary_window:100% left:Resets in 4h 21m:|codex:spark_secondary_window:100% left:Resets in 3d 0h:|codex:credits:0 credits left::"
+    },
+    {
+        "provider":  "glm",
+        "ok":  false,
+        "error":  "adb.exe : cat: shared_prefs/usage_data_glm.xml: No such file or directory\r\nAt D:\\Vibe Project\\AI Usage for Mobile\\.omo\\ulw-loop\\session-monitor-20260626-1\r\n20m\\evidence\\run-session-monitor.ps1:28 char:17\r\n+         return (\u0026 adb @AdbArgs 2\u003e\u00261 | Out-String)\r\n+                 ~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : NotSpecified: (cat: shared_pre...le or directory \r\n   :String) [], RemoteException\r\n    + FullyQualifiedErrorId : NativeCommandError"
+    },
+    {
+        "provider":  "opencode",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "Go",
+        "updatedAt":  "2026-06-26T06:53:43.818100Z",
+        "statusUpdatedAt":  "2026-06-26T06:53:43.818100Z",
+        "ageMinutes":  2.76,
+        "statusAgeMinutes":  2.76,
+        "message":  null,
+        "lineCount":  3,
+        "signature":  "opencode:go_5_hour_limit:100% left:Resets in 5h 0m:|opencode:go_weekly_limit:100% left:Resets in 2d 17h:|opencode:go_monthly_limit:100% left:Resets in 21d 22h:"
+    },
+    {
+        "provider":  "gemini",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "Free",
+        "updatedAt":  "2026-06-26T06:53:58.789789Z",
+        "statusUpdatedAt":  "2026-06-26T06:53:58.789789Z",
+        "ageMinutes":  2.52,
+        "statusAgeMinutes":  2.52,
+        "message":  null,
+        "lineCount":  2,
+        "signature":  "gemini:5_hour_limit:100% left:오전 10:27에 초기화:|gemini:weekly_limit:100% left:6월 29일 오전 11:27에 초기화:"
+    },
+    {
+        "provider":  "copilot",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "free",
+        "updatedAt":  "2026-06-26T06:54:16.154046Z",
+        "statusUpdatedAt":  "2026-06-26T06:54:16.154046Z",
+        "ageMinutes":  2.23,
+        "statusAgeMinutes":  2.23,
+        "message":  null,
+        "lineCount":  2,
+        "signature":  "copilot:chat:98% left::2026-07-01|copilot:completions:100% left::2026-07-01"
+    },
+    {
+        "provider":  "cursor",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "free",
+        "updatedAt":  "2026-06-26T06:54:34.592795Z",
+        "statusUpdatedAt":  "2026-06-26T06:54:34.592795Z",
+        "ageMinutes":  1.93,
+        "statusAgeMinutes":  1.93,
+        "message":  null,
+        "lineCount":  3,
+        "signature":  "cursor:total:83% left::2026-07-17T06:32:31.075Z|cursor:auto:66% left::2026-07-17T06:32:31.075Z|cursor:api:100% left::2026-07-17T06:32:31.075Z"
+    },
+    {
+        "provider":  "antigravity",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "AI Pro",
+        "updatedAt":  "2026-06-26T06:54:18.308346Z",
+        "statusUpdatedAt":  "2026-06-26T06:54:18.308346Z",
+        "ageMinutes":  2.22,
+        "statusAgeMinutes":  2.22,
+        "message":  null,
+        "lineCount":  14,
+        "signature":  "antigravity:gemini_3_5_flash_high:100% left::2026-06-26T11:54:18Z|antigravity:gemini_3_5_flash_medium:100% left::2026-06-26T11:54:18Z|antigravity:gemini_3_5_flash_low:100% left::2026-06-26T11:54:18Z|antigravity:gemini_3_1_pro_high:100% left::2026-06-26T11:54:18Z|antigravity:gemini_3_1_pro_low:100% left::2026-06-26T11:54:18Z|antigravity:gemini_3_flash:100% left::2026-06-26T11:54:18Z|antigravity:gemini_3_1_flash_image:100% left::2026-06-26T11:54:18Z|antigravity:gemini_3_1_flash_lite:100% left::2026-06-26T11:54:18Z|antigravity:claude_sonnet_4_6_thinking:100% left::2026-06-26T11:54:18Z|antigravity:claude_opus_4_6_thinking:100% left::2026-06-26T11:54:18Z|antigravity:gpt_oss_120b_medium:100% left::2026-06-26T11:54:18Z|antigravity:gemini_2_5_pro:100% left::2026-06-26T11:54:18Z|antigravity:model_placeholder_m28:100% left::|antigravity:model_placeholder_m19:100% left::"
+    }
+]

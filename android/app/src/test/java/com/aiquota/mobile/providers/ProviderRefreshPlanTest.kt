@@ -12,46 +12,66 @@ import org.junit.Test
 
 class ProviderRefreshPlanTest {
     @Test
-    fun providerRefreshTimeoutsKeepFastDefaultAndGiveGoogleNativeProvidersMoreTime() {
-        assertEquals(10_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.CODEX))
+    fun providerRefreshTimeoutsKeepFastDefaultAndGiveSlowCollectorsMoreTime() {
+        assertEquals(60_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.CODEX))
         assertEquals(10_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.CLAUDE))
-        assertEquals(75_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.GEMINI))
+        assertEquals(20_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.GLM))
+        assertEquals(45_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.GEMINI))
         assertEquals(10_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.COPILOT))
         assertEquals(75_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.ANTIGRAVITY))
         assertEquals(10_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.CURSOR))
+        assertEquals(20_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.OPENCODE))
     }
 
     @Test
-    fun manualRefreshUsesHiddenCollectorUrlsForWebSessionProvidersAndNativeForNativeTokenProviders() {
+    fun opencodeRefreshTimeoutCoversCollectorRetryWindow() {
+        assertTrue(ProviderRefreshPlan.timeoutMillisFor(ProviderId.OPENCODE) >= 15_000L)
+    }
+
+    @Test
+    fun manualRefreshUsesHiddenCollectorUrlsForWebSessionProvidersAndNativeForNativeRefreshProviders() {
         val jobs = listOf(
             ProviderId.CLAUDE,
             ProviderId.CODEX,
+            ProviderId.OPENCODE,
             ProviderId.GEMINI,
             ProviderId.COPILOT,
             ProviderId.ANTIGRAVITY,
             ProviderId.CURSOR
         ).map(ProviderRefreshPlan::manualJobFor)
 
-        assertTrue(jobs.filterNot { it.providerId == ProviderId.GEMINI || it.providerId == ProviderId.ANTIGRAVITY }.all { it.mode == ProviderRefreshMode.HIDDEN_WEB_COLLECTOR })
-        assertEquals(ProviderRefreshMode.NATIVE_API, jobs.first { it.providerId == ProviderId.GEMINI }.mode)
+        assertTrue(
+            jobs
+                .filterNot { it.providerId == ProviderId.ANTIGRAVITY }
+                .all { it.mode == ProviderRefreshMode.HIDDEN_WEB_COLLECTOR }
+        )
         assertEquals(ProviderRefreshMode.NATIVE_API, jobs.first { it.providerId == ProviderId.ANTIGRAVITY }.mode)
         assertFalse(jobs.any { it.startUrl.contains("/auth/login") || it.startUrl.contains("/login") })
         assertEquals("https://claude.ai/", jobs.first { it.providerId == ProviderId.CLAUDE }.startUrl)
         assertEquals("https://chatgpt.com/", jobs.first { it.providerId == ProviderId.CODEX }.startUrl)
-        assertEquals("", jobs.first { it.providerId == ProviderId.GEMINI }.startUrl)
+        assertEquals("https://opencode.ai/auth", jobs.first { it.providerId == ProviderId.OPENCODE }.startUrl)
+        assertEquals("https://gemini.google.com/usage", jobs.first { it.providerId == ProviderId.GEMINI }.startUrl)
         assertEquals("https://github.com/settings/copilot/features", jobs.first { it.providerId == ProviderId.COPILOT }.startUrl)
         assertEquals("", jobs.first { it.providerId == ProviderId.ANTIGRAVITY }.startUrl)
         assertEquals("https://cursor.com/dashboard", jobs.first { it.providerId == ProviderId.CURSOR }.startUrl)
     }
 
     @Test
-    fun geminiAndAntigravityRefreshThroughNativeApi() {
+    fun geminiRefreshesThroughUsageDomAndAntigravityRefreshesThroughNativeApi() {
         val jobs = listOf(ProviderId.GEMINI, ProviderId.ANTIGRAVITY).map(ProviderRefreshPlan::manualJobFor)
 
-        assertEquals(ProviderRefreshMode.NATIVE_API, jobs.first { it.providerId == ProviderId.GEMINI }.mode)
+        assertEquals(ProviderRefreshMode.HIDDEN_WEB_COLLECTOR, jobs.first { it.providerId == ProviderId.GEMINI }.mode)
         assertEquals(ProviderRefreshMode.NATIVE_API, jobs.first { it.providerId == ProviderId.ANTIGRAVITY }.mode)
-        assertEquals("", jobs.first { it.providerId == ProviderId.GEMINI }.startUrl)
+        assertEquals("https://gemini.google.com/usage", jobs.first { it.providerId == ProviderId.GEMINI }.startUrl)
         assertEquals("", jobs.first { it.providerId == ProviderId.ANTIGRAVITY }.startUrl)
+    }
+
+    @Test
+    fun geminiRefreshUsesUsageDomCollector() {
+        val geminiJob = ProviderRefreshPlan.manualJobFor(ProviderId.GEMINI)
+
+        assertEquals(ProviderRefreshMode.HIDDEN_WEB_COLLECTOR, geminiJob.mode)
+        assertEquals("https://gemini.google.com/usage", geminiJob.startUrl)
     }
 
     @Test
@@ -59,6 +79,8 @@ class ProviderRefreshPlanTest {
         val retainedProviders = listOf(
             ProviderId.CLAUDE,
             ProviderId.CODEX,
+            ProviderId.GLM,
+            ProviderId.OPENCODE,
             ProviderId.GEMINI,
             ProviderId.COPILOT,
             ProviderId.CURSOR
@@ -89,20 +111,73 @@ class ProviderRefreshPlanTest {
     }
 
     @Test
+    fun automaticRefreshFollowsDashboardProviderOrder() {
+        val snapshots = ProviderId.defaultOrder().map(::connected)
+
+        assertEquals(
+            ProviderId.defaultOrder(),
+            ProviderRefreshPlan.automaticJobsFor(snapshots).map { it.providerId }
+        )
+    }
+
+    @Test
+    fun automaticRefreshSkipsGlmConnectedWithoutSubscription() {
+        val snapshots = listOf(
+            connected(ProviderId.CLAUDE),
+            ProviderUsageSnapshot(
+                providerId = ProviderId.GLM,
+                connectionState = ProviderConnectionState.CONNECTED,
+                planLabel = "Plan 없음",
+                message = "You don't have any subscription",
+                lines = emptyList()
+            ),
+            connected(ProviderId.GEMINI)
+        )
+
+        assertEquals(
+            listOf(ProviderId.CLAUDE, ProviderId.GEMINI),
+            ProviderRefreshPlan.automaticJobsFor(snapshots).map { it.providerId }
+        )
+    }
+
+    @Test
+    fun automaticRefreshSkipsGlmNoSubscriptionAfterFailedRefresh() {
+        val snapshots = listOf(
+            connected(ProviderId.CLAUDE),
+            ProviderUsageSnapshot(
+                providerId = ProviderId.GLM,
+                connectionState = ProviderConnectionState.ERROR,
+                planLabel = "Plan 없음",
+                message = "Background refresh timed out.",
+                lines = emptyList()
+            ),
+            connected(ProviderId.OPENCODE)
+        )
+
+        assertEquals(
+            listOf(ProviderId.CLAUDE, ProviderId.OPENCODE),
+            ProviderRefreshPlan.automaticJobsFor(snapshots).map { it.providerId }
+        )
+    }
+
+    @Test
     fun automaticRefreshRetriesNonAuthCollectionFailures() {
+        val now = Instant.parse("2026-06-18T09:55:00Z")
+        val oldCodexFailure = ProviderUsageSnapshot.failedKeepingPrevious(
+            providerId = ProviderId.CODEX,
+            previous = null,
+            message = "Background collector ran. No trusted usage payload found."
+        ).copy(statusUpdatedAt = now.minusSeconds(16 * 60).toString())
         val snapshots = listOf(
             ProviderUsageSnapshot.connectedWithoutUsage(
                 providerId = ProviderId.CURSOR,
                 message = "Usage quota is not available yet."
             ),
-            ProviderUsageSnapshot.failedKeepingPrevious(
-                providerId = ProviderId.CODEX,
-                previous = null,
-                message = "Background collector ran. No trusted usage payload found."
-            ),
+            oldCodexFailure,
             ProviderUsageSnapshot(
                 providerId = ProviderId.GEMINI,
                 connectionState = ProviderConnectionState.UNAVAILABLE,
+                statusUpdatedAt = now.minusSeconds(61).toString(),
                 message = "Provider session reached, but trusted usage payload was not available yet."
             ),
             ProviderUsageSnapshot.disconnected(ProviderId.CLAUDE)
@@ -110,7 +185,119 @@ class ProviderRefreshPlanTest {
 
         assertEquals(
             listOf(ProviderId.CURSOR, ProviderId.CODEX, ProviderId.GEMINI),
-            ProviderRefreshPlan.automaticJobsFor(snapshots).map { it.providerId }
+            ProviderRefreshPlan.automaticJobsFor(snapshots, now = now).map { it.providerId }
+        )
+    }
+
+    @Test
+    fun automaticRefreshSkipsRecentGeminiPendingFailureSoOtherProvidersAreNotDelayed() {
+        val now = Instant.parse("2026-06-18T09:55:00Z")
+        val recentGeminiPending = ProviderUsageSnapshot(
+            providerId = ProviderId.GEMINI,
+            connectionState = ProviderConnectionState.UNAVAILABLE,
+            statusUpdatedAt = now.minusSeconds(30).toString(),
+            message = "Provider session reached, but trusted usage payload was not available yet."
+        )
+
+        assertEquals(
+            listOf(ProviderId.CLAUDE),
+            ProviderRefreshPlan.automaticJobsFor(
+                listOf(recentGeminiPending, connected(ProviderId.CLAUDE)),
+                now = now
+            ).map { it.providerId }
+        )
+    }
+
+    @Test
+    fun automaticRefreshRetriesRecentLoginPageFailures() {
+        val now = Instant.parse("2026-06-18T09:55:00Z")
+        val recentLoginPageFailure = snapshot(ProviderId.COPILOT, ProviderConnectionState.CONNECTED).copy(
+            statusUpdatedAt = now.minusSeconds(60).toString(),
+            message = "Background refresh reached a provider login page."
+        )
+
+        assertEquals(
+            listOf(ProviderId.COPILOT, ProviderId.GEMINI),
+            ProviderRefreshPlan.automaticJobsFor(
+                listOf(recentLoginPageFailure, connected(ProviderId.GEMINI)),
+                now = now
+            ).map { it.providerId }
+        )
+    }
+
+    @Test
+    fun automaticRefreshKeepsRetryingGeminiLoginPageFailureWhenLastKnownUsageExists() {
+        val now = Instant.parse("2026-06-18T09:55:00Z")
+        val recentGeminiLoginPageFailure = snapshot(ProviderId.GEMINI, ProviderConnectionState.CONNECTED).copy(
+            statusUpdatedAt = now.minusSeconds(60).toString(),
+            message = "Background refresh reached a provider login page.",
+            lines = listOf(
+                ProviderUsageLine(
+                    key = "gemini:5_hour_limit",
+                    label = "5시간 한도",
+                    remainingPercent = 1f
+                )
+            )
+        )
+
+        assertEquals(
+            listOf(ProviderId.GEMINI),
+            ProviderRefreshPlan.automaticJobsFor(
+                listOf(recentGeminiLoginPageFailure),
+                now = now
+            ).map { it.providerId }
+        )
+    }
+
+    @Test
+    fun manualRefreshStillRunsAfterRecentLoginPageFailure() {
+        val now = Instant.parse("2026-06-18T09:55:00Z")
+        val recentLoginPageFailure = snapshot(ProviderId.OPENCODE, ProviderConnectionState.CONNECTED).copy(
+            statusUpdatedAt = now.minusSeconds(60).toString(),
+            message = "Background refresh reached a provider login page."
+        )
+
+        assertEquals(
+            listOf(ProviderId.OPENCODE),
+            ProviderRefreshPlan.manualCycleJobsFor(
+                manualProviderId = ProviderId.OPENCODE,
+                snapshots = listOf(recentLoginPageFailure),
+                now = now
+            ).map { it.providerId }
+        )
+    }
+
+    @Test
+    fun automaticRefreshRetriesRecentCodexTimeoutFailures() {
+        val now = Instant.parse("2026-06-18T09:55:00Z")
+        val recentCodexFailure = snapshot(ProviderId.CODEX, ProviderConnectionState.CONNECTED).copy(
+            statusUpdatedAt = now.minusSeconds(60).toString(),
+            message = "Previous collection did not finish."
+        )
+
+        assertEquals(
+            listOf(ProviderId.CODEX, ProviderId.GEMINI),
+            ProviderRefreshPlan.automaticJobsFor(
+                listOf(recentCodexFailure, connected(ProviderId.GEMINI)),
+                now = now
+            ).map { it.providerId }
+        )
+    }
+
+    @Test
+    fun automaticRefreshRetriesRecentCodexUsageUnavailable() {
+        val now = Instant.parse("2026-06-18T09:55:00Z")
+        val recentCodexFailure = snapshot(ProviderId.CODEX, ProviderConnectionState.CONNECTED).copy(
+            statusUpdatedAt = now.minusSeconds(60).toString(),
+            message = "Codex session reached, but trusted usage payload was not available. diagnostics={}"
+        )
+
+        assertEquals(
+            listOf(ProviderId.CODEX, ProviderId.GEMINI),
+            ProviderRefreshPlan.automaticJobsFor(
+                listOf(recentCodexFailure, connected(ProviderId.GEMINI)),
+                now = now
+            ).map { it.providerId }
         )
     }
 

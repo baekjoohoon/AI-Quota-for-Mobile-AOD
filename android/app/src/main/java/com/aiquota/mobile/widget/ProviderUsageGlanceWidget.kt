@@ -3,6 +3,7 @@
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -44,6 +45,7 @@ import androidx.glance.unit.ColorProvider
 import com.aiquota.mobile.MainActivity
 import com.aiquota.mobile.R
 import com.aiquota.mobile.local.ProviderId
+import com.aiquota.mobile.local.ProviderGaugeColor
 import com.aiquota.mobile.local.ProviderPreferencesRepository
 import com.aiquota.mobile.ui.AppRoute
 import com.aiquota.mobile.ui.provider.providerIconRes as sharedProviderIconRes
@@ -168,7 +170,7 @@ private fun ProviderWidgetContent(
             ProviderEmptyState(payload, spec, themeColors)
         } else {
             visibleLines.forEachIndexed { index, line ->
-                ProviderLine(line, spec, themeColors)
+                ProviderLine(line, spec, themeColors, payload.gaugeColorHex)
                 if (index < visibleLines.lastIndex && spec.lineGapDp > 0) {
                     Spacer(modifier = GlanceModifier.height(spec.lineGapDp.dp))
                 }
@@ -250,7 +252,8 @@ private fun ProviderEmptyState(
 private fun ProviderLine(
     line: ProviderWidgetLine,
     spec: ProviderWidgetLayoutSpec,
-    themeColors: WidgetThemeColors
+    themeColors: WidgetThemeColors,
+    gaugeColorHex: String?
 ) {
     Column(modifier = GlanceModifier.height(spec.lineRowHeightDp.dp)) {
         Row(
@@ -275,7 +278,8 @@ private fun ProviderLine(
             width = spec.gaugeWidthDp.dp,
             height = spec.gaugeHeightDp.dp,
             radius = spec.gaugeRadiusDp.dp,
-            themeColors = themeColors
+            themeColors = themeColors,
+            gaugeColorHex = gaugeColorHex
         )
         if (spec.showResetCaption) {
             val detail = line.resetText ?: line.detailText
@@ -296,14 +300,23 @@ private fun ProviderLine(
 }
 
 @Composable
-private fun GaugeBar(ratio: Float, width: Dp, height: Dp, radius: Dp, themeColors: WidgetThemeColors) {
+private fun GaugeBar(
+    ratio: Float,
+    width: Dp,
+    height: Dp,
+    radius: Dp,
+    themeColors: WidgetThemeColors,
+    gaugeColorHex: String? = null
+) {
     val boundedRatio = ratio.coerceIn(0f, 1f)
+    val activeColor = ProviderGaugeColor.toArgbOrNull(gaugeColorHex)?.let(::Color)
+        ?: themeColors.gaugeColor(boundedRatio)
     LinearProgressIndicator(
         progress = boundedRatio,
         modifier = GlanceModifier
             .fillMaxWidth()
             .height(height),
-        color = ColorProvider(themeColors.gaugeColor(boundedRatio)),
+        color = ColorProvider(activeColor),
         backgroundColor = ColorProvider(themeColors.gaugeTrack)
     )
 }

@@ -1,0 +1,115 @@
+﻿reason=snapshot_read_failed provider= error=
+elapsedMinutes=0
+failureAt=2026-06-26T10:48:10.8992109+09:00
+summaryPath=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260626-120m\evidence\session-monitor-20260626-104739.jsonl
+logPath=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260626-120m\evidence\session-monitor-20260626-104739.log
+logcatPath=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260626-120m\evidence\session-monitor-20260626-104739-logcat.txt
+
+rows:
+[
+    "2026-06-26T10:47:40.3970089+09:00 refreshing observed; recheck in 30s providers=copilot",
+    {
+        "provider":  "claude",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "Pro",
+        "updatedAt":  "2026-06-26T01:47:18.708210Z",
+        "statusUpdatedAt":  "2026-06-26T01:47:18.708210Z",
+        "ageMinutes":  0.86,
+        "message":  null,
+        "lineCount":  3,
+        "signature":  "claude:session:3% left::2026-06-26T03:39:59.441149+00:00|claude:weekly:83% left::2026-06-29T19:59:59.441169+00:00|claude:extra_usage:100% left::"
+    },
+    {
+        "provider":  "codex",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "Pro 20x",
+        "updatedAt":  "2026-06-26T01:47:23.173060Z",
+        "statusUpdatedAt":  "2026-06-26T01:47:23.173060Z",
+        "ageMinutes":  0.79,
+        "message":  null,
+        "lineCount":  5,
+        "signature":  "codex:primary_window:96% left:Resets in 4h 28m:|codex:secondary_window:67% left:Resets in 3d 5h:|codex:spark_primary_window:100% left:Resets in 4h 28m:|codex:spark_secondary_window:100% left:Resets in 3d 5h:|codex:credits:0 credits left::"
+    },
+    {
+        "provider":  "glm",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "Lite",
+        "updatedAt":  "2026-06-26T01:47:28.814431Z",
+        "statusUpdatedAt":  "2026-06-26T01:47:28.814431Z",
+        "ageMinutes":  0.7,
+        "message":  null,
+        "lineCount":  3,
+        "signature":  "glm:tokens:98% left::2026-06-26T04:31:03.268Z|glm:weekly_tokens:96% left::2026-06-29T14:20:41.971Z|glm:mcp:100% left::2026-07-22T14:20:41.995Z"
+    },
+    {
+        "provider":  "opencode",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "Go",
+        "updatedAt":  "2026-06-26T01:47:31.297977Z",
+        "statusUpdatedAt":  "2026-06-26T01:47:31.297977Z",
+        "ageMinutes":  0.65,
+        "message":  null,
+        "lineCount":  3,
+        "signature":  "opencode:go_5_hour_limit:100% left:Resets in 5h 0m:|opencode:go_weekly_limit:100% left:Resets in 2d 22h:|opencode:go_monthly_limit:100% left:Resets in 22d 3h:"
+    },
+    {
+        "provider":  "gemini",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "Free",
+        "updatedAt":  "2026-06-26T01:47:35.847325Z",
+        "statusUpdatedAt":  "2026-06-26T01:47:35.847325Z",
+        "ageMinutes":  0.58,
+        "message":  null,
+        "lineCount":  2,
+        "signature":  "gemini:5_hour_limit:100% left:오전 5:27에 초기화:|gemini:weekly_limit:100% left:6월 29일 오전 11:27에 초기화:"
+    },
+    {
+        "provider":  "copilot",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "free",
+        "updatedAt":  "2026-06-26T01:47:41.639272Z",
+        "statusUpdatedAt":  "2026-06-26T01:47:41.639272Z",
+        "ageMinutes":  0.48,
+        "message":  null,
+        "lineCount":  2,
+        "signature":  "copilot:chat:98% left::2026-07-01|copilot:completions:100% left::2026-07-01"
+    },
+    {
+        "provider":  "cursor",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "free",
+        "updatedAt":  "2026-06-26T01:47:50.828698Z",
+        "statusUpdatedAt":  "2026-06-26T01:47:50.828698Z",
+        "ageMinutes":  0.33,
+        "message":  null,
+        "lineCount":  3,
+        "signature":  "cursor:total:83% left::2026-07-17T06:32:31.075Z|cursor:auto:66% left::2026-07-17T06:32:31.075Z|cursor:api:100% left::2026-07-17T06:32:31.075Z"
+    },
+    {
+        "provider":  "antigravity",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "AI Pro",
+        "updatedAt":  "2026-06-26T01:47:43.538363Z",
+        "statusUpdatedAt":  "2026-06-26T01:47:43.538363Z",
+        "ageMinutes":  0.45,
+        "message":  null,
+        "lineCount":  14,
+        "signature":  "antigravity:gemini_3_5_flash_high:100% left::2026-06-26T06:47:43Z|antigravity:gemini_3_5_flash_medium:100% left::2026-06-26T06:47:43Z|antigravity:gemini_3_5_flash_low:100% left::2026-06-26T06:47:43Z|antigravity:gemini_3_1_pro_high:100% left::2026-06-26T06:47:43Z|antigravity:gemini_3_1_pro_low:100% left::2026-06-26T06:47:43Z|antigravity:gemini_3_flash:100% left::2026-06-26T06:47:43Z|antigravity:gemini_3_1_flash_image:100% left::2026-06-26T06:47:43Z|antigravity:gemini_3_1_flash_lite:100% left::2026-06-26T06:47:43Z|antigravity:claude_sonnet_4_6_thinking:100% left::2026-06-26T06:47:43Z|antigravity:claude_opus_4_6_thinking:100% left::2026-06-26T06:47:43Z|antigravity:gpt_oss_120b_medium:100% left::2026-06-26T06:47:43Z|antigravity:model_placeholder_m28:100% left::|antigravity:model_placeholder_m19:100% left::|antigravity:gemini_2_5_pro:100% left::2026-06-26T06:47:43Z"
+    }
+]

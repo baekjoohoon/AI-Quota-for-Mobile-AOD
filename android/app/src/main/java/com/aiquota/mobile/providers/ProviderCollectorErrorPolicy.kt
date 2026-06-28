@@ -7,6 +7,12 @@ object ProviderCollectorErrorPolicy {
     fun failureFor(providerId: ProviderId, rawError: String): ProviderRefreshFailure {
         val error = parse(rawError)
         return when {
+            providerId == ProviderId.GEMINI && error.errorKind == GEMINI_LOGIN_REQUIRED -> {
+                ProviderRefreshFailure(
+                    ProviderRefreshFailureKind.NO_TRUSTED_PAYLOAD,
+                    error.message ?: GoogleUsagePendingRetryPolicy.PENDING_MESSAGE
+                )
+            }
             error.errorKind in EXPLICIT_AUTH_ERRORS -> ProviderRefreshFailure.interactiveAuthRequired(
                 error.message ?: "Provider session requires sign-in."
             )
@@ -14,6 +20,12 @@ object ProviderCollectorErrorPolicy {
                 ProviderRefreshFailure(
                     ProviderRefreshFailureKind.NO_TRUSTED_PAYLOAD,
                     error.message ?: "Codex session reached, but trusted usage payload was not available."
+                )
+            }
+            providerId == ProviderId.GLM && error.errorKind == GlmNoSubscriptionPolicy.ERROR_KIND -> {
+                ProviderRefreshFailure(
+                    ProviderRefreshFailureKind.NO_TRUSTED_PAYLOAD,
+                    error.message ?: GlmNoSubscriptionPolicy.MESSAGE
                 )
             }
             else -> ProviderRefreshFailure(
@@ -49,11 +61,13 @@ object ProviderCollectorErrorPolicy {
         "login_required",
         "session_expired",
         "codex_auth_required",
+        "gemini_login_required",
         "oauth_failed",
         "token_refresh_failed"
     )
 
     private const val CODEX_USAGE_UNAVAILABLE = "codex_usage_unavailable"
+    private const val GEMINI_LOGIN_REQUIRED = "gemini_login_required"
 }
 
 object CodexCollectorRetryPolicy {

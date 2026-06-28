@@ -1,0 +1,1 @@
+Codex provider 사용량 수집을 정상화한다. 다른 provider 관련 코드/로직은 건드리지 않는다. 성공 기준: Codex 사용량 수집은 visible DOM보다 네트워크/페이지 상태 payload를 우선 사용한다; 사용량 값이 변하지 않아도 성공적인 수집이면 업데이트 시간이 갱신될 수 있어야 한다; 세션 장기 유지/usage page navigation을 auth-token 추정 실패로 조기 차단하지 않는다; FGS 백그라운드 refresh와 위젯 반영 경로가 Codex payload 저장 흐름을 계속 사용한다.

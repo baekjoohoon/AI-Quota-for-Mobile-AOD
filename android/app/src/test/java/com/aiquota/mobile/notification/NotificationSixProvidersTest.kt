@@ -8,22 +8,25 @@ import org.junit.Test
 
 class NotificationSixProvidersTest {
     @Test
-    fun notificationContentIncludesSixProviderGaugeRows() {
+    fun notificationContentIncludesEightProviderGaugeRows() {
         val content = buildUsageNotificationContent(snapshotJson = sixProviderSnapshotJson())
 
-        assertEquals(6, content.gaugeRows.size)
+        assertEquals(8, content.gaugeRows.size)
     }
 
     @Test
-    fun compactNotificationSummaryShowsSixProvidersAsTwoRowsOfThreeWithoutRemainingSuffix() {
+    fun compactNotificationSummaryShowsEightProvidersWithoutRemainingSuffix() {
         val content = buildUsageNotificationContent(snapshotJson = sixProviderSnapshotJson())
         val lines = content.summary.lines()
 
-        assertEquals(2, lines.size)
+        assertEquals(3, lines.size)
         assertEquals(3, lines[0].split(" | ").size)
         assertEquals(3, lines[1].split(" | ").size)
+        assertEquals(2, lines[2].split(" | ").size)
         assertTrue(content.summary.contains("claude 100%"))
         assertTrue(content.summary.contains("codex 100%"))
+        assertTrue(content.summary.contains("glm 100%"))
+        assertTrue(content.summary.contains("opencode 100%"))
         assertTrue(content.summary.contains("gemini 100%"))
         assertTrue(content.summary.contains("copilot 100%"))
         assertTrue(content.summary.contains("AntiG 100%"))
@@ -36,7 +39,7 @@ class NotificationSixProvidersTest {
     fun notificationContentExcludesDisconnectedProviders() {
         val content = buildUsageNotificationContent(snapshotJson = sixProviderSnapshotJson(disconnectedProviderIds = setOf("codex", "cursor")))
 
-        assertEquals(4, content.gaugeRows.size)
+        assertEquals(6, content.gaugeRows.size)
         assertTrue(!content.summary.contains("codex"))
         assertTrue(!content.summary.contains("cursor"))
         assertTrue(content.summary.contains("claude 100%"))
@@ -44,14 +47,33 @@ class NotificationSixProvidersTest {
     }
 
     @Test
-    fun expandedNotificationLayoutDefinesSixRows() {
+    fun updateMessageIsAddedToNotificationTextWithoutReplacingGaugeRows() {
+        val content = buildUsageNotificationContent(
+            snapshotJson = sixProviderSnapshotJson(),
+            updateMessage = "Update available"
+        )
+
+        assertEquals(8, content.gaugeRows.size)
+        assertTrue(content.summary.contains("claude 100%"))
+        assertTrue(content.summary.contains("Update available"))
+        assertTrue(content.compactText.contains("Update available"))
+    }
+
+    @Test
+    fun expandedNotificationLayoutDefinesEightRows() {
         val layout = File("src/main/res/layout/notification_usage_gauges.xml").readText()
         val controller = File("src/main/java/com/aiquota/mobile/notification/UsageLimitNotificationController.kt").readText()
 
-        (0..5).forEach { index ->
+        (0..7).forEach { index ->
             assertTrue(layout.contains("@+id/notification_row_$index"))
             assertTrue(controller.contains("R.id.notification_row_$index"))
         }
+        assertTrue(layout.contains("@+id/notification_settings_button"))
+        assertTrue(controller.contains("R.id.notification_settings_button"))
+        assertTrue(controller.contains("MainActivity.createSettingsIntent(context)"))
+        assertTrue(layout.contains("android:layout_marginEnd=\"8dp\""))
+        assertTrue(layout.contains("android:layout_marginStart=\"8dp\""))
+        assertTrue(layout.contains("android:layout_height=\"34dp\""))
     }
 
     @Test
@@ -61,7 +83,7 @@ class NotificationSixProvidersTest {
 
         assertTrue(!layout.contains("@+id/notification_title"))
         assertTrue(!controller.contains("R.id.notification_title"))
-        (0..5).forEach { index ->
+        (0..7).forEach { index ->
             assertTrue(layout.contains("@+id/notification_remaining_$index"))
             assertTrue(layout.contains("@+id/notification_reset_$index"))
             assertTrue(controller.contains("R.id.notification_remaining_$index"))
@@ -69,23 +91,52 @@ class NotificationSixProvidersTest {
         }
         assertTrue(!layout.contains("80% left"))
         assertTrue(!layout.contains("Resets in 1h"))
+        assertTrue(layout.contains("android:textSize=\"9sp\""))
+        assertTrue(layout.contains("android:textSize=\"8sp\""))
         assertTrue(controller.contains("setTextViewText(row.remainingTextId"))
         assertTrue(controller.contains("setTextViewText(row.resetTextId"))
     }
 
     @Test
-    fun collapsedNotificationShowsUsageSummaryTextOnly() {
+    fun collapsedNotificationShowsFourProviderCompactBatteryItems() {
         val compactLayout = File("src/main/res/layout/notification_usage_compact.xml").readText()
         val controller = File("src/main/java/com/aiquota/mobile/notification/UsageLimitNotificationController.kt").readText()
+        val content = buildUsageNotificationContent(snapshotJson = sixProviderSnapshotJson())
 
-        assertTrue(compactLayout.contains("@+id/notification_compact_summary"))
+        (0..3).forEach { index ->
+            assertTrue(compactLayout.contains("@+id/notification_compact_item_$index"))
+            assertTrue(compactLayout.contains("@+id/notification_compact_icon_$index"))
+            assertTrue(compactLayout.contains("@+id/notification_compact_text_$index"))
+            assertTrue(compactLayout.contains("@+id/notification_compact_progress_$index"))
+            assertTrue(controller.contains("R.id.notification_compact_item_$index"))
+            assertTrue(controller.contains("R.id.notification_compact_icon_$index"))
+            assertTrue(controller.contains("R.id.notification_compact_text_$index"))
+            assertTrue(controller.contains("R.id.notification_compact_progress_$index"))
+        }
+        assertFalse(compactLayout.contains("notification_compact_item_4"))
+        assertFalse(compactLayout.contains("notification_compact_item_5"))
         assertTrue(controller.contains(".setContentText(content.summary)"))
-        assertTrue(controller.contains("setTextViewText(R.id.notification_compact_summary, content.summary)"))
+        assertTrue(controller.contains("views.setImageViewResource(item.iconId"))
+        assertTrue(controller.contains("views.setTextViewText(item.textId, gauge.compactRemainingText)"))
+        assertTrue(controller.contains("views.setProgressBar(item.progressId"))
+        assertTrue(controller.contains("content.gaugeRows.take(NOTIFICATION_COMPACT_ITEM_COUNT)"))
         assertFalse(compactLayout.contains("notification_compact_status"))
         assertFalse(compactLayout.contains("Live refresh"))
         assertFalse(compactLayout.contains("라이브 갱신"))
         assertFalse(controller.contains("notificationLiveStatusText"))
         assertFalse(controller.contains("R.id.notification_compact_status"))
+        assertEquals("100% 남음", content.gaugeRows.first().compactRemainingText)
+    }
+
+    @Test
+    fun collapsedNotificationUsesReadableCompactItemSizes() {
+        val compactLayout = File("src/main/res/layout/notification_usage_compact.xml").readText()
+
+        assertTrue(compactLayout.contains("android:layout_height=\"22dp\""))
+        assertTrue(compactLayout.contains("android:layout_width=\"15dp\""))
+        assertTrue(compactLayout.contains("android:layout_height=\"15dp\""))
+        assertTrue(compactLayout.contains("android:layout_height=\"4dp\""))
+        assertTrue(compactLayout.contains("android:textSize=\"9sp\""))
     }
 
     @Test
@@ -112,7 +163,7 @@ class NotificationSixProvidersTest {
         disconnectedProviderIds: Set<String> = emptySet(),
         updatedAt: String = "2026-05-29T00:00:00Z"
     ): String {
-        val providers = listOf("claude", "codex", "gemini", "copilot", "antigravity", "cursor")
+        val providers = listOf("claude", "codex", "glm", "opencode", "gemini", "copilot", "antigravity", "cursor")
             .joinToString(",") { providerId ->
                 val state = if (providerId in disconnectedProviderIds) "DISCONNECTED" else "CONNECTED"
                 """

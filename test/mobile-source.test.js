@@ -15,6 +15,10 @@ function assertPathsExist(paths) {
   }
 }
 
+function assertContains(sourceText, expected, label) {
+  assert.ok(sourceText.includes(expected), `${label} should contain ${expected}`);
+}
+
 test("iOS app has a real sync API client and typed UI state model", () => {
   const requiredPaths = [
     "ios/AIQuotaMobile/AIQuotaAPIClient.swift",
@@ -82,7 +86,8 @@ test("Android local-first shell keeps provider snapshots in local display cache"
   const manifest = source("android/app/src/main/AndroidManifest.xml");
 
   assert.match(main, /AIQuotaAppShell\(context = this\)/);
-  assert.match(main, /requestNotificationPermissionOnFirstLaunch/);
+  assert.match(appShell, /UsageLimitNotificationController\.canPostNotifications/);
+  assert.match(appShell, /rememberLauncherForActivityResult/);
   assert.match(main, /ForegroundRefreshController/);
   assert.match(appShell, /LocalUsageRepository\(appContext\)/);
   assert.match(appShell, /ProviderConnectorRegistry\.default\(appContext\)/);
@@ -111,7 +116,7 @@ test("Android local-first shell keeps provider snapshots in local display cache"
   assert.match(manifest, /android:value="usage_monitor"/);
   assert.match(manifest, /ProviderBackgroundRefreshService/);
   assert.match(manifest, /AIQuotaUnifiedGlanceWidgetReceiver/);
-  assert.match(manifest, /ProviderUsageGlanceWidgetReceiver/);
+  assert.match(manifest, /ProviderUsageWidgetProvider/);
 });
 
 test("Android web collectors remain for visible-session providers", () => {
@@ -140,6 +145,7 @@ test("Google native OAuth routes through Firebase token exchange without client 
   const releaseBootstrap = source("android/app/src/release/java/com/aiquota/mobile/FirebaseGatewayBootstrap.kt");
   const geminiGateway = source("android/app/src/main/java/com/aiquota/mobile/providers/GeminiCliFirebaseGateway.kt");
   const antigravityGateway = source("android/app/src/main/java/com/aiquota/mobile/providers/AntigravityFirebaseGateway.kt");
+  const appCheckCallable = source("android/app/src/main/java/com/aiquota/mobile/providers/FirebaseAppCheckCallable.kt");
   const geminiActivity = source("android/app/src/main/java/com/aiquota/mobile/providers/GeminiCliLoopbackOAuthActivity.kt");
   const antigravityActivity = source("android/app/src/main/java/com/aiquota/mobile/providers/AntigravityLoopbackOAuthActivity.kt");
   const geminiRepository = source("android/app/src/main/java/com/aiquota/mobile/providers/GeminiCliOAuthRepository.kt");
@@ -167,13 +173,16 @@ test("Google native OAuth routes through Firebase token exchange without client 
   assert.match(gradle, /681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j\.apps\.googleusercontent\.com/);
   assert.match(gradle, /1071006060591-tmhssin2h21lcre235vtolojh4g403ep\.apps\.googleusercontent\.com/);
   assert.match(geminiGateway, /FirebaseAuth/);
-  assert.match(geminiGateway, /getHttpsCallable\("startGeminiCliOAuth"\)/);
-  assert.match(geminiGateway, /getHttpsCallable\("completeGeminiCliOAuth"\)/);
-  assert.match(geminiGateway, /getHttpsCallable\("refreshGeminiCliAccessToken"\)/);
+  assert.match(geminiGateway, /callWithAppCheckRetry\(appCheck, "startGeminiCliOAuth"/);
+  assert.match(geminiGateway, /callWithAppCheckRetry\(appCheck, "completeGeminiCliOAuth"/);
+  assert.match(geminiGateway, /"refreshGeminiCliAccessToken"/);
   assert.match(antigravityGateway, /FirebaseAuth/);
-  assert.match(antigravityGateway, /getHttpsCallable\("startAntigravityOAuth"\)/);
-  assert.match(antigravityGateway, /getHttpsCallable\("completeAntigravityOAuth"\)/);
-  assert.match(antigravityGateway, /getHttpsCallable\("refreshAntigravityAccessToken"\)/);
+  assert.match(antigravityGateway, /callWithAppCheckRetry\(appCheck, "startAntigravityOAuth"/);
+  assert.match(antigravityGateway, /callWithAppCheckRetry\(appCheck, "completeAntigravityOAuth"/);
+  assert.match(antigravityGateway, /"refreshAntigravityAccessToken"/);
+  assert.match(appCheckCallable, /getAppCheckToken\(false\)\.await\(\)/);
+  assert.match(appCheckCallable, /getAppCheckToken\(true\)\.await\(\)/);
+  assert.match(appCheckCallable, /FirebaseFunctionsException\.Code\.UNAUTHENTICATED/);
   assert.match(geminiActivity, /WebView/);
   assert.match(geminiActivity, /GeminiCliFirebaseGateway\(applicationContext\)\.startOAuth\(\)/);
   assert.match(geminiActivity, /completeOAuth\(url\)/);
@@ -191,14 +200,98 @@ test("Google native OAuth routes through Firebase token exchange without client 
   assert.match(refreshPlan, /ProviderCollectionKind\.NATIVE_API -> ProviderRefreshMode\.NATIVE_API/);
   assert.match(appShell, /GeminiCliLoopbackOAuthActivity\.createIntent/);
   assert.match(appShell, /AntigravityLoopbackOAuthActivity\.createIntent/);
-  assert.match(appShell, /GeminiCliOAuthRepository\(appContext\)\.fetchUsagePayloadFromStoredCredential\(\)/);
-  assert.match(appShell, /AntigravityOAuthRepository\(appContext\)\.fetchUsagePayloadFromStoredCredential\(\)/);
+  assert.doesNotMatch(appShell, /GeminiCliOAuthRepository\(appContext\)\.fetchUsagePayloadFromStoredCredential\(\)/);
+  assert.doesNotMatch(appShell, /AntigravityOAuthRepository\(appContext\)\.fetchUsagePayloadFromStoredCredential\(\)/);
   assert.match(refreshService, /GeminiCliOAuthRepository\(applicationContext\)\.fetchUsagePayloadFromStoredCredential\(\)/);
   assert.match(refreshService, /AntigravityOAuthRepository\(applicationContext\)\.fetchUsagePayloadFromStoredCredential\(\)/);
   assert.doesNotMatch(
     `${geminiGateway}\n${antigravityGateway}\n${geminiActivity}\n${antigravityActivity}\n${geminiRepository}\n${antigravityRepository}\n${gradle}`,
     /GEMINI_CLI_GOOGLE_OAUTH_CLIENT_SECRET|ANTIGRAVITY_GOOGLE_OAUTH_CLIENT_SECRET|client_secret|clientSecret/
   );
+});
+
+test("Android release builds fail before packaging placeholder Firebase resources", () => {
+  const gradle = source("android/app/build.gradle.kts");
+  const googleServices = source("android/app/google-services.json");
+
+  assert.match(googleServices, /"project_number":\s*"550123003638"/);
+  assert.match(googleServices, /"mobilesdk_app_id":\s*"1:550123003638:android:b77771790177d817eb56d7"/);
+  assert.doesNotMatch(googleServices, /123456789012|0000000000000000000000/);
+  assert.match(gradle, /tasks\.register\("verifyReleaseFirebaseResources"/);
+  assert.match(gradle, /google-services\.json/);
+  assert.match(gradle, /1:550123003638:android:b77771790177d817eb56d7/);
+  assert.match(gradle, /123456789012|0000000000000000000000/);
+  assert.match(gradle, /matching \{ task -> task\.name == "processReleaseGoogleServices" \}\.configureEach[\s\S]*dependsOn\(verifyReleaseFirebaseResources\)/);
+  assert.match(gradle, /matching \{ task -> task\.name in setOf\("bundleRelease", "assembleRelease"\) \}[\s\S]*dependsOn\(verifyReleaseFirebaseResources\)/);
+});
+
+test("release R8 keeps shrink and optimize disabled while narrowing Android entrypoint keep rules", () => {
+  const rules = source("android/app/proguard-rules.pro");
+
+  assertContains(rules, "-dontshrink", "release R8 rules");
+  assertContains(rules, "-dontoptimize", "release R8 rules");
+  assert.doesNotMatch(rules, /-keep class com\.aiquota\.mobile\.\*\* extends android\.app\.Activity/);
+  assert.doesNotMatch(rules, /-keep class com\.aiquota\.mobile\.\*\* extends android\.app\.Service/);
+  assert.doesNotMatch(rules, /-keep class com\.aiquota\.mobile\.\*\* extends android\.content\.BroadcastReceiver/);
+  assert.doesNotMatch(rules, /-keep class com\.aiquota\.mobile\.\*\* extends android\.appwidget\.AppWidgetProvider/);
+  assert.doesNotMatch(rules, /-keep class com\.aiquota\.mobile\.\*\* extends androidx\.glance\.appwidget\.GlanceAppWidgetReceiver/);
+
+  const explicitEntrypoints = [
+    "com.aiquota.mobile.AIQuotaApplication",
+    "com.aiquota.mobile.MainActivity",
+    "com.aiquota.mobile.providers.WebLoginActivity",
+    "com.aiquota.mobile.providers.GeminiCliLoopbackOAuthActivity",
+    "com.aiquota.mobile.providers.AntigravityLoopbackOAuthActivity",
+    "com.aiquota.mobile.providers.GoogleAuthorizationActivity",
+    "net.openid.appauth.RedirectUriReceiverActivity",
+    "com.aiquota.mobile.widget.ProviderWidgetConfigureActivity",
+    "com.aiquota.mobile.widget.DashboardWidgetConfigureActivity",
+    "com.aiquota.mobile.providers.ProviderUsageCollectionService",
+    "com.aiquota.mobile.providers.ProviderBackgroundRefreshService",
+    "com.aiquota.mobile.widget.WidgetManualRefreshReceiver",
+    "com.aiquota.mobile.providers.ProviderRefreshReceiver",
+    "com.aiquota.mobile.widget.AIQuotaUnifiedGlanceWidgetReceiver",
+    "com.aiquota.mobile.widget.AIQuotaCircularWidgetProvider",
+    "com.aiquota.mobile.widget.ProviderUsageWidgetProvider",
+    "com.aiquota.mobile.debug.LiveRefreshIssueDebugReceiver"
+  ];
+
+  for (const entrypoint of explicitEntrypoints) {
+    assertContains(rules, entrypoint, "release R8 entrypoint rules");
+  }
+
+  assert.match(
+    rules,
+    /-keep class com\.aiquota\.mobile\.sync\.ForegroundRefreshHealthWorker \{\s+public <init>\(android\.content\.Context, androidx\.work\.WorkerParameters\);\s+\}/
+  );
+});
+
+test("release R8 preserves JavaScript bridge method names used by collector scripts", () => {
+  const rules = source("android/app/proguard-rules.pro");
+  const scripts = source("android/app/src/main/java/com/aiquota/mobile/providers/ProviderWebCollectorScripts.kt");
+
+  assert.match(rules, /@android\.webkit\.JavascriptInterface <methods>;/);
+  assertContains(scripts, "window.AIQuotaCollectorBridge.postUsagePayload", "collector scripts");
+  assertContains(scripts, "window.AIQuotaCollectorBridge.postCollectorError", "collector scripts");
+  assertContains(scripts, "window.AIQuotaCollectorBridge.fetchCopilotJson", "collector scripts");
+  assertContains(scripts, "window.AIQuotaCollectorBridge.fetchCopilotJsonWithAuthorization", "collector scripts");
+  assertContains(scripts, "window.AIQuotaCollectorBridge.fetchCursorJson", "collector scripts");
+});
+
+test("release obfuscation phase does not transform provider asset JavaScript", () => {
+  assertPathsExist([
+    "android/app/src/main/assets/gemini_collector.js",
+    "android/app/src/main/assets/antigravity_collector.js"
+  ]);
+
+  const gradle = source("android/app/build.gradle.kts");
+  const packageJson = source("package.json");
+  const scripts = source("android/app/src/main/java/com/aiquota/mobile/providers/ProviderScriptProviders.kt");
+  const combinedBuildConfig = `${gradle}\n${packageJson}`;
+
+  assert.doesNotMatch(combinedBuildConfig, /terser|uglify|javascript-obfuscator|js-minify|minifyJs|encode.*collector/i);
+  assert.match(scripts, /geminiCollectorAsset/);
+  assert.match(scripts, /antigravityCollectorAsset/);
 });
 
 test("Antigravity backend Functions expose Secret Manager and AES-GCM-backed gateway only", () => {
@@ -236,6 +329,7 @@ test("Gemini CLI OAuth token exchange uses Firebase Functions secrets", () => {
   const index = source("functions/src/index.js");
   const gateway = source("functions/src/geminiCliGateway.js");
   const androidGateway = source("android/app/src/main/java/com/aiquota/mobile/providers/GeminiCliFirebaseGateway.kt");
+  const appCheckCallable = source("android/app/src/main/java/com/aiquota/mobile/providers/FirebaseAppCheckCallable.kt");
   const activity = source("android/app/src/main/java/com/aiquota/mobile/providers/GeminiCliLoopbackOAuthActivity.kt");
   const appShell = source("android/app/src/main/java/com/aiquota/mobile/ui/AIQuotaAppShell.kt");
   const rules = source("firestore.rules");
@@ -249,9 +343,10 @@ test("Gemini CLI OAuth token exchange uses Firebase Functions secrets", () => {
   assert.match(gateway, /client_secret: oauthClientSecret/);
   assert.match(gateway, /refreshGeminiCliAccessToken/);
   assert.match(gateway, /geminiCliOAuthStates/);
-  assert.match(androidGateway, /getHttpsCallable\("startGeminiCliOAuth"\)/);
-  assert.match(androidGateway, /getHttpsCallable\("completeGeminiCliOAuth"\)/);
-  assert.match(androidGateway, /getHttpsCallable\("refreshGeminiCliAccessToken"\)/);
+  assert.match(androidGateway, /callWithAppCheckRetry\(appCheck, "startGeminiCliOAuth"/);
+  assert.match(androidGateway, /callWithAppCheckRetry\(appCheck, "completeGeminiCliOAuth"/);
+  assert.match(androidGateway, /"refreshGeminiCliAccessToken"/);
+  assert.match(appCheckCallable, /FirebaseFunctionsException\.Code\.UNAUTHENTICATED/);
   assert.match(activity, /GeminiCliFirebaseGateway/);
   assert.match(activity, /completeOAuth\(url\)/);
   assert.match(appShell, /providerId == ProviderId\.GEMINI/);

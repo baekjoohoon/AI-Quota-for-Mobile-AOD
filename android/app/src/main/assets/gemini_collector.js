@@ -77,13 +77,29 @@
     return text.indexOf("주간") >= 0 || text.indexOf("weekly") >= 0 || text.indexOf("7 day") >= 0 || text.indexOf("seven day") >= 0;
   }
 
+  function isUsageWindowBoundaryText(value) {
+    var text = safeText(value).toLowerCase();
+    if (!text) return false;
+    if (/%/.test(text) || text.indexOf("초기화") >= 0 || /reset/i.test(text)) return false;
+    return text.indexOf("현재 사용량") >= 0 ||
+      text.indexOf("사용량 한도") >= 0 ||
+      text.indexOf("주간") >= 0 ||
+      text.indexOf("weekly") >= 0 ||
+      text.indexOf("5-hour") >= 0 ||
+      text.indexOf("5 hour") >= 0 ||
+      text.indexOf("current usage") >= 0 ||
+      text.indexOf("usage limit") >= 0;
+  }
+
   function nearbyResetText(lines, index) {
     for (var offset = 1; offset <= 4; offset += 1) {
       var after = safeText(lines[index + offset]);
+      if (isUsageWindowBoundaryText(after)) break;
       if (after && (after.indexOf("초기화") >= 0 || /reset/i.test(after))) return after;
     }
     for (var beforeOffset = 1; beforeOffset <= 3; beforeOffset += 1) {
       var before = safeText(lines[index - beforeOffset]);
+      if (isUsageWindowBoundaryText(before)) break;
       if (before && (before.indexOf("초기화") >= 0 || /reset/i.test(before))) return before;
     }
     return null;
@@ -181,11 +197,19 @@
       if (!isNumber(used) && isNumber(remaining)) used = cap - remaining;
       if (isNumber(used)) return Math.max(0, Math.min(1, used / cap));
     }
-    var rawRate = numberValue(limit, ["u", "usage", "usageRate", "usedRate", "usedPercent"]);
-    var remainingFraction = numberValue(limit, ["remainingFraction", "remaining_fraction", "remainingPercent", "remaining_percent"]);
+    var rawRate = numberValue(limit, ["u", "usage", "usageRate", "usedRate", "utilization"]);
+    var usedPercent = numberValue(limit, ["usedPercent", "used_percent", "usedPercentage", "used_percentage", "percentUsed", "percent_used", "totalPercentUsed", "total_percent_used"]);
+    var remainingFraction = numberValue(limit, ["remainingFraction", "remaining_fraction"]);
+    var remainingPercent = numberValue(limit, ["remainingPercent", "remaining_percent", "remainingPercentage", "remaining_percentage"]);
     if (isNumber(remainingFraction)) {
       var remainingRate = remainingFraction <= 1 ? remainingFraction : remainingFraction / 100;
       return Math.max(0, Math.min(1, 1 - remainingRate));
+    }
+    if (isNumber(remainingPercent)) {
+      return Math.max(0, Math.min(1, 1 - remainingPercent / 100));
+    }
+    if (isNumber(usedPercent)) {
+      return Math.max(0, Math.min(1, usedPercent / 100));
     }
     if (!isNumber(rawRate)) return null;
     return Math.max(0, Math.min(1, rawRate <= 1 ? rawRate : rawRate / 100));

@@ -38,6 +38,43 @@ class UnifiedDashboardDragReorderTest {
     }
 
     @Test
+    fun claudeDashboardPreviewKeepsTwoLineLimitWhenExtraUsageExists() {
+        val snapshot = ProviderUsageSnapshot(
+            providerId = ProviderId.CLAUDE,
+            connectionState = ProviderConnectionState.CONNECTED,
+            lines = listOf(
+                ProviderUsageLine(label = "Claude Session", key = "claude:session", remainingPercent = 0.95f),
+                ProviderUsageLine(label = "Claude Weekly", key = "claude:weekly", remainingPercent = 1.0f),
+                ProviderUsageLine(label = "Extra Usage", key = "claude:extra_usage", remainingPercent = 1.0f),
+                ProviderUsageLine(label = "Future Usage", key = "claude:future", remainingPercent = 1.0f)
+            )
+        )
+
+        assertEquals(
+            listOf("Claude Session", "Claude Weekly"),
+            dashboardUsagePreviewLines(snapshot).map { it.label }
+        )
+    }
+
+    @Test
+    fun nonClaudeDashboardPreviewKeepsTwoLineLimit() {
+        val snapshot = ProviderUsageSnapshot(
+            providerId = ProviderId.CODEX,
+            connectionState = ProviderConnectionState.CONNECTED,
+            lines = listOf(
+                ProviderUsageLine(label = "5h Session", remainingPercent = 0.8f),
+                ProviderUsageLine(label = "Weekly Session", remainingPercent = 0.7f),
+                ProviderUsageLine(label = "Credits", remainingPercent = 0.6f)
+            )
+        )
+
+        assertEquals(
+            listOf("5h Session", "Weekly Session"),
+            dashboardUsagePreviewLines(snapshot).map { it.label }
+        )
+    }
+
+    @Test
     fun dashboardGaugeHeightGrowsFromFourDpToEightDp() {
         val metrics = appLayoutMetrics(screenWidthDp = 393, screenHeightDp = 852)
         val base = dashboardGaugeHeightDp(metrics.dashboardCardMinHeightDp, metrics)
@@ -75,7 +112,7 @@ class UnifiedDashboardDragReorderTest {
 
     @Test
     fun dashboardCardCentersUsageContentInsideExpandedCards() {
-        val dashboardSource = File("src/main/java/com/aiquota/mobile/ui/dashboard/UnifiedDashboardScreen.kt").readText()
+        val dashboardSource = File("src/main/java/com/aiquota/mobile/ui/dashboard/UnifiedDashboardScreen.kt").readNormalizedText()
 
         assertTrue(dashboardSource.contains("val dashboardGaugeHeight = dashboardGaugeHeightDp(cardHeightDp, layoutMetrics).dp"))
         assertTrue(dashboardSource.contains("val usageColumnSpacing = dashboardUsageLineSpacingDp("))
@@ -103,6 +140,23 @@ class UnifiedDashboardDragReorderTest {
         )
 
         assertEquals(2, targetIndex)
+    }
+
+    @Test
+    fun dragTargetIndexMovesOntoAdjacentCard() {
+        val centers = listOf(
+            DashboardCardCenter(x = 100f, y = 100f),
+            DashboardCardCenter(x = 100f, y = 300f),
+            DashboardCardCenter(x = 100f, y = 500f)
+        )
+
+        val targetIndex = dragTargetIndexFromCenter(
+            cardCenters = centers,
+            currentVisibleIndex = 0,
+            draggedCenter = DashboardCardCenter(x = 100f, y = 300f)
+        )
+
+        assertEquals(1, targetIndex)
     }
 
     @Test
@@ -157,6 +211,24 @@ class UnifiedDashboardDragReorderTest {
         )
 
         assertEquals(2, targetIndex)
+    }
+
+    @Test
+    fun dragTargetIndexMovesOntoAdjacentGridCard() {
+        val centers = listOf(
+            DashboardCardCenter(x = 100f, y = 100f),
+            DashboardCardCenter(x = 300f, y = 100f),
+            DashboardCardCenter(x = 100f, y = 300f),
+            DashboardCardCenter(x = 300f, y = 300f)
+        )
+
+        val targetIndex = dragTargetIndexFromCenter(
+            cardCenters = centers,
+            currentVisibleIndex = 0,
+            draggedCenter = DashboardCardCenter(x = 300f, y = 100f)
+        )
+
+        assertEquals(1, targetIndex)
     }
 
     @Test
@@ -285,3 +357,5 @@ class UnifiedDashboardDragReorderTest {
         )
     }
 }
+
+private fun File.readNormalizedText(): String = readText().replace("\r\n", "\n")
