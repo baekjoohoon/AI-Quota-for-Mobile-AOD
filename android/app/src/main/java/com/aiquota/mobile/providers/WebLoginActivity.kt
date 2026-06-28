@@ -316,6 +316,13 @@ open class WebLoginActivity : Activity() {
                 "provider=${providerId.storageId} http status=${errorResponse.statusCode} url=${safeUrlForLog(request.url.toString())}"
             )
             if (request.isForMainFrame && handleLoginCompleteNavigation(view, request.url.toString())) return
+            if (request.isForMainFrame &&
+                providerId == ProviderId.CODEX &&
+                ProviderLoginStrategy.shouldKeepCodexLoginOpenForHttpError(request.url.toString(), errorResponse.statusCode)
+            ) {
+                Log.w("AIQuotaLogin", "provider=${providerId.storageId} keepOpenOnHttp${errorResponse.statusCode}=true")
+                return
+            }
             if (request.isForMainFrame && ProviderLoginStrategy.isBlockingHttpError(request.url.toString(), errorResponse.statusCode)) {
                 failKeepingPrevious("Provider login returned HTTP ${errorResponse.statusCode}.", "main_frame_http_${errorResponse.statusCode}")
             }
@@ -673,7 +680,8 @@ open class WebLoginActivity : Activity() {
             context = applicationContext,
             providerId = providerId,
             source = source,
-            rawPayload = rawPayload
+            rawPayload = rawPayload,
+            glmWebSessionCookieHeader = captureGlmWebSessionCookieHeader()
         )
         finish()
     }
@@ -682,6 +690,7 @@ open class WebLoginActivity : Activity() {
         if (finished) return
         finished = true
         CookieManager.getInstance().flush()
+        captureGlmWebSessionCookieHeader()
         val repository = LocalUsageRepository(applicationContext)
         repository.markConnectedWithoutPlan(
             providerId = ProviderId.GLM,
@@ -704,6 +713,7 @@ open class WebLoginActivity : Activity() {
         }
         finished = true
         CookieManager.getInstance().flush()
+        captureGlmWebSessionCookieHeader()
         val repository = LocalUsageRepository(applicationContext)
         repository.markConnectedWithoutUsage(providerId, message)
         Log.w("AIQuotaLogin", "provider=${providerId.storageId} errorKind=$errorKind usageUnavailable=true")
@@ -755,6 +765,22 @@ open class WebLoginActivity : Activity() {
     private fun saveOpenCodeUsageUrl(url: String) {
         if (providerId != ProviderId.OPENCODE) return
         ProviderScopedStateRepository(applicationContext).saveOpenCodeUsageUrl(url)
+    }
+
+    private fun captureGlmWebSessionCookieHeader(): String? {
+        if (providerId != ProviderId.GLM) return null
+        val cookieHeader = GoogleWebSessionCodeAssistFetcher.mergeCookieHeaders(
+            GlmProviderUrls.WEB_COOKIE_URLS.map { url ->
+                runCatching { CookieManager.getInstance().getCookie(url) }.getOrNull()
+            }
+        )
+        val cookieCount = GoogleWebSessionCodeAssistFetcher.parseCookieHeader(cookieHeader).size
+        if (cookieCount <= 0) {
+            Log.w("AIQuotaLogin", "provider=glm webSessionCookieCaptured=false cookieCount=0")
+            return null
+        }
+        Log.i("AIQuotaLogin", "provider=glm webSessionCookieCaptured=true cookieCount=$cookieCount")
+        return cookieHeader
     }
 
     private fun shouldKeepGoogleLoginRetryPending(errorKind: String, message: String): Boolean {

@@ -210,14 +210,13 @@ class GlmApiKeyActivity : ComponentActivity() {
         setActionControlsEnabled(false)
         statusText.text = getString(R.string.glm_connection_status_opening)
         GlmUsageRepository(applicationContext).useWebOAuth()
+        val intent = WebLoginActivity.createIntent(
+            this,
+            ProviderId.GLM,
+            GlmProviderUrls.WEB_OAUTH_URL
+        )
         val result = runCatching {
-            startActivity(
-                WebLoginActivity.createIntent(
-                    this,
-                    ProviderId.GLM,
-                    GlmProviderUrls.WEB_OAUTH_URL
-                )
-            )
+            startActivity(intent)
         }
         result.onSuccess {
             finish()

@@ -18,6 +18,14 @@ object GlmProviderUrls {
     const val WEB_OAUTH_URL = "https://z.ai/manage-apikey/coding-plan/personal/my-plan"
     const val WEB_USAGE_URL = "https://z.ai/manage-apikey/coding-plan/personal/usage"
     const val API_QUOTA_URL = "https://api.z.ai/api/monitor/usage/quota/limit"
+    val WEB_COOKIE_URLS = listOf(
+        "https://z.ai",
+        "https://www.z.ai",
+        "https://chat.z.ai",
+        WEB_OAUTH_URL,
+        WEB_USAGE_URL,
+        API_QUOTA_URL
+    )
 }
 
 object GlmNoSubscriptionPolicy {
@@ -89,10 +97,67 @@ class GlmApiKeyStore(context: Context) {
     }
 }
 
+class GlmWebSessionCookieStore(context: Context) {
+    private val secureStore = SecureStringStore(context.applicationContext, STORE_NAME)
+
+    fun cookieHeader(): String? {
+        return secureStore.getString(KEY_COOKIE_HEADER)?.trim()?.takeIf { it.isNotBlank() }
+    }
+
+    fun save(cookieHeader: String) {
+        secureStore.putString(KEY_COOKIE_HEADER, cookieHeader.trim())
+    }
+
+    fun clear() {
+        secureStore.remove(KEY_COOKIE_HEADER)
+    }
+
+    private companion object {
+        const val STORE_NAME = "ai_quota_glm_web_session"
+        const val KEY_COOKIE_HEADER = "cookie_header"
+    }
+}
+
+class GlmWebSessionFallbackGate(context: Context) {
+    private val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    fun canRunFallback(
+        automaticRefresh: Boolean,
+        nowMillis: Long = System.currentTimeMillis()
+    ): Boolean {
+        if (!automaticRefresh) return true
+        val lastAttemptAt = prefs.getLong(KEY_LAST_ATTEMPT_AT, 0L)
+        return lastAttemptAt <= 0L ||
+            nowMillis - lastAttemptAt >= AUTO_FALLBACK_MIN_INTERVAL_MS
+    }
+
+    fun remainingDelayMillis(nowMillis: Long = System.currentTimeMillis()): Long {
+        val lastAttemptAt = prefs.getLong(KEY_LAST_ATTEMPT_AT, 0L)
+        if (lastAttemptAt <= 0L) return 0L
+        return (AUTO_FALLBACK_MIN_INTERVAL_MS - (nowMillis - lastAttemptAt)).coerceAtLeast(0L)
+    }
+
+    fun recordFallbackAttempt(nowMillis: Long = System.currentTimeMillis()) {
+        prefs.edit().putLong(KEY_LAST_ATTEMPT_AT, nowMillis).apply()
+    }
+
+    fun clear() {
+        prefs.edit().clear().apply()
+    }
+
+    companion object {
+        const val AUTO_FALLBACK_MIN_INTERVAL_MS = 10 * 60 * 1_000L
+        private const val PREFS = "ai_quota_glm_web_session_fallback"
+        private const val KEY_LAST_ATTEMPT_AT = "last_attempt_at"
+    }
+}
+
 class GlmUsageRepository(context: Context) {
     private val appContext = context.applicationContext
     private val store = GlmApiKeyStore(appContext)
     private val modeStore = GlmConnectionModeStore(appContext)
+    private val webSessionCookieStore = GlmWebSessionCookieStore(appContext)
+    private val fallbackGate = GlmWebSessionFallbackGate(appContext)
 
     fun saveApiKey(apiKey: String) {
         store.save(apiKey)
@@ -103,19 +168,33 @@ class GlmUsageRepository(context: Context) {
         modeStore.save(GlmConnectionMode.WEB_OAUTH)
     }
 
+    fun saveWebSessionCookieHeader(cookieHeader: String?) {
+        val trimmed = cookieHeader?.trim()?.takeIf { it.isNotBlank() } ?: return
+        webSessionCookieStore.save(trimmed)
+        modeStore.save(GlmConnectionMode.WEB_OAUTH)
+    }
+
     fun connectionMode(): GlmConnectionMode {
         return modeStore.mode()
     }
 
     fun clear() {
         store.clear()
+        webSessionCookieStore.clear()
         modeStore.clear()
+        fallbackGate.clear()
     }
 
     fun fetchUsagePayloadFromStoredCredential(): GlmUsageResult {
         val apiKey = store.apiKey()
             ?: return GlmUsageResult(null, requiresAuth = true, diagnostic = "glm_api_key_missing")
         return GlmUsageFetcher.fetchUsagePayload(apiKey)
+    }
+
+    fun fetchUsagePayloadFromWebSession(): GlmUsageResult {
+        val cookieHeader = webSessionCookieStore.cookieHeader()
+            ?: return GlmUsageResult(null, requiresAuth = false, diagnostic = "glm_web_cookie_missing")
+        return GlmUsageFetcher.fetchUsagePayloadWithCookie(cookieHeader)
     }
 }
 
@@ -134,6 +213,33 @@ object GlmUsageFetcher {
     }
 
     private fun executeFetch(apiKey: String, endpointUrl: String, authorizationHeader: String): GlmUsageResult {
+        return executeFetch(endpointUrl, accountLabel = maskApiKey(apiKey)) {
+            setRequestProperty("Authorization", authorizationHeader)
+        }
+    }
+
+    fun fetchUsagePayloadWithCookie(cookieHeader: String): GlmUsageResult {
+        return fetchUsagePayloadWithCookie(cookieHeader, GlmProviderUrls.API_QUOTA_URL)
+    }
+
+    internal fun fetchUsagePayloadWithCookie(cookieHeader: String, endpointUrl: String): GlmUsageResult {
+        val trimmedCookieHeader = cookieHeader.trim()
+        if (trimmedCookieHeader.isBlank()) {
+            return GlmUsageResult(null, requiresAuth = false, diagnostic = "glm_web_cookie_missing")
+        }
+        return executeFetch(endpointUrl, accountLabel = "z.ai web session") {
+            setRequestProperty("Cookie", trimmedCookieHeader)
+            setRequestProperty("Origin", "https://z.ai")
+            setRequestProperty("Referer", GlmProviderUrls.WEB_USAGE_URL)
+            setRequestProperty("User-Agent", WEB_SESSION_USER_AGENT)
+        }
+    }
+
+    private fun executeFetch(
+        endpointUrl: String,
+        accountLabel: String,
+        configureConnection: HttpURLConnection.() -> Unit
+    ): GlmUsageResult {
         return runCatching {
             val connection = (URL(endpointUrl).openConnection() as HttpURLConnection).apply {
                 connectTimeout = NETWORK_TIMEOUT_MS
@@ -141,8 +247,8 @@ object GlmUsageFetcher {
                 requestMethod = "GET"
                 setRequestProperty("Accept", "application/json")
                 setRequestProperty("Content-Type", "application/json")
-                setRequestProperty("Authorization", authorizationHeader)
                 setRequestProperty("User-Agent", "AIQuotaMobile/1.0")
+                configureConnection()
             }
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
@@ -165,7 +271,7 @@ object GlmUsageFetcher {
             GlmUsageResult(
                 json
                     .put("provider", "glm")
-                    .put("account", maskApiKey(apiKey))
+                    .put("account", accountLabel)
                     .toString(),
                 requiresAuth = false,
                 diagnostic = "ok"
@@ -231,4 +337,6 @@ object GlmUsageFetcher {
     }
 
     private const val NETWORK_TIMEOUT_MS = 10_000
+    private const val WEB_SESSION_USER_AGENT =
+        "Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
 }

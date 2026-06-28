@@ -1,0 +1,122 @@
+﻿reason=snapshot_stale provider=claude ageMin=30.59 recentLog=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260625-120m-glm20\evidence\session-monitor-20260625-235611-claude-recent-log.txt
+elapsedMinutes=70
+failureAt=2026-06-26T01:06:38.9923108+09:00
+summaryPath=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260625-120m-glm20\evidence\session-monitor-20260625-235611.jsonl
+logPath=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260625-120m-glm20\evidence\session-monitor-20260625-235611.log
+logcatPath=D:\Vibe Project\AI Usage for Mobile\.omo\ulw-loop\session-monitor-20260625-120m-glm20\evidence\session-monitor-20260625-235611-logcat.txt
+
+rows:
+[
+    {
+        "provider":  "claude",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "Pro",
+        "updatedAt":  "2026-06-25T15:35:55.029776Z",
+        "statusUpdatedAt":  "2026-06-25T15:44:41.211856Z",
+        "ageMinutes":  30.59,
+        "message":  "Background refresh timed out.",
+        "lineCount":  3,
+        "sources":  "structured-script",
+        "firstLine":  "Claude Session"
+    },
+    {
+        "provider":  "codex",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "Pro 20x",
+        "updatedAt":  "2026-06-25T15:45:23.905831Z",
+        "statusUpdatedAt":  "2026-06-25T15:45:23.905831Z",
+        "ageMinutes":  21.13,
+        "message":  null,
+        "lineCount":  5,
+        "sources":  "visible-dom",
+        "firstLine":  "Codex Session"
+    },
+    {
+        "provider":  "glm",
+        "ok":  true,
+        "connectionState":  "COLLECTING",
+        "refreshState":  "REFRESHING",
+        "planLabel":  "Lite",
+        "updatedAt":  "2026-06-25T15:39:35.483379Z",
+        "statusUpdatedAt":  "2026-06-25T15:45:24.016376Z",
+        "ageMinutes":  26.94,
+        "message":  "Collecting usage",
+        "lineCount":  3,
+        "sources":  "visible-dom",
+        "firstLine":  "5시간 한도"
+    },
+    {
+        "provider":  "opencode",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "Go",
+        "updatedAt":  "2026-06-25T15:39:44.308445Z",
+        "statusUpdatedAt":  "2026-06-25T15:43:00.946168Z",
+        "ageMinutes":  26.8,
+        "message":  "Background refresh timed out.",
+        "lineCount":  3,
+        "sources":  "visible-dom",
+        "firstLine":  "Go 5-Hour Limit"
+    },
+    {
+        "provider":  "gemini",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "Free",
+        "updatedAt":  "2026-06-25T15:40:18.147196Z",
+        "statusUpdatedAt":  "2026-06-25T15:43:54.631268Z",
+        "ageMinutes":  26.25,
+        "message":  "Background refresh timed out.",
+        "lineCount":  2,
+        "sources":  "structured-script",
+        "firstLine":  "5-hour limit"
+    },
+    {
+        "provider":  "copilot",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "free",
+        "updatedAt":  "2026-06-25T15:40:28.020121Z",
+        "statusUpdatedAt":  "2026-06-25T15:44:13.409880Z",
+        "ageMinutes":  26.11,
+        "message":  "Background refresh timed out.",
+        "lineCount":  2,
+        "sources":  "structured-script",
+        "firstLine":  "Chat"
+    },
+    {
+        "provider":  "cursor",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "free",
+        "updatedAt":  "2026-06-25T15:44:25.708558Z",
+        "statusUpdatedAt":  "2026-06-25T15:44:25.708558Z",
+        "ageMinutes":  22.16,
+        "message":  null,
+        "lineCount":  3,
+        "sources":  "structured-script",
+        "firstLine":  "Total usage"
+    },
+    {
+        "provider":  "antigravity",
+        "ok":  true,
+        "connectionState":  "CONNECTED",
+        "refreshState":  "IDLE",
+        "planLabel":  "AI Pro",
+        "updatedAt":  "2026-06-25T15:44:16.106391Z",
+        "statusUpdatedAt":  "2026-06-25T15:44:16.106391Z",
+        "ageMinutes":  22.32,
+        "message":  null,
+        "lineCount":  14,
+        "sources":  "provider-api",
+        "firstLine":  "Gemini 3.5 Flash (High)"
+    }
+]

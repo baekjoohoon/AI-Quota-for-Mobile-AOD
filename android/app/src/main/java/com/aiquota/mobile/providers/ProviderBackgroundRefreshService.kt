@@ -27,6 +27,7 @@ import com.aiquota.mobile.local.LocalUsageRepository
 import com.aiquota.mobile.local.ProviderId
 import com.aiquota.mobile.local.ProviderUsageSnapshot
 import com.aiquota.mobile.notification.UsageLimitNotificationController
+import com.aiquota.mobile.update.AppUpdatedRefreshCooldown
 import com.aiquota.mobile.widget.WidgetRefreshActions
 import com.aiquota.mobile.widget.WidgetRefreshFeedback
 import java.net.URI
@@ -135,7 +136,7 @@ class ProviderBackgroundRefreshService : Service() {
             running = true
         }
         if (!tickScheduled && !refreshInProgress) {
-            scheduleNextTick(delayMillis = INITIAL_AUTO_REFRESH_DELAY_MILLIS)
+            scheduleNextTick(delayMillis = initialAutoRefreshDelayMillis())
         }
     }
 
@@ -273,7 +274,7 @@ class ProviderBackgroundRefreshService : Service() {
         val outcome = when (effectiveJob.mode) {
             ProviderRefreshMode.NATIVE_API -> collectNativeProviderUsage(effectiveJob)
             ProviderRefreshMode.HIDDEN_WEB_COLLECTOR -> ProviderWebSessionMaintenanceGate.withMaintenanceLock {
-                collectWebProviderUsage(effectiveJob)
+                collectWebProviderUsage(effectiveJob, automaticRefresh)
             }
         }
         Log.d(TAG, "outcome provider=${effectiveJob.providerId.storageId} type=${outcome::class.java.simpleName}")
@@ -389,6 +390,13 @@ class ProviderBackgroundRefreshService : Service() {
         automaticRefresh: Boolean
     ) {
         destroyProviderWebView(providerId)
+        if (!automaticRefresh) {
+            if (ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(providerId)) {
+                ProviderSessionResetter(applicationContext).disconnect(providerId)
+            }
+            repository.markSessionExpired(providerId, message)
+            return
+        }
         if (automaticRefresh && providerId == ProviderId.GEMINI) {
             repository.markGoogleUsagePending(providerId, GoogleUsagePendingRetryPolicy.PENDING_MESSAGE)
             return
@@ -397,12 +405,6 @@ class ProviderBackgroundRefreshService : Service() {
             repository.failKeepingPrevious(providerId, message)
             return
         }
-        if (!ProviderRefreshSessionPolicy.shouldClearCredentialsOnRefreshAuthFailure(providerId)) {
-            repository.failKeepingPrevious(providerId, message)
-            return
-        }
-        ProviderSessionResetter(applicationContext).disconnect(providerId)
-        repository.markSessionExpired(providerId, message)
     }
 
     private suspend fun collectNativeProviderUsage(job: ProviderRefreshJob): ServiceRefreshOutcome {
@@ -478,25 +480,39 @@ class ProviderBackgroundRefreshService : Service() {
         return fallback.payload
     }
 
-    private suspend fun collectWebProviderUsage(job: ProviderRefreshJob): ServiceRefreshOutcome {
+    private suspend fun collectWebProviderUsage(
+        job: ProviderRefreshJob,
+        automaticRefresh: Boolean
+    ): ServiceRefreshOutcome {
         if (job.providerId == ProviderId.GLM) {
+            Log.i(TAG, "glmWebSessionCollect start automatic=$automaticRefresh")
             return when (val result = GlmIsolatedWebSession.collectUsage(
                 context = applicationContext,
                 startUrl = job.startUrl,
                 timeoutMillis = ProviderRefreshPlan.timeoutMillisFor(job.providerId)
             )) {
-                is GlmIsolatedUsageResult.Payload -> ServiceRefreshOutcome.Payload(result.rawPayload)
+                is GlmIsolatedUsageResult.Payload -> {
+                    GlmUsageRepository(applicationContext).saveWebSessionCookieHeader(result.cookieHeader)
+                    ServiceRefreshOutcome.Payload(result.rawPayload)
+                }
                 is GlmIsolatedUsageResult.Failure -> ServiceRefreshOutcome.Failure(result.failure)
             }
         }
         val requestId = ++nextRequestId
         webJobLastUrls[requestId] = job.startUrl
-        val result = withTimeoutOrNull(ProviderRefreshPlan.timeoutMillisFor(job.providerId)) {
+        val result = withTimeoutOrNull(timeoutMillisForWebJob(job)) {
             suspendCancellableCoroutine { continuation ->
                 mainHandler.post {
-                    activeWebJob = ServiceWebRefreshJob(requestId, job)
+                    val warmUpUrl = webSessionWarmUpUrl(job)
+                    val active = ServiceWebRefreshJob(
+                        requestId = requestId,
+                        job = job,
+                        warmUpUrl = warmUpUrl,
+                        warmUpPending = warmUpUrl != null
+                    )
+                    activeWebJob = active
                     activeWebContinuation = continuation
-                    startWebCollection(requestId, job)
+                    startWebCollection(active)
                 }
                 continuation.invokeOnCancellation {
                     mainHandler.post {
@@ -516,7 +532,8 @@ class ProviderBackgroundRefreshService : Service() {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun startWebCollection(requestId: Long, job: ProviderRefreshJob) {
+    private fun startWebCollection(active: ServiceWebRefreshJob) {
+        val job = active.job
         val webView = retainedWebViews.getOrPut(job.providerId) {
             WebView(this).apply {
                 val cookieManager = CookieManager.getInstance()
@@ -535,12 +552,18 @@ class ProviderBackgroundRefreshService : Service() {
                 webViewClient = ServiceCollectorWebViewClient(job.providerId)
             }
         }
-        prepareSharedWebSessionForCollection(webView)
-        Log.d(TAG, "load provider=${job.providerId.storageId} start=${hostOf(job.startUrl)}${pathOf(job.startUrl)} request=$requestId")
-        webView.loadUrl(job.startUrl)
+        val initialUrl = active.warmUpUrl ?: job.startUrl
+        webJobLastUrls[active.requestId] = initialUrl
+        prepareSharedWebSessionForCollection(webView, job.providerId)
+        Log.d(
+            TAG,
+            "load provider=${job.providerId.storageId} start=${hostOf(initialUrl)}${pathOf(initialUrl)} " +
+                "warmUp=${active.warmUpPending} request=${active.requestId}"
+        )
+        webView.loadUrl(initialUrl)
     }
 
-    private fun prepareSharedWebSessionForCollection(webView: WebView) {
+    private fun prepareSharedWebSessionForCollection(webView: WebView, providerId: ProviderId) {
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -663,6 +686,26 @@ class ProviderBackgroundRefreshService : Service() {
         return true
     }
 
+    private fun maybeCompleteWebSessionWarmUp(active: ServiceWebRefreshJob, view: WebView, url: String): Boolean {
+        if (!isWebSessionWarmUpPage(active, url)) return false
+        active.warmUpPending = false
+        collectorInjectionKeys.removeAll { it.contains(":${active.job.providerId.storageId}:") }
+        Log.d(
+            TAG,
+            "warmUpComplete provider=${active.job.providerId.storageId} from=${hostOf(url)}${pathOf(url)} " +
+                "to=${hostOf(active.job.startUrl)}${pathOf(active.job.startUrl)}"
+        )
+        view.stopLoading()
+        view.loadUrl(active.job.startUrl)
+        return true
+    }
+
+    private fun isWebSessionWarmUpPage(active: ServiceWebRefreshJob, url: String): Boolean {
+        if (!active.warmUpPending) return false
+        val warmUpUrl = active.warmUpUrl ?: return false
+        return hostOf(url) == hostOf(warmUpUrl)
+    }
+
     private fun maybeScheduleGeminiTerminalCheck(active: ServiceWebRefreshJob, view: WebView, url: String) {
         if (active.job.providerId != ProviderId.GEMINI) return
         if (active.geminiTerminalCheckScheduled) return
@@ -774,6 +817,7 @@ class ProviderBackgroundRefreshService : Service() {
         override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
             val active = currentWebJobFor(ownerProviderId) ?: return
             recordWebJobUrl(active.requestId, url)
+            if (isWebSessionWarmUpPage(active, url)) return
             if (maybeRedirectOpenCodeRefreshToGo(active, view, url)) return
             if (maybeRedirectGeminiRefreshToUsage(active, view, url)) return
             if (isGeminiRefreshInteractiveSignInPage(active, url)) {
@@ -808,6 +852,7 @@ class ProviderBackgroundRefreshService : Service() {
             val active = currentWebJobFor(ownerProviderId) ?: return
             val pageUrl = view.url ?: url
             recordWebJobUrl(active.requestId, pageUrl)
+            if (isWebSessionWarmUpPage(active, pageUrl)) return
             if (!ProviderWebCollectorScripts.shouldRunCollectorFromResource(ownerProviderId, pageUrl, url)) return
             val requestId = active.requestId
             view.evaluateJavascript(PAGE_CAPTURE_SCRIPT) { encoded ->
@@ -832,6 +877,7 @@ class ProviderBackgroundRefreshService : Service() {
             val requestId = active.requestId
             recordWebJobUrl(requestId, url)
             Log.d(TAG, "pageFinished provider=${ownerProviderId.storageId} url=${hostOf(url)}${pathOf(url)}")
+            if (maybeCompleteWebSessionWarmUp(active, view, url)) return
             if (maybeRedirectOpenCodeRefreshToGo(active, view, url)) return
             if (maybeRedirectGeminiRefreshToUsage(active, view, url)) return
             if (isGeminiRefreshInteractiveSignInPage(active, url)) {
@@ -1004,7 +1050,7 @@ class ProviderBackgroundRefreshService : Service() {
 
         private fun isNativeFetchBridgePageAllowed(providerId: ProviderId): Boolean {
             val active = currentWebJobFor(providerId) ?: return false
-            val pageUrl = retainedWebViews[providerId]?.url.orEmpty().ifBlank { active.job.startUrl }
+            val pageUrl = webJobLastUrls[active.requestId].orEmpty().ifBlank { active.job.startUrl }
             return ProviderWebCollectorScripts.shouldAcceptCollectorPayload(providerId, pageUrl)
         }
 
@@ -1115,6 +1161,8 @@ class ProviderBackgroundRefreshService : Service() {
     private data class ServiceWebRefreshJob(
         val requestId: Long,
         val job: ProviderRefreshJob,
+        val warmUpUrl: String? = null,
+        var warmUpPending: Boolean = false,
         val collectorRetryCounts: MutableMap<String, Int> = mutableMapOf(),
         var lastGeminiRefreshRedirectKey: String? = null,
         var lastGeminiRefreshRedirectAtMs: Long = 0L,
@@ -1162,6 +1210,7 @@ class ProviderBackgroundRefreshService : Service() {
         }
         private const val BRIDGE_NAME = "AIQuotaCollectorBridge"
         private const val INITIAL_AUTO_REFRESH_DELAY_MILLIS = 3_000L
+        private const val WEB_SESSION_WARM_UP_TIMEOUT_MILLIS = 8_000L
         private const val GEMINI_USAGE_REDIRECT_MIN_INTERVAL_MS = 1_500L
         private const val GEMINI_USAGE_REDIRECT_MAX_ATTEMPTS = 2
         private const val GEMINI_SIGN_IN_CLICK_MAX_ATTEMPTS = 1
@@ -1171,5 +1220,27 @@ class ProviderBackgroundRefreshService : Service() {
         private const val TAG = "AIQuotaBgRefreshService"
         private const val PAGE_CAPTURE_SCRIPT =
             "(function(){return (document.documentElement.innerText||document.title||'').slice(0,12000);})()"
+    }
+
+    private fun initialAutoRefreshDelayMillis(): Long {
+        return maxOf(
+            INITIAL_AUTO_REFRESH_DELAY_MILLIS,
+            AppUpdatedRefreshCooldown.remainingDelayMillis(applicationContext)
+        )
+    }
+
+    private fun timeoutMillisForWebJob(job: ProviderRefreshJob): Long {
+        val baseTimeout = ProviderRefreshPlan.timeoutMillisFor(job.providerId)
+        return if (webSessionWarmUpUrl(job) == null) baseTimeout else baseTimeout + WEB_SESSION_WARM_UP_TIMEOUT_MILLIS
+    }
+
+    private fun webSessionWarmUpUrl(job: ProviderRefreshJob): String? {
+        return when (job.providerId) {
+            ProviderId.GEMINI -> "https://gemini.google.com/"
+            ProviderId.COPILOT -> "https://github.com/"
+            ProviderId.OPENCODE -> "https://opencode.ai/"
+            ProviderId.CURSOR -> "https://cursor.com/"
+            else -> null
+        }?.takeUnless { it == job.startUrl }
     }
 }

@@ -25,6 +25,10 @@ class ProviderUsageCollectionService : Service() {
 
         val requestedSource = payloadSource(intent?.getStringExtra(EXTRA_SOURCE))
         val rawPayload = intent?.getStringExtra(EXTRA_RAW_PAYLOAD).orEmpty()
+        val glmWebSessionCookieHeader = intent?.getStringExtra(EXTRA_GLM_WEB_SESSION_COOKIE_HEADER)
+        if (providerId == ProviderId.GLM) {
+            GlmUsageRepository(applicationContext).saveWebSessionCookieHeader(glmWebSessionCookieHeader)
+        }
         completeCollection(
             providerId,
             requestedSource,
@@ -120,17 +124,20 @@ class ProviderUsageCollectionService : Service() {
         private const val EXTRA_PROVIDER_ID = "providerId"
         private const val EXTRA_SOURCE = "source"
         private const val EXTRA_RAW_PAYLOAD = "rawPayload"
+        private const val EXTRA_GLM_WEB_SESSION_COOKIE_HEADER = "glmWebSessionCookieHeader"
 
         fun start(
             context: Context,
             providerId: ProviderId,
             source: String,
-            rawPayload: String? = null
+            rawPayload: String? = null,
+            glmWebSessionCookieHeader: String? = null
         ) {
             val intent = Intent(context, ProviderUsageCollectionService::class.java)
                 .putExtra(EXTRA_PROVIDER_ID, providerId.storageId)
                 .putExtra(EXTRA_SOURCE, source)
                 .putExtra(EXTRA_RAW_PAYLOAD, rawPayload)
+                .putExtra(EXTRA_GLM_WEB_SESSION_COOKIE_HEADER, glmWebSessionCookieHeader)
             context.startService(intent)
         }
 

@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 import kotlin.concurrent.thread
 
@@ -110,6 +111,62 @@ class GlmUsageFetcherTest {
                 authorizationHeaders
             )
             org.junit.Assert.assertTrue(result.payload!!.contains("TOKENS_LIMIT"))
+        } finally {
+            server.close()
+            serverThread.join(1_000L)
+        }
+    }
+
+    @Test
+    fun webSessionFetchSendsCookieWithoutAuthorizationHeader() {
+        var cookieHeader: String? = null
+        var authorizationHeader: String? = null
+        var refererHeader: String? = null
+        var userAgentHeader: String? = null
+        val server = ServerSocket().apply {
+            reuseAddress = true
+            bind(InetSocketAddress("127.0.0.1", 0))
+        }
+        val serverThread = thread(name = "glm-web-session-fetcher-test-server") {
+            server.accept().use { socket ->
+                val request = socket.getInputStream().bufferedReader(StandardCharsets.UTF_8)
+                while (true) {
+                    val line = request.readLine() ?: break
+                    if (line.isEmpty()) break
+                    if (line.startsWith("Cookie:", ignoreCase = true)) {
+                        cookieHeader = line.substringAfter(":").trim()
+                    }
+                    if (line.startsWith("Authorization:", ignoreCase = true)) {
+                        authorizationHeader = line.substringAfter(":").trim()
+                    }
+                    if (line.startsWith("Referer:", ignoreCase = true)) {
+                        refererHeader = line.substringAfter(":").trim()
+                    }
+                    if (line.startsWith("User-Agent:", ignoreCase = true)) {
+                        userAgentHeader = line.substringAfter(":").trim()
+                    }
+                }
+                socket.getOutputStream().writeHttpResponse(
+                    status = HttpURLConnection.HTTP_OK,
+                    reason = "OK",
+                    body = quotaBody()
+                )
+            }
+        }
+
+        try {
+            val result = GlmUsageFetcher.fetchUsagePayloadWithCookie(
+                cookieHeader = "zai_session=session-value; other=value",
+                endpointUrl = "http://127.0.0.1:${server.localPort}/quota"
+            )
+
+            assertEquals("ok", result.diagnostic)
+            assertFalse(result.requiresAuth)
+            assertNotNull(result.payload)
+            assertEquals("zai_session=session-value; other=value", cookieHeader)
+            assertNull(authorizationHeader)
+            assertEquals(GlmProviderUrls.WEB_USAGE_URL, refererHeader)
+            org.junit.Assert.assertTrue(userAgentHeader.orEmpty().contains("Mozilla/5.0"))
         } finally {
             server.close()
             serverThread.join(1_000L)

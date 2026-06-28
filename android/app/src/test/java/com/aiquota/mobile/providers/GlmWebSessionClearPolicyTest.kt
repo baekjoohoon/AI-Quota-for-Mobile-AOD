@@ -121,11 +121,17 @@ class GlmWebSessionClearPolicyTest {
     fun glmWebOAuthBackgroundRefreshUsesIsolatedCollector() {
         val service = File("src/main/java/com/aiquota/mobile/providers/ProviderBackgroundRefreshService.kt").readText()
         val collector = File("src/main/java/com/aiquota/mobile/providers/GlmIsolatedWebSessionService.kt").readText()
+        val session = File("src/main/java/com/aiquota/mobile/providers/GlmIsolatedWebSession.kt").readText()
 
         assertTrue(service.contains("if (job.providerId == ProviderId.GLM)"))
         assertTrue(service.contains("GlmIsolatedWebSession.collectUsage("))
+        assertFalse(service.contains("fetchUsagePayloadFromWebSession()"))
+        assertFalse(service.contains("GlmWebSessionFallbackGate(applicationContext)"))
         assertTrue(collector.contains("class GlmIsolatedWebSessionService : Service()"))
         assertTrue(collector.contains("ProviderWebCollectorScripts.build("))
+        assertTrue(collector.contains("scheduleProcessExit(reason)"))
+        assertTrue(collector.contains("Process.killProcess(Process.myPid())"))
+        assertTrue(session.contains("killIsolatedProcessIfRunning(context, \"collect_timeout\")"))
     }
 
     @Test

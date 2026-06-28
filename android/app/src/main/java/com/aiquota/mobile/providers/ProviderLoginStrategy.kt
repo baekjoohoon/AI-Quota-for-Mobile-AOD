@@ -118,6 +118,17 @@ object ProviderLoginStrategy {
         return host.isNotBlank()
     }
 
+    fun shouldKeepCodexLoginOpenForHttpError(url: String, statusCode: Int): Boolean {
+        if (statusCode != 403) return false
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase(Locale.US)
+        if (host != "chatgpt.com") return false
+        val path = uri.path.orEmpty().lowercase(Locale.US)
+        return path.startsWith("/auth") ||
+            path.startsWith("/api/auth") ||
+            path.startsWith("/cdn-cgi/challenge-platform")
+    }
+
     private val GOOGLE_ACCOUNT_HOST =
         Regex("""^accounts\.google\.(?:com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$""")
 }

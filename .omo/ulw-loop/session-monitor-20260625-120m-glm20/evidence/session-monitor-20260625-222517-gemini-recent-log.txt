@@ -1,0 +1,1 @@
+﻿06-25 14:45:20.673 I/adbd    (  535): adbd service requested 'shell,v2,TERM=dumb,raw:run-as com.aiquota.mobile cat shared_prefs/usage_data_gemini.xml'

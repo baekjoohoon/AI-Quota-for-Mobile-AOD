@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Process
 import android.os.ResultReceiver
+import android.util.Log
 import android.webkit.WebView
 import com.aiquota.mobile.local.ProviderId
 import kotlin.coroutines.resume
@@ -30,6 +31,18 @@ object GlmIsolatedWebViewProfile {
         return true
     }
 
+    fun killIsolatedProcessIfRunning(context: Context, reason: String) {
+        val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val currentPid = Process.myPid()
+        manager.runningAppProcesses
+            ?.asSequence()
+            ?.filter { it.pid != currentPid && it.processName.endsWith(PROCESS_SUFFIX) }
+            ?.forEach { process ->
+                Log.w(TAG, "killProcess provider=glm pid=${process.pid} reason=$reason")
+                Process.killProcess(process.pid)
+            }
+    }
+
     private fun currentProcessName(context: Context): String {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) return ApplicationProcessName.value()
         val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
@@ -40,12 +53,17 @@ object GlmIsolatedWebViewProfile {
     }
 }
 
+private const val TAG = "GlmIsolatedWebSession"
+
 private object ApplicationProcessName {
     fun value(): String = android.app.Application.getProcessName()
 }
 
 sealed class GlmIsolatedUsageResult {
-    data class Payload(val rawPayload: String) : GlmIsolatedUsageResult()
+    data class Payload(
+        val rawPayload: String,
+        val cookieHeader: String?
+    ) : GlmIsolatedUsageResult()
     data class Failure(val failure: ProviderRefreshFailure) : GlmIsolatedUsageResult()
 }
 
@@ -55,14 +73,15 @@ object GlmIsolatedWebSession {
         startUrl: String,
         timeoutMillis: Long
     ): GlmIsolatedUsageResult {
-        return awaitServiceResult(
+        val result = awaitServiceResult(
             context = context,
             intent = GlmIsolatedWebSessionService.collectIntent(context, startUrl, timeoutMillis),
             timeoutMillis = timeoutMillis + SERVICE_RESULT_GRACE_MS,
             onResult = ::usageResultFor
-        ) ?: GlmIsolatedUsageResult.Failure(
-            ProviderRefreshTimeoutPolicy.failureFor(ProviderId.GLM, startUrl)
         )
+        if (result != null) return result
+        GlmIsolatedWebViewProfile.killIsolatedProcessIfRunning(context, "collect_timeout")
+        return GlmIsolatedUsageResult.Failure(ProviderRefreshTimeoutPolicy.failureFor(ProviderId.GLM, startUrl))
     }
 
     fun clear(context: Context) {
@@ -115,7 +134,8 @@ object GlmIsolatedWebSession {
         return when (code) {
             GlmIsolatedWebSessionService.RESULT_PAYLOAD ->
                 GlmIsolatedUsageResult.Payload(
-                    bundle.getString(GlmIsolatedWebSessionService.EXTRA_RAW_PAYLOAD).orEmpty()
+                    rawPayload = bundle.getString(GlmIsolatedWebSessionService.EXTRA_RAW_PAYLOAD).orEmpty(),
+                    cookieHeader = bundle.getString(GlmIsolatedWebSessionService.EXTRA_COOKIE_HEADER)
                 )
             else ->
                 GlmIsolatedUsageResult.Failure(

@@ -9,7 +9,10 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.Process
 import android.os.ResultReceiver
+import android.os.SystemClock
+import android.util.Log
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
@@ -22,8 +25,13 @@ import com.aiquota.mobile.local.ProviderId
 
 class GlmIsolatedWebSessionService : Service() {
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val processExitRunnable = Runnable {
+        Log.w(TAG, "killSelf provider=glm pid=${Process.myPid()}")
+        Process.killProcess(Process.myPid())
+    }
     private var webView: WebView? = null
     private var resultReceiver: ResultReceiver? = null
+    private var collectionStartedAtMillis = 0L
     private var completed = false
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -32,7 +40,7 @@ class GlmIsolatedWebSessionService : Service() {
         when (intent?.action) {
             ACTION_COLLECT -> startCollection(intent)
             ACTION_CLEAR -> clearSession(intent)
-            ACTION_CANCEL -> finish()
+            ACTION_CANCEL -> finish("cancel")
             else -> stopSelf(startId)
         }
         return START_NOT_STICKY
@@ -45,12 +53,16 @@ class GlmIsolatedWebSessionService : Service() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun startCollection(intent: Intent) {
+        mainHandler.removeCallbacks(processExitRunnable)
         destroyWebView()
         completed = false
         resultReceiver = resultReceiverFrom(intent)
+        collectionStartedAtMillis = SystemClock.elapsedRealtime()
         val startUrl = intent.getStringExtra(EXTRA_START_URL).orEmpty()
         val timeoutMillis = intent.getLongExtra(EXTRA_TIMEOUT_MILLIS, ProviderRefreshPlan.PROVIDER_REFRESH_TIMEOUT_MILLIS)
+        Log.d(TAG, "start provider=glm pid=${Process.myPid()} startUrl=${safeLogValue(startUrl)} timeoutMs=$timeoutMillis")
         mainHandler.postDelayed({
+            logTimeout(startUrl, timeoutMillis)
             completeFailure(ProviderRefreshTimeoutPolicy.failureFor(ProviderId.GLM, webView?.url ?: startUrl))
         }, timeoutMillis)
         CookieManager.getInstance().setAcceptCookie(true)
@@ -71,9 +83,11 @@ class GlmIsolatedWebSessionService : Service() {
     }
 
     private fun clearSession(intent: Intent) {
+        mainHandler.removeCallbacks(processExitRunnable)
         destroyWebView()
         completed = false
         resultReceiver = resultReceiverFrom(intent)
+        Log.d(TAG, "clear provider=glm pid=${Process.myPid()}")
         WebStorage.getInstance().deleteAllData()
         val cookieManager = CookieManager.getInstance()
         mainHandler.postDelayed({
@@ -124,14 +138,35 @@ class GlmIsolatedWebSessionService : Service() {
     }
 
     private fun completePayload(rawPayload: String) {
+        Log.d(TAG, "payload provider=glm size=${rawPayload.length}")
+        val cookieHeader = glmWebSessionCookieHeader()
         CookieManager.getInstance().flush()
         sendResult(
             RESULT_PAYLOAD,
-            Bundle().apply { putString(EXTRA_RAW_PAYLOAD, rawPayload) }
+            Bundle().apply {
+                putString(EXTRA_RAW_PAYLOAD, rawPayload)
+                putString(EXTRA_COOKIE_HEADER, cookieHeader)
+            }
         )
     }
 
+    private fun glmWebSessionCookieHeader(): String? {
+        val cookieHeader = GoogleWebSessionCodeAssistFetcher.mergeCookieHeaders(
+            GlmProviderUrls.WEB_COOKIE_URLS.map { url ->
+                runCatching { CookieManager.getInstance().getCookie(url) }.getOrNull()
+            }
+        )
+        val cookieCount = GoogleWebSessionCodeAssistFetcher.parseCookieHeader(cookieHeader).size
+        if (cookieCount <= 0) {
+            Log.w(TAG, "webSessionCookieCaptured provider=glm captured=false cookieCount=0")
+            return null
+        }
+        Log.i(TAG, "webSessionCookieCaptured provider=glm captured=true cookieCount=$cookieCount")
+        return cookieHeader
+    }
+
     private fun completeFailure(failure: ProviderRefreshFailure) {
+        Log.w(TAG, "failure provider=glm kind=${failure.kind} message=${safeLogValue(failure.message)}")
         sendResult(
             RESULT_FAILURE,
             Bundle().apply {
@@ -141,22 +176,42 @@ class GlmIsolatedWebSessionService : Service() {
         )
     }
 
+    private fun logTimeout(startUrl: String, timeoutMillis: Long) {
+        val view = webView
+        val elapsedMillis = SystemClock.elapsedRealtime() - collectionStartedAtMillis
+        Log.w(
+            TAG,
+            "timeout provider=glm pid=${Process.myPid()} elapsedMs=$elapsedMillis timeoutMs=$timeoutMillis " +
+                "startUrl=${safeLogValue(startUrl)} currentUrl=${safeLogValue(view?.url)} " +
+                "title=${safeLogValue(view?.title)} hasWebView=${view != null}"
+        )
+    }
+
     private fun sendResult(code: Int, bundle: Bundle) {
         if (completed) return
         completed = true
         mainHandler.removeCallbacksAndMessages(null)
         resultReceiver?.send(code, bundle)
         resultReceiver = null
-        finish()
+        finish(resultNameFor(code))
     }
 
-    private fun finish() {
+    private fun finish(reason: String) {
         destroyWebView()
+        Log.d(TAG, "stopSelf provider=glm reason=$reason pid=${Process.myPid()}")
         stopSelf()
+        scheduleProcessExit(reason)
+    }
+
+    private fun scheduleProcessExit(reason: String) {
+        Log.d(TAG, "scheduleKill provider=glm reason=$reason pid=${Process.myPid()}")
+        mainHandler.postDelayed(processExitRunnable, PROCESS_EXIT_DELAY_MS)
     }
 
     private fun destroyWebView() {
-        webView?.let { view ->
+        val view = webView
+        Log.d(TAG, "destroyWebView provider=glm hasWebView=${view != null} pid=${Process.myPid()}")
+        view?.let {
             runCatching { view.stopLoading() }
             runCatching { view.removeJavascriptInterface(BRIDGE_NAME) }
             runCatching { view.destroy() }
@@ -173,13 +228,33 @@ class GlmIsolatedWebSessionService : Service() {
         }
     }
 
+    private fun resultNameFor(code: Int): String {
+        return when (code) {
+            RESULT_PAYLOAD -> "payload"
+            RESULT_FAILURE -> "failure"
+            RESULT_CLEARED -> "cleared"
+            else -> "result_$code"
+        }
+    }
+
     private fun decodeJsString(value: String?): String {
         if (value.isNullOrBlank() || value == "null") return ""
         return runCatching { org.json.JSONObject("""{"value":$value}""").optString("value") }.getOrDefault("")
     }
 
+    private fun safeLogValue(value: String?): String {
+        return value.orEmpty()
+            .replace(Regex("code=[^\\s&]+"), "code=redacted")
+            .replace(Regex("token=[^\\s&]+"), "token=redacted")
+            .replace(Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), "<email>")
+            .replace('\n', ' ')
+            .replace('\r', ' ')
+            .take(MAX_LOG_VALUE_LENGTH)
+    }
+
     private inner class GlmWebClient : WebViewClient() {
         override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+            Log.d(TAG, "pageStarted provider=glm url=${safeLogValue(url)}")
             GlmLoginPostRedirects.usageRedirectUrl(ProviderId.GLM, url)?.let { usageUrl ->
                 view.stopLoading()
                 view.loadUrl(usageUrl)
@@ -195,6 +270,7 @@ class GlmIsolatedWebSessionService : Service() {
         }
 
         override fun onPageFinished(view: WebView, url: String) {
+            Log.d(TAG, "pageFinished provider=glm url=${safeLogValue(url)}")
             GlmLoginPostRedirects.usageRedirectUrl(ProviderId.GLM, url)?.let { usageUrl ->
                 view.loadUrl(usageUrl)
                 return
@@ -228,6 +304,7 @@ class GlmIsolatedWebSessionService : Service() {
             mainHandler.post {
                 val pageUrl = webView?.url.orEmpty().ifBlank { GlmProviderUrls.WEB_USAGE_URL }
                 if (!ProviderWebCollectorScripts.shouldAcceptCollectorError(ProviderId.GLM, pageUrl, rawError)) return@post
+                Log.w(TAG, "collectorError provider=glm summary=${safeLogValue(rawError)}")
                 completeFailure(ProviderCollectorErrorPolicy.failureFor(ProviderId.GLM, rawError))
             }
         }
@@ -236,6 +313,7 @@ class GlmIsolatedWebSessionService : Service() {
     companion object {
         const val EXTRA_RESULT_RECEIVER = "result_receiver"
         const val EXTRA_RAW_PAYLOAD = "raw_payload"
+        const val EXTRA_COOKIE_HEADER = "cookie_header"
         const val EXTRA_FAILURE_KIND = "failure_kind"
         const val EXTRA_FAILURE_MESSAGE = "failure_message"
         private const val EXTRA_START_URL = "start_url"
@@ -244,10 +322,13 @@ class GlmIsolatedWebSessionService : Service() {
         private const val ACTION_CLEAR = "com.aiquota.mobile.action.GLM_WEB_CLEAR"
         private const val ACTION_CANCEL = "com.aiquota.mobile.action.GLM_WEB_CANCEL"
         private const val BRIDGE_NAME = "AIQuotaCollectorBridge"
+        private const val TAG = "GlmIsolatedWebSession"
         private const val LOGIN_PAGE_REACHED_MESSAGE = "Background refresh reached a provider login page."
         private const val PAGE_CAPTURE_SCRIPT =
             "(function(){return (document.documentElement.innerText||document.title||'').slice(0,12000);})()"
         private const val CLEAR_CALLBACK_FALLBACK_MS = 2_000L
+        private const val MAX_LOG_VALUE_LENGTH = 200
+        private const val PROCESS_EXIT_DELAY_MS = 300L
         const val RESULT_PAYLOAD = 1
         const val RESULT_FAILURE = 2
         const val RESULT_CLEARED = 3

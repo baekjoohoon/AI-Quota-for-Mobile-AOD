@@ -15,6 +15,7 @@ class ProviderRefreshPlanTest {
     fun providerRefreshTimeoutsKeepFastDefaultAndGiveSlowCollectorsMoreTime() {
         assertEquals(60_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.CODEX))
         assertEquals(10_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.CLAUDE))
+        assertEquals(20_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.GLM))
         assertEquals(45_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.GEMINI))
         assertEquals(10_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.COPILOT))
         assertEquals(75_000L, ProviderRefreshPlan.timeoutMillisFor(ProviderId.ANTIGRAVITY))

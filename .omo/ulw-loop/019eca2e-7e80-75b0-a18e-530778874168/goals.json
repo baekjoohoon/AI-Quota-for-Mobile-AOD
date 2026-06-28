@@ -1,7 +1,7 @@
 {
   "version": 1,
   "createdAt": "2026-06-21T11:56:59.415Z",
-  "updatedAt": "2026-06-21T11:56:59.415Z",
+  "updatedAt": "2026-06-26T13:12:16.710Z",
   "briefPath": ".omo/ulw-loop/019eca2e-7e80-75b0-a18e-530778874168/brief.md",
   "goalsPath": ".omo/ulw-loop/019eca2e-7e80-75b0-a18e-530778874168/goals.json",
   "ledgerPath": ".omo/ulw-loop/019eca2e-7e80-75b0-a18e-530778874168/ledger.jsonl",
@@ -11,7 +11,7 @@
       "id": "G001-ai-usage-for-mobile-provider-refresh",
       "title": "AI Usage for Mobile에서 세션 장기 유지가 깨진 provider들을 실제 refresh에서 다시 사용량 수집...",
       "objective": "AI Usage for Mobile에서 세션 장기 유지가 깨진 provider들을 실제 refresh에서 다시 사용량 수집 가능하도록 복구하고, 기존 provider 기능을 보존한다. 현재는 에뮬레이터에서 provider refresh를 실제로 검증해야 하며, 기존 provider 기능을 망가뜨리지 않는 최소 수정만 허용한다.",
-      "status": "pending",
+      "status": "blocked",
       "successCriteria": [
         {
           "id": "C001",
@@ -41,9 +41,11 @@
           "status": "pending"
         }
       ],
-      "attempt": 0,
+      "attempt": 1,
       "createdAt": "2026-06-21T11:56:59.415Z",
-      "updatedAt": "2026-06-21T11:56:59.415Z"
+      "updatedAt": "2026-06-26T13:12:16.710Z",
+      "startedAt": "2026-06-26T10:24:55.499Z",
+      "blockedReason": "blocked: ai_quota_web_session_cookie_backup.xml missing; shared WebView providers repeatedly reach login page; user re-login and one successful collection required to seed backup before 120m monitor can start; get_goal status set to blocked tokensUsed=2014638"
     }
   ],
   "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/019eca2e-7e80-75b0-a18e-530778874168/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/019eca2e-7e80-75b0-a18e-530778874168/ledger.jsonl as the audit trail."

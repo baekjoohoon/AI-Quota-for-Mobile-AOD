@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "createdAt": "2026-06-25T13:22:14.739Z",
+  "updatedAt": "2026-06-25T16:10:20.672Z",
+  "briefPath": ".omo/ulw-loop/session-monitor-20260625-120m-glm20/brief.md",
+  "goalsPath": ".omo/ulw-loop/session-monitor-20260625-120m-glm20/goals.json",
+  "ledgerPath": ".omo/ulw-loop/session-monitor-20260625-120m-glm20/ledger.jsonl",
+  "codexGoalMode": "aggregate",
+  "goals": [
+    {
+      "id": "G001-120-10-90",
+      "title": "세션 장기 유지 테스트를 위한 감시. 총 120분간 10분 단위로 세션 유지상태를 점검한다. 90분 이상 세션이 지속될 경우...",
+      "objective": "세션 장기 유지 테스트를 위한 감시. 총 120분간 10분 단위로 세션 유지상태를 점검한다. 90분 이상 세션이 지속될 경우 10분 단위 점검 시 APK를 재설치하고 세션 유지상태를 점검한다. 세션이 만료된 provider가 발생하면 즉시 감시를 중단하고 원인 분석 결과와 조치계획을 보고한다. 코드 수정 금지.",
+      "status": "failed",
+      "successCriteria": [
+        {
+          "id": "C001",
+          "scenario": "happy path for: 세션 장기 유지 테스트를 위한 감시. 총 120분간 10분 단위로 세션 유지상태를 점검한다. 90분 이상 세션이 지속될 경우 10분 단위...",
+          "userModel": "happy",
+          "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+          "essential": true,
+          "capturedEvidence": "Failed at elapsed=70m: snapshot_stale provider=claude age=30.59m; GLM/opencode/gemini/copilot also stale >26m; logcat shows GLM isolated process start/ANR around 15:45:24-15:46:34 and no stable recovery. Artifacts: .omo/ulw-loop/session-monitor-20260625-120m-glm20/evidence/session-monitor-20260625-235611-failure.txt, session-monitor-20260625-235611-logcat.txt",
+          "status": "fail",
+          "capturedAt": "2026-06-25T16:09:35.054Z",
+          "notes": "Monitoring stopped as requested on stale refresh failure. This was not an auth/session-expired transition; snapshots stayed CONNECTED, but refresh pipeline stopped collecting after GLM isolated WebView ANR/timeout."
+        },
+        {
+          "id": "C002",
+          "scenario": "edge case (boundary/empty/malformed)",
+          "userModel": "edge",
+          "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: 세션 장기 유지 테스트를 위한 감시. 총 120분간 10분 단위로 세션 유지상태를 점검한다. 90분 이상 세션이 지속될 경우 10분 단위....",
+          "essential": true,
+          "capturedEvidence": null,
+          "status": "pending"
+        },
+        {
+          "id": "C003",
+          "scenario": "regression: adjacent surface still works",
+          "userModel": "regression",
+          "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: 세션 장기 유지 테스트를 위한 감시. 총 120분간 10분 단위로 세션 유지상태를 점검한다. 90분 이상 세션이 지속될 경우 10분 단위....",
+          "essential": false,
+          "capturedEvidence": null,
+          "status": "pending"
+        }
+      ],
+      "attempt": 0,
+      "createdAt": "2026-06-25T13:22:14.739Z",
+      "updatedAt": "2026-06-25T16:10:20.672Z",
+      "failedAt": "2026-06-25T16:10:20.672Z",
+      "failureReason": "Failed at elapsed=70m: snapshot_stale provider=claude age=30.59m; GLM/opencode/gemini/copilot also stale >26m; logcat shows GLM isolated process start/ANR around 15:45:24-15:46:34 and no stable recovery. Artifacts: .omo/ulw-loop/session-monitor-20260625-120m-glm20/evidence/session-monitor-20260625-235611-failure.txt, session-monitor-20260625-235611-logcat.txt"
+    }
+  ],
+  "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/session-monitor-20260625-120m-glm20/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/session-monitor-20260625-120m-glm20/ledger.jsonl as the audit trail."
+}

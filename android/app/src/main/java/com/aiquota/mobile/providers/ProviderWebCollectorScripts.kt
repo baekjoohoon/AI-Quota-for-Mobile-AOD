@@ -2299,6 +2299,7 @@ object ProviderWebCollectorScripts {
               var c = window.__AIQuotaCollector;
               if (!c) return;
               var glmNoSubscriptionText = "you don't have any subscription";
+              var glmQuotaLimitUrl = "https://api.z.ai/api/monitor/usage/quota/limit";
               function hasGlmNoSubscriptionText(value) {
                 return String(value || "").toLowerCase().indexOf(glmNoSubscriptionText) >= 0;
               }
@@ -2306,6 +2307,31 @@ object ProviderWebCollectorScripts {
                 if (value === null || value === undefined || value === "") return null;
                 var parsed = Number(value);
                 return Number.isFinite(parsed) ? parsed : null;
+              }
+              function parseGlmUrl(value) {
+                try {
+                  return new URL(String(value || ""), window.location && window.location.href ? window.location.href : "https://z.ai/");
+                } catch (error) {
+                  return null;
+                }
+              }
+              function isGlmRelevantNetworkUrl(value) {
+                var parsed = parseGlmUrl(value);
+                if (!parsed) return false;
+                var host = String(parsed.host || "").toLowerCase();
+                var path = String(parsed.pathname || "").toLowerCase();
+                if (host === "api.z.ai") {
+                  return path === "/api/monitor/usage/quota/limit" ||
+                    path.indexOf("/api/monitor/usage") === 0 ||
+                    path === "/api/biz/subscription/list";
+                }
+                if (host === "chat.z.ai") {
+                  return path.indexOf("usage") >= 0 ||
+                    path.indexOf("quota") >= 0 ||
+                    path.indexOf("plan") >= 0 ||
+                    path.indexOf("subscription") >= 0;
+                }
+                return false;
               }
               function first(object, keys) {
                 if (!object || typeof object !== "object") return null;
@@ -2441,6 +2467,7 @@ object ProviderWebCollectorScripts {
                 if (parsed) scan(parsed, payload, 0);
               }
               function pushGlmNetworkRow(url, text) {
+                if (!isGlmRelevantNetworkUrl(url)) return;
                 var value = String(url || "") + "\n" + String(text || "");
                 var lower = value.toLowerCase();
                 if (lower.indexOf("tokens_limit") < 0 &&
@@ -2465,9 +2492,11 @@ object ProviderWebCollectorScripts {
                       var url = typeof input === "string" ? input : (input && input.url) || "";
                       return originalFetch.apply(this, arguments).then(function(response) {
                         try {
-                          response.clone().text().then(function(text) {
-                            pushGlmNetworkRow(url, text);
-                          }).catch(function(){});
+                          if (isGlmRelevantNetworkUrl(url)) {
+                            response.clone().text().then(function(text) {
+                              pushGlmNetworkRow(url, text);
+                            }).catch(function(){});
+                          }
                         } catch (error) {}
                         return response;
                       });
@@ -2483,7 +2512,12 @@ object ProviderWebCollectorScripts {
                   };
                   XMLHttpRequest.prototype.send = function() {
                     this.addEventListener("load", function() {
-                      try { pushGlmNetworkRow(this.__aiQuotaGlmUrl || "", this.responseText || ""); } catch (error) {}
+                      try {
+                        var url = this.__aiQuotaGlmUrl || "";
+                        if (isGlmRelevantNetworkUrl(url)) {
+                          pushGlmNetworkRow(url, this.responseText || "");
+                        }
+                      } catch (error) {}
                     });
                     return originalSend.apply(this, arguments);
                   };
@@ -2578,7 +2612,18 @@ object ProviderWebCollectorScripts {
                 var limits = payload && payload.data && payload.data.limits;
                 return Array.isArray(limits) && limits.length > 0;
               }
-              function collect(attempt) {
+              function fetchQuotaLimitPayload() {
+                return c.fetchJson(glmQuotaLimitUrl).then(function(result) {
+                  if (!result || !result.ok || !result.json) return null;
+                  var payload = { provider: "glm", source: "webview-network" };
+                  scan(result.json, payload, 0);
+                  dedupeLimits(payload);
+                  return hasTrustedPayload(payload) ? payload : null;
+                }).catch(function() {
+                  return null;
+                });
+              }
+              function collectFallback(attempt) {
                 var payload = { provider: "glm", source: "visible-dom" };
                 scanPageState(payload);
                 scanRows(payload);
@@ -2597,6 +2642,19 @@ object ProviderWebCollectorScripts {
                 } else {
                   c.fail("glm_no_trusted_payload", "GLM Web OAuth usage payload was not available.");
                 }
+              }
+              function collect(attempt) {
+                if (attempt === 0) {
+                  fetchQuotaLimitPayload().then(function(payload) {
+                    if (payload) {
+                      c.post(payload);
+                      return;
+                    }
+                    collectFallback(0);
+                  });
+                  return;
+                }
+                collectFallback(attempt);
               }
               installNetworkHook();
               setTimeout(function(){ collect(0); }, 800);
@@ -3641,6 +3699,13 @@ object ProviderWebCollectorScripts {
                 )) return true;
                 return !!(quotas.premium_billing || quotas.premiumBilling || quotas.premium_requests || quotas.premiumRequests || quotas.chat || quotas.completions);
               }
+              function failCopilotJsonCollection(error, featureUsage) {
+                if (featureUsage && featureUsage.complete) {
+                  collectFeaturesUsageWithMetadata(featureUsage);
+                  return;
+                }
+                c.fail("copilot_entitlement_unavailable", String(error && error.message || error));
+              }
               function collectFeaturesUsageWithMetadata(featureUsage) {
                 var featurePayload = buildFeaturesPayload(featureUsage);
                 Promise.all([
@@ -3676,7 +3741,7 @@ object ProviderWebCollectorScripts {
                   c.post(featurePayload);
                 });
               }
-              function collectEntitlementFallback(billingInput) {
+              function collectEntitlementFallback(billingInput, featureUsage) {
                 Promise.all([
                   nativeJson("https://github.com/github-copilot/chat/entitlement"),
                   githubPostJson("https://github.com/github-copilot/chat/token"),
@@ -3749,36 +3814,28 @@ object ProviderWebCollectorScripts {
                      var payload = buildPayload(entitlement.json || {}, internalUsage, settingsPage.ok ? (settingsPage.json || {}) : null, null, billingInput);
                      if (!hasCopilotUsage(payload)) throw error;
                      c.post(payload);
-                   });
-                  }).catch(function(error) {
-                    throw error;
+                    });
+                   }).catch(function(error) {
+                    failCopilotJsonCollection(error, featureUsage);
                   });
                 }).catch(function(error) {
-                  c.fail("copilot_entitlement_unavailable", String(error && error.message || error));
+                  failCopilotJsonCollection(error, featureUsage);
                 });
               }
               function collectPremiumBilling(attempt) {
                 var featureUsage = currentFeaturesPageUsage();
-                if (featureUsage && featureUsage.complete) {
-                  collectFeaturesUsageWithMetadata(featureUsage);
-                  return;
-                }
-                if (featureUsage && featureUsage.seen && location.pathname.indexOf("/settings/copilot/features") >= 0) {
-                  if (attempt < 5) {
-                    setTimeout(function(){ collectPremiumBilling(attempt + 1); }, 600);
-                  } else {
-                    c.fail("copilot_features_usage_incomplete", "Copilot features usage was visible but incomplete.");
-                  }
-                  return;
-                }
                 var billingInput = currentPagePremiumBillingInput();
+                if (attempt === 0) {
+                  collectEntitlementFallback(billingInput, featureUsage);
+                  return;
+                }
                 var cardUrl = premiumBillingCardUrl(billingInput);
                 try { console.log("AIQuotaCopilot billing_page input=" + !!billingInput + " card=" + !!cardUrl + " attempt=" + attempt); } catch (logError) {}
                 if (!cardUrl) {
                   if (attempt < 3) {
                     setTimeout(function(){ collectPremiumBilling(attempt + 1); }, 500);
                   } else {
-                    collectEntitlementFallback(billingInput);
+                    collectEntitlementFallback(billingInput, featureUsage);
                   }
                   return;
                 }
@@ -3792,12 +3849,12 @@ object ProviderWebCollectorScripts {
                     billingInput
                   );
                   if (!hasCopilotUsage(payload)) {
-                    collectEntitlementFallback(billingInput);
+                    collectEntitlementFallback(billingInput, featureUsage);
                     return;
                   }
                   c.post(payload);
                 }).catch(function() {
-                  collectEntitlementFallback(billingInput);
+                  collectEntitlementFallback(billingInput, featureUsage);
                 });
               }
               installCopilotNetworkHook();

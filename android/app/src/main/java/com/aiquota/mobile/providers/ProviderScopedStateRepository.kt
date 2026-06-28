@@ -17,12 +17,16 @@ class ProviderScopedStateRepository(context: Context) {
         val stores = ProviderScriptProviders.storeNamesFor(providerId)
         val metadata = ProviderScriptProviders.metadataFor(providerId)
 
-        appContext.getSharedPreferences(stores.usageData, Context.MODE_PRIVATE)
+        val usageDataEditor = appContext.getSharedPreferences(stores.usageData, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_PROVIDER_ID, providerId.storageId)
             .putString(KEY_SNAPSHOT, ProviderSnapshotCodec.encode(listOf(snapshot)))
             .putString(KEY_UPDATED_AT, snapshot.updatedAt)
-            .apply()
+        if (providerId == ProviderId.GLM) {
+            usageDataEditor.commit()
+        } else {
+            usageDataEditor.apply()
+        }
 
         appContext.getSharedPreferences(stores.accountData, Context.MODE_PRIVATE)
             .edit()

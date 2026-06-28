@@ -1,0 +1,14 @@
+﻿2026-06-26T19:30:01.8285791+09:00 monitor_start session=session-monitor-20260626-193001 apk=D:\Vibe Project\AI Usage for Mobile\android\app\build\outputs\apk\debug\app-debug.apk
+2026-06-26T20:30:09.6971025+09:00 reinstall_start interval=6 apk=D:\Vibe Project\AI Usage for Mobile\android\app\build\outputs\apk\debug\app-debug.apk
+2026-06-26T20:30:10.9342262+09:00 reinstall_exit interval=6 code=0
+2026-06-26T20:30:19.5880087+09:00 launch_after_reinstall interval=6 code=0
+2026-06-26T20:41:51.5607170+09:00 reinstall_start interval=7 apk=D:\Vibe Project\AI Usage for Mobile\android\app\build\outputs\apk\debug\app-debug.apk
+2026-06-26T20:41:51.9237524+09:00 reinstall_exit interval=7 code=0
+2026-06-26T20:42:00.4860576+09:00 launch_after_reinstall interval=7 code=0
+2026-06-26T20:53:32.7682395+09:00 reinstall_start interval=8 apk=D:\Vibe Project\AI Usage for Mobile\android\app\build\outputs\apk\debug\app-debug.apk
+2026-06-26T20:53:33.2689786+09:00 reinstall_exit interval=8 code=0
+2026-06-26T20:53:41.5963095+09:00 launch_after_reinstall interval=8 code=0
+2026-06-26T21:05:14.0110627+09:00 reinstall_start interval=9 apk=D:\Vibe Project\AI Usage for Mobile\android\app\build\outputs\apk\debug\app-debug.apk
+2026-06-26T21:05:14.5953647+09:00 reinstall_exit interval=9 code=0
+2026-06-26T21:05:22.9195319+09:00 launch_after_reinstall interval=9 code=0
+2026-06-26T21:06:55.2515028+09:00 monitor_failed snapshot_stale claude:age=25.7m state=CONNECTED,codex:age=25.5m state=CONNECTED,opencode:age=25.4m state=CONNECTED,gemini:age=25.3m state=CONNECTED,copilot:age=25.2m state=CONNECTED,cursor:age=26.1m state=CONNECTED

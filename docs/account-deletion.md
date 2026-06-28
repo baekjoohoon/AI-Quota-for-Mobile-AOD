@@ -29,4 +29,4 @@ AI Quota는 별도의 username/password 계정을 생성하지 않습니다. pro
 
 ## provider 계정 데이터
 
-Claude, Codex, Gemini, GitHub Copilot, Antigravity, Cursor 등 provider가 보관하는 계정, 결제, 구독 데이터는 AI Quota에서 삭제할 수 없습니다. 해당 정보는 각 provider의 계정 설정 또는 개인정보 처리 절차를 이용해야 합니다.
+Claude, Codex, GLM, OpenCode, Gemini, GitHub Copilot, Antigravity, Cursor 등 provider가 보관하는 계정, 결제, 구독 데이터는 AI Quota에서 삭제할 수 없습니다. 해당 정보는 각 provider의 계정 설정 또는 개인정보 처리 절차를 이용해야 합니다.

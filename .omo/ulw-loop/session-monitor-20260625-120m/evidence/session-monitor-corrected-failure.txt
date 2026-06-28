@@ -1,0 +1,224 @@
+﻿FAILED at 2026-06-25T21:44:38.0528749+09:00 cycle=4 phase=normal
+snapshot_stale provider=glm updatedAt=2026-06-25T12:25:09.925030Z ageMin=19.46 state=CONNECTED/IDLE message=Previous collection did not finish.
+
+--- Recent relevant logs ---
+06-25 12:40:21.853 D/AIQuotaBgRefreshService( 5120): outcome provider=copilot type=Payload
+06-25 12:40:21.867 D/AIQuotaBgRefreshService( 5120): saveSnapshot provider=copilot source=webview lineCount=2 planPresent=true accountPresent=false
+06-25 12:40:24.055 I/chromium( 5120): [INFO:CONSOLE:0] "The resource https://gemini.gstatic.com/_/mss/boq-bard-web/_/js/k=boq-bard-web.BardChatUi.ko.rAGdSiN3cik.2018.O/ck=boq-bard-web.BardChatUi.Q6MsUoXMv2I.L.B1.O/am=AQBIPADz2xRbeGCAAiy8BNAAAAAACAE/d=1/exm=_b/excm=_b/ed=1/br=1/wt=2/ujg=1/rs=AL3bBk3yGlyVo6jlKuSPk_ZWhb0RrXnrJg/ee=DGWCxb:CgYiQ;EmZ2Bf:zr1jrb;NJ1rfe:yGfSdd;Pjplud:PoEs9b;QGR0gd:Mlhmy;ScI3Yc:e7Hzgb;UYRIEb:HzTAQc;YIZmRd:A1yn5d;cEt90b:ws9Tlc;dIoSBb:SpsfSb;dowIGb:ebZ3mb;eBAeSb:zbML3c;iFQyKf:vfuNJf;oGtAuc:sOXFj;qQEoOc:KUM7Z;qddgKe:xQtZb;wNp4Gc:k56rsf;wR5FRb:siKnQd;yxTchf:KUM7Z/dti=1/m=LQaXg,ziINQc?wli=BardChatUi.e1l0rjMvEww.libheifWasm.O%3A%3BBardChatUi.6Z-5eP1MU0Y.loadWasmSipCoca.O%3A%3B was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.", source: https://gemini.google.com/usage (0)
+06-25 12:40:24.607 D/AIQuotaBgRefreshService( 5120): outcome provider=antigravity type=Snapshot
+06-25 12:40:24.613 D/AIQuotaBgRefreshService( 5120): saveSnapshot provider=antigravity source=native lineCount=14 planPresent=true accountPresent=false
+06-25 12:40:24.898 D/AIQuotaBgRefreshService( 5120): load provider=cursor start=cursor.com/ warmUp=true request=323
+06-25 12:40:29.499 D/AIQuotaBgRefreshService( 5120): pageFinished provider=cursor url=cursor.com/agents
+06-25 12:40:29.510 D/AIQuotaBgRefreshService( 5120): warmUpComplete provider=cursor from=cursor.com/agents to=cursor.com/dashboard
+06-25 12:40:30.919 D/AIQuotaBgRefreshService( 5120): inject provider=cursor url=cursor.com/dashboard
+06-25 12:40:32.377 I/chromium( 5120): [INFO:CONSOLE:0] "The resource https://gemini.gstatic.com/_/mss/boq-bard-web/_/js/k=boq-bard-web.BardChatUi.ko.rAGdSiN3cik.2018.O/ck=boq-bard-web.BardChatUi.Q6MsUoXMv2I.L.B1.O/am=AQBIPADz2xRbeGCAAiy8BNAAAAAACAE/d=1/exm=_b/excm=_b/ed=1/br=1/wt=2/ujg=1/rs=AL3bBk3yGlyVo6jlKuSPk_ZWhb0RrXnrJg/ee=DGWCxb:CgYiQ;EmZ2Bf:zr1jrb;NJ1rfe:yGfSdd;Pjplud:PoEs9b;QGR0gd:Mlhmy;ScI3Yc:e7Hzgb;UYRIEb:HzTAQc;YIZmRd:A1yn5d;cEt90b:ws9Tlc;dIoSBb:SpsfSb;dowIGb:ebZ3mb;eBAeSb:zbML3c;iFQyKf:vfuNJf;oGtAuc:sOXFj;qQEoOc:KUM7Z;qddgKe:xQtZb;wNp4Gc:k56rsf;wR5FRb:siKnQd;yxTchf:KUM7Z/dti=1/m=LQaXg,ziINQc?wli=BardChatUi.e1l0rjMvEww.libheifWasm.O%3A%3BBardChatUi.6Z-5eP1MU0Y.loadWasmSipCoca.O%3A%3B was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.", source: https://gemini.google.com/usage (0)
+06-25 12:40:32.620 D/AIQuotaBgRefreshService( 5120): pageFinished provider=cursor url=cursor.com/dashboard
+06-25 12:40:32.733 D/AIQuotaBgRefreshService( 5120): reinject provider=cursor url=cursor.com/dashboard
+06-25 12:40:32.815 D/AIQuotaBgRefreshService( 5120): pageFinished provider=cursor url=cursor.com/dashboard
+06-25 12:40:32.944 D/AIQuotaBgRefreshService( 5120): reinject provider=cursor url=cursor.com/dashboard
+06-25 12:40:35.009 D/AIQuotaBgRefreshService( 5120): reinject provider=cursor url=cursor.com/dashboard
+06-25 12:40:35.106 D/AIQuotaBgRefreshService( 5120): reinject provider=cursor url=cursor.com/dashboard
+06-25 12:40:35.116 D/AIQuotaBgRefreshService( 5120): reinject provider=cursor url=cursor.com/dashboard
+06-25 12:40:35.118 D/AIQuotaBgRefreshService( 5120): reinject provider=cursor url=cursor.com/dashboard
+06-25 12:40:35.121 D/AIQuotaBgRefreshService( 5120): reinject provider=cursor url=cursor.com/dashboard
+06-25 12:40:36.089 D/AIQuotaBgRefreshService( 5120): reinject provider=cursor url=cursor.com/dashboard
+06-25 12:40:36.225 D/AIQuotaBgRefreshService( 5120): reinject provider=cursor url=cursor.com/dashboard
+06-25 12:40:37.431 D/AIQuotaBgRefreshService( 5120): reinject provider=cursor url=cursor.com/dashboard
+06-25 12:40:37.452 D/AIQuotaBgRefreshService( 5120): reinject provider=cursor url=cursor.com/dashboard
+06-25 12:40:37.949 D/AIQuotaBgRefreshService( 5120): payload provider=cursor url=cursor.com/dashboard summary=root=provider|membershipType|email|billingCycleStart|billingCycleEnd|individualUsage|planUsage|requestUsage|collectorMode,provider=cursor,collectorMode=webview-js,lineCount=0,hasUsage=false,hasData=false,hasError=false
+06-25 12:40:37.991 D/AIQuotaBgRefreshService( 5120): outcome provider=cursor type=Payload
+06-25 12:40:37.995 D/AIQuotaBgRefreshService( 5120): saveSnapshot provider=cursor source=webview lineCount=3 planPresent=true accountPresent=true
+06-25 12:40:43.236 D/AIQuotaBgRefreshService( 5120): cycleStart providers=claude,codex,glm,opencode,gemini,copilot,antigravity,cursor
+06-25 12:40:44.985 D/AIQuotaBgRefreshService( 5120): load provider=claude start=claude.ai/ warmUp=false request=324
+06-25 12:40:51.683 I/chromium( 5120): [INFO:CONSOLE:0] "Error with Permissions-Policy header: Unrecognized feature: 'bluetooth'.", source:  (0)
+06-25 12:40:51.968 I/chromium( 5120): [INFO:CONSOLE:0] "Error with Permissions-Policy header: Unrecognized feature: 'browsing-topics'.", source:  (0)
+06-25 12:40:52.040 I/chromium( 5120): [INFO:CONSOLE:0] "Error with Permissions-Policy header: Unrecognized feature: 'compute-pressure'.", source:  (0)
+06-25 12:40:52.065 I/chromium( 5120): [INFO:CONSOLE:0] "Error with Permissions-Policy header: Unrecognized feature: 'hid'.", source:  (0)
+06-25 12:40:52.075 I/chromium( 5120): [INFO:CONSOLE:0] "Error with Permissions-Policy header: Unrecognized feature: 'local-fonts'.", source:  (0)
+06-25 12:40:52.075 I/chromium( 5120): [INFO:CONSOLE:0] "Error with Permissions-Policy header: Unrecognized feature: 'otp-credentials'.", source:  (0)
+06-25 12:40:52.075 I/chromium( 5120): [INFO:CONSOLE:0] "Error with Permissions-Policy header: Unrecognized feature: 'serial'.", source:  (0)
+06-25 12:40:52.087 I/chromium( 5120): [INFO:CONSOLE:0] "Error with Permissions-Policy header: Unrecognized feature: 'usb'.", source:  (0)
+06-25 12:40:52.087 I/chromium( 5120): [INFO:CONSOLE:0] "Error with Permissions-Policy header: Unrecognized feature: 'web-share'.", source:  (0)
+06-25 12:40:52.088 I/chromium( 5120): [INFO:CONSOLE:0] "Error with Permissions-Policy header: Unrecognized feature: 'xr-spatial-tracking'.", source:  (0)
+06-25 12:40:53.464 D/AIQuotaBgRefreshService( 5120): inject provider=claude url=claude.ai/
+06-25 12:40:53.942 D/AIQuotaBgRefreshService( 5120): outcome provider=claude type=Failure
+06-25 12:40:54.047 W/AIQuotaBgRefreshService( 5120): failure provider=claude kind=TIMEOUT message=Background refresh timed out.
+06-25 12:40:58.041 D/AIQuotaBgRefreshService( 5120): load provider=codex start=chatgpt.com/ warmUp=false request=325
+06-25 12:41:04.143 I/chromium( 5120): [INFO:CONSOLE:0] "The resource https://gemini.gstatic.com/_/mss/boq-bard-web/_/js/k=boq-bard-web.BardChatUi.ko.rAGdSiN3cik.2018.O/ck=boq-bard-web.BardChatUi.Q6MsUoXMv2I.L.B1.O/am=AQBIPADz2xRbeGCAAiy8BNAAAAAACAE/d=1/exm=_b/excm=_b/ed=1/br=1/wt=2/ujg=1/rs=AL3bBk3yGlyVo6jlKuSPk_ZWhb0RrXnrJg/ee=DGWCxb:CgYiQ;EmZ2Bf:zr1jrb;NJ1rfe:yGfSdd;Pjplud:PoEs9b;QGR0gd:Mlhmy;ScI3Yc:e7Hzgb;UYRIEb:HzTAQc;YIZmRd:A1yn5d;cEt90b:ws9Tlc;dIoSBb:SpsfSb;dowIGb:ebZ3mb;eBAeSb:zbML3c;iFQyKf:vfuNJf;oGtAuc:sOXFj;qQEoOc:KUM7Z;qddgKe:xQtZb;wNp4Gc:k56rsf;wR5FRb:siKnQd;yxTchf:KUM7Z/dti=1/m=LQaXg,ziINQc?wli=BardChatUi.e1l0rjMvEww.libheifWasm.O%3A%3BBardChatUi.6Z-5eP1MU0Y.loadWasmSipCoca.O%3A%3B was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.", source: https://gemini.google.com/usage (0)
+06-25 12:41:06.795 D/AIQuotaBgRefreshService( 5120): skipInject provider=codex url=chatgpt.com/ reason=host=chatgpt.com path=/ textPresent=false loginText=false page=len=0,signIn=false,usage=false,limit=false,quota=false,error=false
+06-25 12:41:08.580 I/chromium( 5120): [INFO:CONSOLE:2] "[O11Y] [DatadogRUM] Initialized [object Object]", source: https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c34d1f91f-BKf8CvSU.js (2)
+06-25 12:41:14.571 I/chromium( 5120): [INFO:CONSOLE:3] "Deprecated API for given entry type.", source: https://assets-proxy.anthropic.com/claude-ai/v2/assets/v1/c34d1f91f-BKf8CvSU.js (3)
+06-25 12:41:20.175 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Sending iframe_ready message", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:22.941 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Sending iframe_ready message", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:23.109 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Message received from parent [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:23.110 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Processing message [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:23.110 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] init called [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:23.110 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Loading analytics via analytics.js", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:23.117 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] gtag.js loaded [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:23.118 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Analytics loaded successfully [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:23.118 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] sendMessage called [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:23.118 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Message sent to parent [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:23.638 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Message received from parent [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:23.638 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Processing message [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:23.638 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] init called [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:23.638 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Already initialized, skipping", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:24.175 D/AIQuotaBgRefreshService( 5120): pageFinished provider=codex url=chatgpt.com/
+06-25 12:41:24.454 D/AIQuotaBgRefreshService( 5120): inject provider=codex url=chatgpt.com/
+06-25 12:41:24.654 I/chromium( 5120): [INFO:CONSOLE:124] "AIQuotaCodex collector started", source:  (124)
+06-25 12:41:24.704 D/AIQuotaBgRefreshService( 5120): pageFinished provider=codex url=chatgpt.com/
+06-25 12:41:25.114 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Message received from parent [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:25.115 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Processing message [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:25.116 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Handling identify message [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:25.117 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] identify called [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:25.117 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] gtag user_data set for Enhanced Conversions", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:25.118 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Identify completed [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:25.118 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Message received from parent [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:25.119 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Processing message [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:25.120 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Handling identify message [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:25.120 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] identify called [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:25.121 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] gtag user_data set for Enhanced Conversions", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:25.121 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Identify completed [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:25.301 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Message received from parent [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:25.301 I/chromium( 5120): [INFO:CONSOLE:53] "[IsolatedSegment] Message not for isolated-segment, ignoring [object Object]", source: https://a.claude.ai/isolated-segment.html?v=89041af208 (53)
+06-25 12:41:25.645 D/ActivityManager(  687): freezing 1694 com.google.android.gms
+06-25 12:41:25.736 D/ActivityManager(  687): Reschedule freeze for process 1694 com.google.android.gms (new pending txns), timeout=2818
+06-25 12:41:25.740 D/ActivityManager(  687): sync unfroze 1694 com.google.android.gms for 18
+06-25 12:41:26.616 I/chromium( 5120): [INFO:CONSOLE:1094] "AIQuotaCodex probe attempt=1 session=200 me=200 account=200 subscription=null plan=true usage=false rows=0", source:  (1094)
+06-25 12:41:26.617 I/chromium( 5120): [INFO:CONSOLE:1081] "AIQuotaCodex navigate usage dashboard", source:  (1081)
+06-25 12:41:27.878 D/AIQuotaBgRefreshService( 5120): inject provider=codex url=chatgpt.com/codex/cloud/settings/analytics
+06-25 12:41:28.555 I/chromium( 5120): [INFO:CONSOLE:124] "AIQuotaCodex collector started", source:  (124)
+06-25 12:41:31.809 I/chromium( 5120): [INFO:CONSOLE:1094] "AIQuotaCodex probe attempt=1 session=200 me=200 account=200 subscription=null plan=true usage=false rows=0", source:  (1094)
+06-25 12:41:32.619 D/AIQuotaBgRefreshService( 5120): pageFinished provider=codex url=chatgpt.com/codex/cloud/settings/analytics
+06-25 12:41:33.288 D/AIQuotaBgRefreshService( 5120): pageFinished provider=codex url=chatgpt.com/codex/cloud/settings/analytics
+06-25 12:41:33.310 I/chromium( 5120): [INFO:CONSOLE:1094] "AIQuotaCodex probe attempt=2 session=200 me=200 account=200 subscription=null plan=true usage=false rows=0", source:  (1094)
+06-25 12:41:34.241 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.dailycodereviewpriority.series.p0" for locale "ko-KR", using default message (P0 issues) as fallback.
+06-25 12:41:34.241 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.246 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.dailycodereviewpriority.series.p1" for locale "ko-KR", using default message (P1 issues) as fallback.
+06-25 12:41:34.246 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.247 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.dailycodereviewpriority.series.p2" for locale "ko-KR", using default message (P2 issues) as fallback.
+06-25 12:41:34.247 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.247 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.dailycodereviewreactions.series.plus1" for locale "ko-KR", using default message (?몟 reactions) as fallback.
+06-25 12:41:34.247 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.254 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.dailycodereviewreactions.series.minus1" for locale "ko-KR", using default message (?몠 reactions) as fallback.
+06-25 12:41:34.254 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.254 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.dailycodereviewreactions.series.other" for locale "ko-KR", using default message (Other reactions) as fallback.
+06-25 12:41:34.254 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.256 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.usageSurface.absoluteUsers" for locale "ko-KR", using default message (Users) as fallback.
+06-25 12:41:34.256 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.257 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.usageSurface.desktop" for locale "ko-KR", using default message (Desktop) as fallback.
+06-25 12:41:34.257 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.258 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.usageSurface.cli" for locale "ko-KR", using default message (CLI) as fallback.
+06-25 12:41:34.258 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.258 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.usageSurface.vscode" for locale "ko-KR", using default message (Extension) as fallback.
+06-25 12:41:34.258 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.258 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.usageSurface.cloud" for locale "ko-KR", using default message (Cloud) as fallback.
+06-25 12:41:34.258 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.258 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.usageSurface.codeReview" for locale "ko-KR", using default message (Code Review) as fallback.
+06-25 12:41:34.258 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.259 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.dailyproductusageoverview.codeReviewSeriesLabel" for locale "ko-KR", using default message (Code review) as fallback.
+06-25 12:41:34.259 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.259 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.dailyproductusageoverview.webSeriesLabel" for locale "ko-KR", using default message (Cloud) as fallback.
+06-25 12:41:34.259 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.260 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.dailyproductusageoverview.desktopSeriesLabel" for locale "ko-KR", using default message (Desktop) as fallback.
+06-25 12:41:34.260 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.260 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.dailyproductusageoverview.vscodeSeriesLabel" for locale "ko-KR", using default message (Extension) as fallback.
+06-25 12:41:34.260 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.261 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.dailyproductusageoverview.cliSeriesLabel" for locale "ko-KR", using default message (CLI) as fallback.
+06-25 12:41:34.261 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.261 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.codeReviewPanel.prsReviewed.redesign" for locale "ko-KR", using default message (PRs reviewed) as fallback.
+06-25 12:41:34.261 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.262 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.codeReviewPanel.issuesFound.redesign" for locale "ko-KR", using default message (Issues found) as fallback.
+06-25 12:41:34.262 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.263 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.productUsage.threads" for locale "ko-KR", using default message (threads) as fallback.
+06-25 12:41:34.263 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.263 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.productUsage.threads" for locale "ko-KR", using default message (threads) as fallback.
+06-25 12:41:34.263 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.264 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.productUsage.metricPerInterval.redesign" for locale "ko-KR", using default message ({metric}/{groupBy, select, week {week} other {day}}) as fallback.
+06-25 12:41:34.264 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.267 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.productUsage.turns" for locale "ko-KR", using default message (turns) as fallback.
+06-25 12:41:34.267 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.268 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.productUsage.turns" for locale "ko-KR", using default message (turns) as fallback.
+06-25 12:41:34.268 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.268 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.productUsage.metricPerInterval.redesign" for locale "ko-KR", using default message ({metric}/{groupBy, select, week {week} other {day}}) as fallback.
+06-25 12:41:34.268 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.773 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.productUsage.breakdown.model.redesign" for locale "ko-KR", using default message (By model) as fallback.
+06-25 12:41:34.773 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.773 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.productUsage.breakdown.surface.redesign" for locale "ko-KR", using default message (By surface) as fallback.
+06-25 12:41:34.773 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.774 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.chart.summaryValueUnavailable" for locale "ko-KR", using default message (-) as fallback.
+06-25 12:41:34.774 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.774 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.dailypluginusage.tooltipTotalLabel" for locale "ko-KR", using default message (Total) as fallback.
+06-25 12:41:34.774 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.775 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.dailypluginusage.summaryLabel.redesign" for locale "ko-KR", using default message (Plugins calls) as fallback.
+06-25 12:41:34.775 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.776 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.chart.summaryValueUnavailable" for locale "ko-KR", using default message (-) as fallback.
+06-25 12:41:34.776 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.776 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.dailyskillusage.tooltipTotalLabel" for locale "ko-KR", using default message (Total) as fallback.
+06-25 12:41:34.776 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:34.777 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.dailyskillusage.summaryLabel.redesign" for locale "ko-KR", using default message (Skills used) as fallback.
+06-25 12:41:34.777 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:38.245 I/chromium( 5120): [INFO:CONSOLE:1094] "AIQuotaCodex probe attempt=3 session=200 me=200 account=200 subscription=null plan=true usage=false rows=0", source:  (1094)
+06-25 12:41:38.968 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.usageSurface.absoluteUsers" for locale "ko-KR", using default message (Users) as fallback.
+06-25 12:41:38.968 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:38.974 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.usageSurface.desktop" for locale "ko-KR", using default message (Desktop) as fallback.
+06-25 12:41:38.974 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:38.974 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.usageSurface.cli" for locale "ko-KR", using default message (CLI) as fallback.
+06-25 12:41:38.974 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:38.974 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.usageSurface.vscode" for locale "ko-KR", using default message (Extension) as fallback.
+06-25 12:41:38.974 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:38.974 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.usageSurface.cloud" for locale "ko-KR", using default message (Cloud) as fallback.
+06-25 12:41:38.974 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:38.974 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.usageSurface.codeReview" for locale "ko-KR", using default message (Code Review) as fallback.
+06-25 12:41:38.974 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:38.975 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.productUsage.threads" for locale "ko-KR", using default message (threads) as fallback.
+06-25 12:41:38.975 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:38.975 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.productUsage.threads" for locale "ko-KR", using default message (threads) as fallback.
+06-25 12:41:38.975 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:38.975 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.productUsage.metricPerInterval.redesign" for locale "ko-KR", using default message ({metric}/{groupBy, select, week {week} other {day}}) as fallback.
+06-25 12:41:38.975 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:38.975 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.productUsage.turns" for locale "ko-KR", using default message (turns) as fallback.
+06-25 12:41:38.975 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:38.975 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.productUsage.turns" for locale "ko-KR", using default message (turns) as fallback.
+06-25 12:41:38.975 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:38.976 I/chromium( 5120): [INFO:CONSOLE:61] "Error: [@formatjs/intl Error MISSING_TRANSLATION] Missing message: "codex.analytics.productUsage.metricPerInterval.redesign" for locale "ko-KR", using default message ({metric}/{groupBy, select, week {week} other {day}}) as fallback.
+06-25 12:41:38.976 I/chromium( 5120): ", source: https://chatgpt.com/cdn/assets/2340486e-ctgm1jysd236p265.js (61)
+06-25 12:41:43.377 I/chromium( 5120): [INFO:CONSOLE:1094] "AIQuotaCodex probe attempt=4 session=200 me=200 account=200 subscription=null plan=true usage=true rows=1", source:  (1094)
+06-25 12:41:43.439 D/AIQuotaBgRefreshService( 5120): payload provider=codex url=chatgpt.com/codex/cloud/settings/analytics summary=root=provider|source|account|usage|collectorMode|plan,provider=codex,collectorMode=webview-js-visible-dom,lineCount=0,hasUsage=true,hasData=false,hasError=false
+06-25 12:41:43.459 D/AIQuotaBgRefreshService( 5120): outcome provider=codex type=Payload
+06-25 12:41:43.481 D/AIQuotaBgRefreshService( 5120): saveSnapshot provider=codex source=webview lineCount=5 planPresent=true accountPresent=true
+06-25 12:41:44.032 D/ActivityManager(  687): sync unfroze 14775 com.aiquota.mobile:glm_webview for 6
+06-25 12:41:47.017 W/ActivityManager(  687): Slow operation: 282ms so far, now at startProcess: done creating new process record
+06-25 12:41:47.017 W/ActivityManager(  687): Slow operation: 283ms so far, now at startProcess: stepping in to startProcess
+06-25 12:41:47.100 W/ActivityManager(  687): Slow operation: 365ms so far, now at startProcess: done starting proc!
+06-25 12:41:47.105 W/ActivityManager(  687): Slow operation: 86ms so far, now at startProcess: asking zygote to start proc
+06-25 12:41:47.368 I/Zygote  (15654): Process 15654 created for com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:3
+06-25 12:41:47.418 W/ActivityManager(  687): Slow operation: 400ms so far, now at startProcess: returned from zygote!
+06-25 12:41:47.762 W/ActivityManager(  687): Slow operation: 744ms so far, now at startProcess: done updating battery stats
+06-25 12:41:47.794 W/ActivityManager(  687): Slow operation: 776ms so far, now at startProcess: building log message
+06-25 12:41:47.799 I/ActivityManager(  687): Start proc 15654:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:3/u0i68 for bound-service {com.aiquota.mobile/org.chromium.content.app.SandboxedProcessService0:3}
+06-25 12:41:47.815 W/ActivityManager(  687): Slow operation: 797ms so far, now at startProcess: starting to update pids map
+06-25 12:41:47.847 W/ActivityManager(  687): Slow operation: 829ms so far, now at startProcess: done updating pids map
+06-25 12:41:48.132 W/ActivityManager(  687): Slow operation: 92ms so far, now at attachApplicationLocked: immediately before bindApplication
+06-25 12:41:48.203 W/ActivityManager(  687): Slow operation: 164ms so far, now at attachApplicationLocked: immediately after bindApplication
+06-25 12:41:48.217 W/ActivityManager(  687): Slow operation: 178ms so far, now at attachApplicationLocked: after updateLruProcessLocked
+06-25 12:41:48.323 W/ActivityManager(  687): Slow operation: 284ms so far, now at attachApplicationLocked: after updateOomAdjLocked
+06-25 12:41:49.981 I/cr_WebViewApkApp(15654): version=148.0.7778.215 (777821508) minSdkVersion=29 processName=com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:3 splits=<none>
+06-25 12:41:50.102 W/ActivityManager(  687): Slow operation: 100ms so far, now at finishAttachApplicationInner: after mServices.attachApplicationLocked
+06-25 12:41:50.103 W/ActivityManager(  687): Slow operation: 101ms so far, now at finishAttachApplicationInner: after dispatching broadcasts
+06-25 12:41:51.778 I/chromium(15654): [INFO:third_party/skia/src/ports/SkFontMgr_android_parser.cpp:723] [SkFontMgr Android Parser] '/product/etc/fonts_customization.xml' could not be opened
+06-25 12:41:51.778 I/chromium(15654): 
+06-25 12:41:51.794 W/chromium(15654): [WARNING:content/child/runtime_features.cc:540] Fenced frames cannot be enabled in this configuration. Use --enable-features=FencedFrames instead.
+06-25 12:41:51.795 W/chromium(15654): [WARNING:content/child/runtime_features.cc:565] Topics cannot be enabled in this configuration. Use --enable-features=BrowsingTopics in addition.
+06-25 12:41:51.795 W/chromium(15654): [WARNING:content/child/runtime_features.cc:586] SharedStorage cannot be enabled in this configuration. Use --enable-features=SharedStorageAPI in addition.
+06-25 12:41:56.582 W/cr_AwContents(14775): 	at org.chromium.android_webview.AwContents.q(chromium-SystemWebViewGoogle6432.aab-stable-777821508:10)
+06-25 12:41:56.582 W/cr_AwContents(14775): 	at WV.bn.loadingStateChanged(chromium-SystemWebViewGoogle6432.aab-stable-777821508:6)
+06-25 12:41:58.733 W/ActivityManager(  687): pid 687 system sent binder code 42 with flags 1 and got error -32
+06-25 12:41:58.868 I/ActivityManager(  687): Process com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:3 (pid 15654) has died: cch CEM 
+06-25 12:41:59.382 W/ActivityManager(  687): Scheduling restart of crashed service com.aiquota.mobile/org.chromium.content.app.SandboxedProcessService0:3 in 1000ms for connection
+06-25 12:42:00.072 W/libbinder.Binder(  687): Binder transaction to android.app.IActivityManager, function: UNKNOWN_FUNCTION_NAME, code: 69, took 1141ms. Data bytes: 116 Reply bytes: 0 Flags: 17
+06-25 12:42:00.953 I/ActivityManager(  687): Process com.google.android.webview:webview_service (pid 5869) has died: cch  +55 CEM 
+06-25 12:42:14.122 W/libbinder.Binder(  687): Binder transaction to android.app.IActivityManager, function: UNKNOWN_FUNCTION_NAME, code: 35, took 7256ms. Data bytes: 380 Reply bytes: 4164 Flags: 18
+06-25 12:42:14.443 D/ActivityManager(  687): freezing 14775 com.aiquota.mobile:glm_webview
+06-25 12:42:41.365 W/libbinder.Binder(  687): Binder transaction to android.app.IActivityManager, function: UNKNOWN_FUNCTION_NAME, code: 37, took 1124ms. Data bytes: 112 Reply bytes: 8 Flags: 18
+06-25 12:42:58.056 W/libbinder.Binder(  687): Binder transaction to android.app.IActivityManager, function: UNKNOWN_FUNCTION_NAME, code: 78, took 14484ms. Data bytes: 108 Reply bytes: 0 Flags: 17
+06-25 12:43:00.918 D/ActivityManager(  687): freezing 1694 com.google.android.gms

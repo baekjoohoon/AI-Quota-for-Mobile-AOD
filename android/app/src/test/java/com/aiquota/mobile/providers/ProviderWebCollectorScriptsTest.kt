@@ -203,6 +203,195 @@ class ProviderWebCollectorScriptsTest {
     }
 
     @Test
+    fun glmCollectorFetchesQuotaJsonBeforeDomFallback() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected GLM runtime checks", node != null)
+
+        val glm = ProviderWebCollectorScripts.build(ProviderId.GLM, emptyMap(), "")
+        val path = Files.createTempFile("ai-quota-glm-quota-json-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            const quotaUrl = "https://api.z.ai/api/monitor/usage/quota/limit";
+            const quotaResponse = JSON.stringify({
+              code: 200,
+              success: true,
+              data: {
+                level: { packageName: "GLM Coding Max-Yearly Plan" },
+                limits: [
+                  { limitType: "TIME_LIMIT", unit: 5, number: 1, usage: 500, currentValue: 10, percentage: 2, nextResetTime: 1792537200000 },
+                  { limitType: "TOKENS_LIMIT", unit: 3, number: 5, percentage: 3, nextResetTime: 1792537200000 },
+                  { limitType: "TOKENS_LIMIT", unit: 6, number: 1, percentage: 4, nextResetTime: 1792537200000 }
+                ]
+              }
+            });
+            let quotaFetches = 0;
+            global.window = global;
+            global.location = {
+              hostname: "z.ai",
+              pathname: "/manage-apikey/coding-plan/personal/usage",
+              href: "https://z.ai/manage-apikey/coding-plan/personal/usage"
+            };
+            global.document = {
+              title: "Usage",
+              body: { innerText: "GLM Coding Plan Usage" },
+              documentElement: { innerText: "GLM Coding Plan Usage" },
+              scripts: [],
+              querySelectorAll: () => []
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.fetch = async function(input) {
+              const url = typeof input === "string" ? input : (input && input.url) || "";
+              const text = url === quotaUrl ? quotaResponse : "";
+              if (url === quotaUrl) quotaFetches += 1;
+              return {
+                ok: true,
+                status: 200,
+                clone() { return { text: async () => text }; },
+                text: async () => text
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn) {
+              timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $glm
+            (async function() {
+              for (let i = 0; i < 8 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              const limits = posted[0] && posted[0].data && posted[0].data.limits;
+              if (quotaFetches !== 1 || posted.length !== 1 || errors.length !== 0) {
+                console.error(JSON.stringify({ quotaFetches, posted, errors }));
+                process.exit(1);
+              }
+              if (posted[0].source !== "webview-network" || posted[0].plan !== "Max") {
+                console.error(JSON.stringify(posted[0]));
+                process.exit(1);
+              }
+              if (!Array.isArray(limits) || limits.length !== 3) {
+                console.error(JSON.stringify(limits));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("GLM collector did not fetch quota JSON before DOM fallback:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun glmCollectorDoesNotReadIrrelevantFetchBodies() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected GLM runtime checks", node != null)
+
+        val glm = ProviderWebCollectorScripts.build(ProviderId.GLM, emptyMap(), "")
+        val path = Files.createTempFile("ai-quota-glm-network-filter-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            let cloneTextReads = 0;
+            global.window = global;
+            global.location = {
+              hostname: "z.ai",
+              pathname: "/manage-apikey/coding-plan/personal/usage",
+              href: "https://z.ai/manage-apikey/coding-plan/personal/usage"
+            };
+            global.document = {
+              title: "Usage",
+              body: { innerText: "" },
+              documentElement: { innerText: "" },
+              scripts: [],
+              querySelectorAll: () => []
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value))
+            };
+            global.fetch = async function() {
+              return {
+                ok: true,
+                status: 200,
+                clone() {
+                  return {
+                    text: async () => {
+                      cloneTextReads += 1;
+                      return "{}";
+                    }
+                  };
+                },
+                text: async () => "{}"
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function() { return 0; };
+            global.clearTimeout = function() {};
+            $glm
+            (async function() {
+              await window.fetch("https://www.google-analytics.com/g/collect?dl=https%3A%2F%2Fz.ai%2Fmanage-apikey%2Fcoding-plan%2Fpersonal%2Fusage");
+              await Promise.resolve();
+              await new Promise((resolve) => setImmediate(resolve));
+              if (cloneTextReads !== 0) {
+                console.error(JSON.stringify({ cloneTextReads, posted, errors }));
+                process.exit(1);
+              }
+              await window.fetch("https://api.z.ai/api/monitor/usage/quota/limit");
+              await Promise.resolve();
+              await new Promise((resolve) => setImmediate(resolve));
+              if (cloneTextReads !== 1) {
+                console.error(JSON.stringify({ cloneTextReads, posted, errors }));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("GLM collector read irrelevant fetch response bodies:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun glmCollectorPicksPlanTierFromVisibleMyPlanPage() {
         val node = nodeCommandOrNull()
         assumeTrue("node is required for injected GLM runtime checks", node != null)
@@ -1965,6 +2154,120 @@ class ProviderWebCollectorScriptsTest {
     }
 
     @Test
+    fun copilotCollectorUsesJsonWhenFeaturesPageUsageIsIncomplete() {
+        val node = nodeCommandOrNull()
+        assumeTrue("node is required for injected Copilot runtime checks", node != null)
+
+        val copilot = ProviderWebCollectorScripts.build(ProviderId.COPILOT, emptyMap(), "")
+        val path = Files.createTempFile("ai-quota-copilot-json-first-runtime", ".js")
+        val runtime = """
+            const posted = [];
+            const errors = [];
+            const timers = [];
+            global.window = global;
+            global.location = { pathname: "/settings/copilot/features", href: "https://github.com/settings/copilot/features" };
+            global.document = {
+              title: "GitHub Copilot",
+              documentElement: { innerText: "GitHub Copilot Free\nChat messages 10% used" },
+              scripts: [],
+              querySelector: () => null,
+              createElement: () => ({ innerHTML: "", value: "" })
+            };
+            class StorageMock {
+              constructor(values) { this.values = values || {}; this.keys = Object.keys(this.values); this.length = this.keys.length; }
+              key(index) { return this.keys[index] || null; }
+              getItem(key) { return this.values[key] || ""; }
+            }
+            global.localStorage = new StorageMock({});
+            global.sessionStorage = new StorageMock({});
+            global.AIQuotaCollectorBridge = {
+              postUsagePayload: (value) => posted.push(JSON.parse(value)),
+              postCollectorError: (value) => errors.push(JSON.parse(value)),
+              fetchCopilotJson: (url) => {
+                if (url.indexOf("/github-copilot/chat/entitlement") >= 0) {
+                  return JSON.stringify({ ok: true, status: 200, json: { plan: "free", quotas: {} } });
+                }
+                if (url.indexOf("/settings/copilot") >= 0) {
+                  return JSON.stringify({ ok: false, status: 404, json: {} });
+                }
+                if (url.indexOf("/settings/billing/premium_requests_usage") >= 0) {
+                  return JSON.stringify({ ok: false, status: 404, json: {} });
+                }
+                return JSON.stringify({ ok: false, status: 404, json: {} });
+              },
+              fetchCopilotJsonWithAuthorization: (url) => {
+                if (url.indexOf("/copilot_internal/user") >= 0) {
+                  return JSON.stringify({
+                    ok: true,
+                    status: 200,
+                    json: {
+                      limited_user_quotas: { chat: 410, completions: 3000 },
+                      monthly_quotas: { chat: 500, completions: 4000 },
+                      limited_user_reset_date: "2026-06-15"
+                    }
+                  });
+                }
+                return JSON.stringify({ ok: false, status: 404, json: {} });
+              }
+            };
+            global.fetch = async function(url) {
+              if (String(url).indexOf("/github-copilot/chat/token") >= 0) {
+                return {
+                  ok: true,
+                  status: 200,
+                  text: async () => JSON.stringify({ token: "abc123" })
+                };
+              }
+              return {
+                ok: false,
+                status: 404,
+                text: async () => "{}"
+              };
+            };
+            global.XMLHttpRequest = function() {};
+            global.XMLHttpRequest.prototype = {
+              open() {},
+              send() {},
+              addEventListener() {}
+            };
+            global.setTimeout = function(fn) {
+              timers.push(fn);
+              return timers.length;
+            };
+            global.clearTimeout = function() {};
+            $copilot
+            (async function() {
+              for (let i = 0; i < 14 && posted.length === 0 && errors.length === 0; i += 1) {
+                while (timers.length > 0) timers.shift()();
+                await Promise.resolve();
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+              if (posted.length === 0) {
+                console.error(JSON.stringify({ posted, errors }));
+                process.exit(1);
+              }
+              const quotas = posted[0].quotas || {};
+              if (!quotas.limited_user_quotas || !quotas.monthly_quotas) {
+                console.error(JSON.stringify(posted[0]));
+                process.exit(1);
+              }
+              if (posted[0].collectorMode === "webview-features-page") {
+                console.error(JSON.stringify(posted[0]));
+                process.exit(1);
+              }
+            })();
+        """.trimIndent()
+        try {
+            Files.write(path, runtime.toByteArray(StandardCharsets.UTF_8))
+            val process = ProcessBuilder(node!!, path.toString()).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            assertTrue("Copilot incomplete features page should fall through to JSON usage:\n$output", process.waitFor() == 0)
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun cursorCollectorExtractsUsageFromWebViewState() {
         val node = nodeCommandOrNull()
         assumeTrue("node is required for injected Cursor runtime checks", node != null)
@@ -2262,7 +2565,7 @@ class ProviderWebCollectorScriptsTest {
         assertTrue(copilot.contains("scanCopilotUsageText"))
         assertTrue(copilot.contains("remainingPercent"))
         assertTrue(copilot.contains("quota_reset_date"))
-        assertTrue(copilot.contains("settings/copilot/features"))
+        assertFalse(copilot.contains("copilot_features_usage_incomplete"))
         assertTrue(copilot.contains("fetchCopilotJsonWithAuthorization"))
         assertTrue(copilot.contains("GitHub-Bearer"))
         assertTrue(copilot.contains("githubApiAuthorizationHeaderFromToken"))
