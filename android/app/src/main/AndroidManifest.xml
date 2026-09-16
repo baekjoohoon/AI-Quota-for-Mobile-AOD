@@ -142,5 +142,16 @@
         android:name="android.appwidget.provider"
         android:resource="@xml/ai_quota_widget_provider" />
     </receiver>
+    <receiver
+      android:name=".widget.CodexAodWidgetProvider"
+      android:label="@string/widget_label_codex_aod"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/ai_quota_widget_codex_aod" />
+    </receiver>
   </application>
 </manifest>

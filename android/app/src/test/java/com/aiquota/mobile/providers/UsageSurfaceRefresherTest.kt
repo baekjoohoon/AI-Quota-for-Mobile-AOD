@@ -1,4 +1,4 @@
-﻿package com.aiquota.mobile.providers
+package com.aiquota.mobile.providers
 
 import java.io.File
 import org.junit.Assert.assertFalse
@@ -54,6 +54,13 @@ class UsageSurfaceRefresherTest {
 
         assertTrue(source.contains("ProviderUsageWidgetProvider.updateAll(appContext)"))
         assertFalse(source.contains("ProviderUsageGlanceWidget().updateAll(appContext)"))
+    }
+
+    @Test
+    fun surfaceRefreshUpdatesCodexAodWidgetFromTheSharedSnapshotCache() {
+        val source = sourceFile("src/main/java/com/aiquota/mobile/providers/UsageSurfaceRefresher.kt")
+
+        assertTrue(source.contains("CodexAodWidgetProvider.updateAll(appContext)"))
     }
 
     @Test

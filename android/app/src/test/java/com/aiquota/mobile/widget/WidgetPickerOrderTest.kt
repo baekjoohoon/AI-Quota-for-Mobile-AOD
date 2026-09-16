@@ -25,7 +25,8 @@ class WidgetPickerOrderTest {
             listOf(
                 ".widget.AIQuotaUnifiedGlanceWidgetReceiver",
                 ".widget.AIQuotaCircularWidgetProvider",
-                ".widget.ProviderUsageWidgetProvider"
+                ".widget.ProviderUsageWidgetProvider",
+                ".widget.CodexAodWidgetProvider"
             ),
             declaredReceiverNames
         )

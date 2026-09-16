@@ -4,6 +4,7 @@
     <string name="widget_label_3x2">AI Quota 3x2</string>
     <string name="widget_label_unified">AI Quota 대시보드</string>
     <string name="widget_label_provider">AI Quota Provider</string>
+    <string name="widget_label_codex_aod">AI Quota Codex AOD</string>
     <string name="widget_no_data">데이터 없음</string>
     <string name="widget_sign_in_required">로그인이 필요합니다</string>
     <string name="widget_refresh">위젯 새로고침</string>

@@ -4,6 +4,7 @@
     <string name="widget_label_3x2">AI Quota 3x2</string>
     <string name="widget_label_unified">AI Quota Dashboard</string>
     <string name="widget_label_provider">AI Quota Provider</string>
+    <string name="widget_label_codex_aod">AI Quota Codex AOD</string>
     <string name="widget_no_data">No data</string>
     <string name="widget_sign_in_required">Please sign in.</string>
     <string name="widget_refresh">Refresh widget</string>

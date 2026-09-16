@@ -10,6 +10,7 @@ import com.aiquota.mobile.notification.UsageLimitNotificationController
 import com.aiquota.mobile.sync.ForegroundRefreshController
 import com.aiquota.mobile.widget.AIQuotaCircularWidgetProvider
 import com.aiquota.mobile.widget.AIQuotaUnifiedGlanceWidget
+import com.aiquota.mobile.widget.CodexAodWidgetProvider
 import com.aiquota.mobile.widget.ProviderUsageWidgetProvider
 import com.aiquota.mobile.widget.WidgetSnapshotCache
 import java.time.Instant
@@ -132,6 +133,7 @@ object UsageSurfaceRefresher {
             }
         runCatching { AIQuotaUnifiedGlanceWidget().updateAll(appContext) }
         runCatching { ProviderUsageWidgetProvider.updateAll(appContext) }
+        runCatching { CodexAodWidgetProvider.updateAll(appContext) }
     }
 
     private const val TAG = "AIQuotaSurfaceRefresh"
