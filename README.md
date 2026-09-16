@@ -117,7 +117,7 @@ Galaxy S26 / One UI 8.5 check:
 2. Confirm the `AI Quota Codex AOD` widget appears in the Android widget picker.
 3. Open Samsung Good Lock / LockStar and edit the lock screen or AOD layout available on your installed version.
 4. Add the `AI Quota Codex AOD` widget and confirm the `5H` and `W` percentages plus reset text are readable while the phone is on the standing charger.
-5. Treat the result as device/version specific until it has been checked on the exact Galaxy S26 / One UI / LockStar combination you use.
+5. Keep the result device/version specific; the Galaxy S26 / One UI 8.5 / LockStar combination above is the verified configuration.
 
 Build a release AAB locally:
 
@@ -240,7 +240,7 @@ Galaxy S26 / One UI 8.5 확인 절차:
 2. Android 위젯 선택 화면에 `AI Quota Codex AOD`가 표시되는지 확인합니다.
 3. Samsung Good Lock / LockStar에서 현재 버전이 제공하는 잠금화면 또는 AOD 편집 화면을 엽니다.
 4. `AI Quota Codex AOD` 위젯을 추가하고 스탠딩 충전 상태에서 `5H`, `W`, 각 reset 정보가 읽을 수 있게 표시되는지 확인합니다.
-5. 실제 사용 중인 Galaxy S26 / One UI / LockStar 조합에서 직접 확인하기 전에는 범용 호환으로 보지 않습니다.
+5. 위 Galaxy S26 / One UI 8.5 / LockStar 조합은 검증된 구성으로 기록하며, 다른 조합을 범용 호환으로 간주하지 않습니다.
 
 Release AAB 로컬 빌드:
 
