@@ -2,9 +2,9 @@
 
 [English](#english) | [한국어](#korean)
 
-> Fork of [`datell1357/AI-Quota-for-Mobile`](https://github.com/datell1357/AI-Quota-for-Mobile) that keeps the existing AI Quota functionality and adds a compact Codex AppWidget for Samsung Galaxy S26 / One UI 8.5 lock-screen and AOD use through Good Lock / LockStar.
+> Unofficial fork of [`datell1357/AI-Quota-for-Mobile`](https://github.com/datell1357/AI-Quota-for-Mobile) for a personal Galaxy S26 / One UI 8.5 / Good Lock / LockStar AOD extension. It is separate from upstream and is not the official Google Play app or an official distribution of upstream, Google, Samsung, Anthropic, OpenAI, or any provider named below.
 >
-> Verified on the maintainer's Galaxy S26 / One UI 8.5 setup. Compatibility with other Galaxy models, One UI versions, launchers, or LockStar releases is not guaranteed. The project remains under the upstream MIT License.
+> Verified on the maintainer's Galaxy S26 / One UI 8.5 setup. Compatibility with other Galaxy models, One UI versions, launchers, or LockStar releases is not guaranteed. See [NOTICE.md](NOTICE.md) for attribution and the scoped license information.
 
 ## Galaxy S26 AOD
 
@@ -20,11 +20,13 @@ AI Quota for Mobile is an Android app for checking AI provider usage limits from
 
 This fork adds a personal Galaxy S26 / One UI 8.5 experiment for showing the Codex quota as a compact widget that can be selected from Samsung Good Lock / LockStar where third-party AppWidgets are supported. It is based on the upstream `datell1357/AI-Quota-for-Mobile` project and does not guarantee AOD or lock-screen support on other Galaxy models, One UI versions, launchers, or LockStar releases.
 
-The fork remains MIT-licensed. You may fork it again and adapt it for your own device while preserving the original copyright and license notices.
+Attribution and licensing are documented in [NOTICE.md](NOTICE.md). The upstream README labels the project MIT, but that does not relicense upstream code or third-party assets under this fork's own notice.
 
 ### Current Status
 
 The Android app is being prepared for Google Play internal testing.
+
+No release APK or AAB is committed to the current branch or attached to its GitHub Releases at the time of this review. A locally built artifact is not an official upstream or Google Play distribution.
 
 Current upload artifact:
 
@@ -62,6 +64,8 @@ com.aiquota.mobile
 ```
 
 The Kotlin namespace is still `com.aiquota.mobile` internally. That is an implementation detail and does not change the Google Play package name.
+
+This package/applicationId is intentionally retained for upstream compatibility. A source build from this repository is not an update to the official Play app and may use a different signing key. Before publicly distributing an APK or registering a Play listing, use an independent applicationId/package, signing key, Firebase project, OAuth configuration, app name, icon, and store identity.
 
 ### Privacy
 
@@ -129,7 +133,7 @@ android/app/build/outputs/bundle/release/app-release.aab
 
 ### License
 
-MIT
+See [NOTICE.md](NOTICE.md) for the upstream link, the upstream README's MIT statement, the checked repository state, and the limited license scope for this fork's original AOD changes. This fork does not claim ownership of upstream code or third-party assets.
 
 ---
 
@@ -139,7 +143,7 @@ AI Quota for Mobile은 여러 AI provider의 사용량을 한곳에서 확인하
 
 이 fork는 upstream `datell1357/AI-Quota-for-Mobile`을 기반으로 Galaxy S26 / One UI 8.5에서 Codex quota를 Samsung Good Lock / LockStar를 통해 잠금화면 또는 AOD에 배치해 보기 위한 개인용 실험을 추가합니다. 다른 Galaxy 모델, One UI 버전, 런처, LockStar 버전에서의 AOD/잠금화면 동작은 보장하지 않습니다.
 
-라이선스는 기존과 동일한 MIT이며, 원 저작권과 라이선스 고지를 유지하는 범위에서 자유롭게 다시 fork하여 본인 기기에 맞게 수정할 수 있습니다.
+라이선스와 출처 범위는 [NOTICE.md](NOTICE.md)에 정리되어 있습니다. upstream README는 프로젝트를 MIT라고 표시하지만, 이 fork의 고지가 upstream 코드나 제3자 자산의 저작권을 새로 부여하거나 이전한다는 뜻은 아닙니다.
 
 ### 현재 상태
 
@@ -181,6 +185,8 @@ com.aiquota.mobile
 ```
 
 Kotlin namespace는 내부 구현 사항으로 `com.aiquota.mobile`을 유지합니다. Google Play 패키지 이름과는 별개입니다.
+
+이 package/applicationId는 upstream 호환성을 위해 현재 유지합니다. 이 저장소에서 직접 빌드한 APK는 공식 Play 앱의 업데이트가 아니며 signing key가 다를 수 있습니다. 공개 APK 배포나 Google Play 등록 전에는 독립적인 applicationId/package, signing key, Firebase 프로젝트, OAuth 설정, 앱 이름, 아이콘, 스토어 identity를 사용해야 합니다.
 
 ### 개인정보 및 데이터 삭제
 
@@ -248,4 +254,4 @@ android/app/build/outputs/bundle/release/app-release.aab
 
 ### 라이선스
 
-MIT
+[NOTICE.md](NOTICE.md)에 upstream 출처, 확인된 라이선스 상태, 이 fork의 원본 AOD 변경사항에 대한 제한된 라이선스 범위를 정리했습니다.
