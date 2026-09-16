@@ -1,6 +1,16 @@
-# AI Quota for Mobile
+# AI Quota for Mobile AOD
 
 [English](#english) | [한국어](#korean)
+
+> Fork of [`datell1357/AI-Quota-for-Mobile`](https://github.com/datell1357/AI-Quota-for-Mobile) that keeps the existing AI Quota functionality and adds a compact Codex AppWidget for Samsung Galaxy S26 / One UI 8.5 lock-screen and AOD use through Good Lock / LockStar.
+>
+> Verified on the maintainer's Galaxy S26 / One UI 8.5 setup. Compatibility with other Galaxy models, One UI versions, launchers, or LockStar releases is not guaranteed. The project remains under the upstream MIT License.
+
+## Galaxy S26 AOD
+
+Real-device verification completed on Galaxy S26 / One UI 8.5 with Samsung Good Lock / LockStar, including Android widget picker visibility, LockStar placement, lock-screen display, AOD display, and normal operation.
+
+![AI Quota on Galaxy S26 AOD](docs/images/galaxy-s26-aod.jpg)
 
 ---
 
